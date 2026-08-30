@@ -58,8 +58,8 @@ def test_acceptance_vertical_slice(client):
     assert ev["profit_model"]["category_code"] == "dairy"
     assert "estimated_monthly_operating_profit" in ev["profit_model"]["outputs"]
 
-    # recommendation present
-    assert ev["recommendation"]["label"] in ("GO", "MODIFY", "AVOID")
+    # recommendation present (four-state decision)
+    assert ev["recommendation"]["label"] in ("GO", "MODIFY", "AVOID", "INSUFFICIENT DATA")
 
     # data sources documented
     assert isinstance(ev["data_sources"], list)
@@ -118,3 +118,98 @@ def test_ai_report_grounded_in_context(client, seeded):
     assert res.status_code == 200
     # Report is grounded in the evidence context
     assert res.json()["content"]
+
+
+# ---------- Phase 22: E2E evidence-status contract ----------
+# One analysis must expose every honest evidence status: REAL (verified price
+# rows), CALCULATED (computed opportunity index), ESTIMATED (profit model),
+# HISTORICAL (Census 2011 baseline), UNAVAILABLE (missing weather), and DEMO
+# rows must never leak into real evidence.
+
+def _run(client):
+    return client.post("/analysis", json={
+        "state": "Tamil Nadu", "district": "Erode",
+        "block": "Sathyamangalam", "village": "Sathyamangalam",
+        "capital_available": 100000, "category_code": "dairy",
+    }).json()
+
+
+def _price(session, item, demo=False, ref="2026-06-15", modal=52.0):
+    from datetime import date
+
+    from app.db.models import MarketPrice
+
+    session.add(MarketPrice(
+        item_name=item, category="agriculture", unit="kg",
+        modal_price=modal, min_price=modal - 5, max_price=modal + 5,
+        market_name="Erode Market", state="Tamil Nadu", district="Erode",
+        mandi="Erode Market", reference_date=date.fromisoformat(ref),
+        source_name="Agmarknet" if not demo else "some-demo",
+        source_type="government" if not demo else "demo",
+        dataset_name="market_prices", confidence="high",
+        is_estimate=False, is_demo=demo,
+    ))
+
+
+def test_e2e_all_live_evidence_statuses(client, session):
+    _price(session, "milk")
+    _price(session, "ghee")
+    session.commit()
+    ev = _run(client)
+
+    # REAL price evidence (verified, non-demo rows only)
+    assert ev["price"]["available"] is True
+    assert all(i["item_name"] for i in ev["price"]["items"])
+    assert ev["price"]["source"]["source_type"] == "government"
+    assert not any(i.get("is_demo") for i in ev["price"]["items"])
+
+    # HISTORICAL population baseline
+    assert ev["population"]["available"] is True
+    assert ev["population"]["is_historical"] is True
+    assert ev["population"]["census_year"] == 2011
+
+    # ESTIMATED profit projection
+    assert ev["profit_model"]["is_estimate"] is True
+
+    # CALCULATED opportunity index with four-state decision
+    score = ev["opportunity_score"]
+    assert score["overall_score"] is not None
+    assert score["risk_score"] is not None
+    assert ev["recommendation"]["label"] in ("GO", "MODIFY", "AVOID", "INSUFFICIENT DATA")
+
+    # UNAVAILABLE weather (no rows stored) - no fabricated flags
+    assert ev["weather"]["available"] is False
+    assert ev["weather"]["risk"]["factors"] is None
+
+    # provenance ledger documented
+    assert any(s["name"] == "Mandi prices (verified)" for s in ev["data_sources"])
+
+
+def test_e2e_demo_rows_never_leak_into_evidence(client, session):
+    from app.db.models import Business, WeatherStatistic
+
+    _price(session, "milk", demo=True)          # demo price
+    session.add(Business(
+        name="Demo Dairy", category_code="dairy",
+        latitude=11.5050, longitude=77.2390, source="demo", source_id="999",
+        source_name="demo", source_type="demo", is_demo=True))
+    session.add(WeatherStatistic(
+        location_id="loc_sathya", level="village", indicator="forecast_temperature_max",
+        period="2026-08-31", value=45.0, unit="degC",
+        source_name="Open-Meteo", source_type="test", is_estimate=True, is_demo=True))
+    session.commit()
+    ev = _run(client)
+
+    # demo price rows are excluded -> price UNAVAILABLE, not showing demo values
+    assert ev["price"]["available"] is False
+    assert ev["price"]["items"] == []
+    assert ev["price"]["unavailable_reason"].startswith("No verified")
+
+    # demo heat-stress weather row must NOT raise a risk flag
+    assert ev["weather"]["available"] is False
+    assert ev["weather"]["risk"]["factors"] is None
+    assert ev["weather"]["records"] == []
+
+    # demo competitor excluded from the mapped-competitor counts
+    names = {c["name"] for c in ev["business_competition"].get("competitors", [])}
+    assert "Demo Dairy" not in names

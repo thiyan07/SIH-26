@@ -23,11 +23,16 @@ interface PointProps {
   name?: string
   category?: string
   distance_km?: number | null
+  source?: string
+  is_demo?: boolean
+  confidence?: string
 }
 
 /**
  * MapCN <MapClusterLayer> — clustered dot layer for business point sets.
- * Nearby points group into numbered clusters; each point has a detail popup.
+ * Nearby points group into numbered clusters; each point has a detail popup
+ * that also shows data provenance (source + demo/test marker) so users can
+ * tell verified mappings from demonstration rows.
  */
 export function MapClusterLayer({ data, color = '#10b981', highlightColor = '#16a34a' }: ClusterLayerProps) {
   const features = data?.features || []
@@ -58,9 +63,14 @@ export function MapClusterLayer({ data, color = '#10b981', highlightColor = '#16
           >
             <Popup>
               <div className="p-1">
-                <div className="font-semibold text-gray-900">{props.name || 'Business'}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-gray-900">{props.name || 'Business'}</span>
+                  {props.is_demo && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Demo/test</span>}
+                </div>
                 {props.category && <div className="text-xs text-gray-500">{props.category}</div>}
                 {props.distance_km != null && <div className="text-xs">{Number(props.distance_km).toFixed(2)} km away</div>}
+                {props.source && <div className="mt-1 text-[11px] text-gray-400">Source: {props.source}</div>}
+                {props.confidence && <div className="text-[11px] text-gray-400">Confidence: {props.confidence}</div>}
               </div>
             </Popup>
           </Marker>

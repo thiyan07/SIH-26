@@ -6,7 +6,7 @@ columns. The frontend map renders each layer as a separate toggle.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.db.models import Business, InfrastructurePoint
@@ -16,13 +16,15 @@ from app.geojson import (
     businesses_feature_collection,
     infrastructure_feature_collection,
 )
+from app.limiter import limiter
 from app.schemas import LayerQuery
 
 router = APIRouter(prefix="/geojson", tags=["geojson"])
 
 
 @router.post("/layers")
-def geojson_layers(q: LayerQuery, db: Session = Depends(get_db)):
+@limiter.limit("120/minute")
+def geojson_layers(request: Request, q: LayerQuery, db: Session = Depends(get_db)):
     layers = q.layers or ["businesses", "infrastructure", "markets"]
     out: dict = {}
     counts: dict = {}

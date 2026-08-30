@@ -33,7 +33,8 @@ from app.engines.score import (
     ConfidenceFactors,
     compute_opportunity,
 )
-from app.geo import distance_to, geo_backend_name
+from app.engines.weather import weather_risk_factors
+from app.geo import distance_to, geo_backend_name, real_data_condition
 from app.provenance import (
     QualityInputs,
     compute_data_quality,
@@ -109,7 +110,10 @@ def _business_out(b: Any, lat: float, lon: float) -> dict:
 
 
 def _population(db: Session, location: Location) -> dict:
-    stmt = select(PopulationStatistic).where(PopulationStatistic.location_id == location.id)
+    stmt = select(PopulationStatistic).where(
+        PopulationStatistic.location_id == location.id,
+        real_data_condition(PopulationStatistic),
+    )
     row = db.execute(stmt).scalars().first()
     if row is None:
         return {
@@ -160,10 +164,18 @@ def _infrastructure(db: Session, location: Location) -> dict:
 
 
 def _weather(db: Session, location: Location) -> dict:
-    stmt = select(WeatherStatistic).where(WeatherStatistic.location_id == location.id).limit(5)
+    stmt = select(WeatherStatistic).where(
+        WeatherStatistic.location_id == location.id,
+        real_data_condition(WeatherStatistic),
+    ).limit(20)
     rows = list(db.execute(stmt).scalars())
-    return {"records": [_entry(r) | {"indicator": r.indicator, "value": r.value} for r in rows],
-            "available": bool(rows)}
+    records = [_entry(r) | {"indicator": r.indicator, "value": r.value} for r in rows]
+    return {
+        "records": records,
+        "available": bool(rows),
+        # Phase 7: named, explained weather-risk flags built only from stored rows.
+        "risk": weather_risk_factors(records),
+    }
 
 
 def _price_potential(db: Session, category_code: str, district: str) -> dict:
@@ -486,6 +498,8 @@ def _risk_score(competition: dict, weather: dict, infrastructure: dict) -> float
         risk += 15
     if weather.get("available") is False:
         risk += 5
+    else:
+        risk += weather.get("risk", {}).get("risk_delta", 0)
     return round(max(0.0, min(100.0, risk)), 1)
 
 

@@ -14,7 +14,9 @@ client = TestClient(app)
 def _seed_source(session, **extra):
     row = DataSource(
         key="market_prices_demo", display_name="Market Prices (demo)", category="market_prices",
-        dataset_name="market_prices", source_type="demo", is_demo=True,
+        dataset_name="market_prices",
+        source_type=extra.pop("source_type", "demo"),
+        is_demo=extra.pop("is_demo", True),
         why_used=extra.pop("why_used", "Only referenced going prices exist; used to score price potential."),
         known_limitations=extra.pop("known_limitations", ["Prices vary by season and market day.", "Only a few items mapped."]),
         **extra,
@@ -62,3 +64,50 @@ def test_seed_defaults_persist_why_used(engine):
         for r in rows:
             assert r.why_used
             assert r.known_limitations
+
+
+# ---------- Phase 17: freshness/status + provider health ----------
+
+def _status_map(session):
+    session.commit()
+    d = client.get("/data-sources/status").json()
+    return {s["key"]: s for s in d["sources"]}
+
+
+def test_status_marks_operational_and_demo(session):
+    _seed_source(session)
+    session.commit()
+    st = _status_map(session)
+    assert st["market_prices_demo"]["status"] == "demo"
+    assert st["market_prices_demo"]["is_demo"] is True
+
+
+def test_status_marks_unavailable_when_no_rows(session):
+    _seed_source(session, is_active=True, is_demo=False, record_count=0,
+                 is_estimate=False, source_type="government")
+    st = _status_map(session)
+    assert st["market_prices_demo"]["status"] == "no_rows"
+
+
+def test_provider_health_reflects_rows_and_missing_keys(session, monkeypatch):
+    import datetime as dt
+
+    from app.db.models import MarketPrice
+
+    # claim that config is missing (no DATA_GOV_API_KEY) and rows exist for a mirror source
+    monkeypatch.setattr("app.api.data_sources.settings.data_gov_api_key", "")
+    session.add(MarketPrice(
+        item_name="milk", category="agriculture", unit="kg",
+        modal_price=50.0, market_name="Erode Market", state="Tamil Nadu",
+        district="Erode", mandi="Erode Market", reference_date=dt.date(2026, 6, 15),
+        source_name="Agmarknet", source_type="government",
+        dataset_name="market_prices", confidence="high", is_estimate=False, is_demo=False,
+    ))
+    session.commit()
+    d = client.get("/data-sources/providers").json()
+    prov = {p["key"]: p for p in d["providers"]}
+    assert prov["data_gov_in"]["state"] == "config_missing"
+    assert prov["data_gov_in"]["missing_keys"] == ["data_gov_api_key"]
+    assert prov["acrop_mirror"]["rows_in_db"] == 1
+    assert prov["census_2011"]["is_historical"] is True
+    assert "latest_snapshot" in d

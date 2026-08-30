@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
+from app.config import settings
+
 DEFAULT_WEIGHTS = {
     "demand": 0.25,
     "competition": 0.20,
@@ -16,6 +18,12 @@ DEFAULT_WEIGHTS = {
     "financial_fit": 0.15,
     "risk": 0.10,
 }
+
+# Decision labels (Phase 12): opportunity vs data-confidence separation.
+DECISION_GO = "GO"
+DECISION_MODIFY = "MODIFY"
+DECISION_AVOID = "AVOID"
+DECISION_INSUFFICIENT = "INSUFFICIENT DATA"
 
 
 @dataclass
@@ -55,10 +63,14 @@ def _norm(value: Optional[float], default: float = 50.0) -> float:
     return max(0.0, min(100.0, float(value)))
 
 
-def confidence_label(score: float) -> str:
-    if score >= 70:
+def confidence_label(score: float,
+                     medium_at: Optional[float] = None,
+                     high_at: Optional[float] = None) -> str:
+    medium_at = settings.confidence_medium_at if medium_at is None else medium_at
+    high_at = settings.confidence_high_at if high_at is None else high_at
+    if score >= high_at:
         return "high"
-    if score >= 40:
+    if score >= medium_at:
         return "medium"
     return "low"
 
@@ -208,15 +220,48 @@ def compute_opportunity(
     return result
 
 
-def _recommend(overall: float, financial_s: float, risk_s: float, conf_label: str) -> tuple[str, str]:
-    # Guarded by confidence - low confidence forces MODIFY/AVOID language.
+def _recommend(
+    overall: float,
+    financial_s: float,
+    risk_s: float,
+    conf_label: str,
+    *,
+    go_above: Optional[float] = None,
+    avoid_below: Optional[float] = None,
+    finance_fit_go_min: Optional[float] = None,
+    risk_go_max: Optional[float] = None,
+    risk_avoid_above: Optional[float] = None,
+    finance_avoid_below: Optional[float] = None,
+) -> tuple[str, str]:
+    """Decision matrix (Phase 12): opportunity score vs data confidence.
+
+    Four states:
+      - GO                 high score, reliable evidence, financial fit
+      - MODIFY             viable but needs a different model/scale/capital
+      - AVOID              current evidence indicates significant risk
+      - INSUFFICIENT DATA  evidence too thin to judge — decide is deferred,
+                           never fabricated. Low confidence forces this state.
+    All thresholds come from config/env and are overridable for tests.
+    """
+    go = settings.opportunity_go_above if go_above is None else go_above
+    avoid = settings.opportunity_avoid_below if avoid_below is None else avoid_below
+    fin_go = settings.finance_fit_go_min if finance_fit_go_min is None else finance_fit_go_min
+    r_max = settings.risk_go_max if risk_go_max is None else risk_go_max
+    r_avoid = settings.risk_avoid_above if risk_avoid_above is None else risk_avoid_above
+    f_avoid = settings.finance_avoid_below if finance_avoid_below is None else finance_avoid_below
+
     if conf_label == "low":
-        return "MODIFY", (
-            "Evidence is insufficient/low-confidence. Treat any GO/AVOID as provisional; "
-            "collect current local data before deciding."
+        return DECISION_INSUFFICIENT, (
+            "Evidence is insufficient/low-confidence. Decide only after "
+            "collecting current local data; any GO/AVOID here would be provisional."
         )
-    if overall >= 65 and financial_s >= 60 and risk_s <= 55:
-        return "GO", "Potentially suitable based on available indicators (demand, accessibility, financial fit)."
-    if overall < 45 or risk_s >= 80 or financial_s < 40:
-        return "AVOID", "Current evidence indicates significant risk or poor financial fit."
-    return "MODIFY", "Potentially viable, but revisit business model, scale, or capital before proceeding."
+    if overall >= go and financial_s >= fin_go and risk_s <= r_max:
+        return DECISION_GO, (
+            "Potentially suitable based on available indicators "
+            "(demand, accessibility, financial fit)."
+        )
+    if overall < avoid or risk_s >= r_avoid or financial_s < f_avoid:
+        return DECISION_AVOID, "Current evidence indicates significant risk or poor financial fit."
+    return DECISION_MODIFY, (
+        "Potentially viable, but revisit business model, scale, or capital before proceeding."
+    )

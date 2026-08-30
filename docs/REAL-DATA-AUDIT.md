@@ -288,7 +288,7 @@ layer except live official pricing APIs and scheme financing params (below):
 | ----- | ----------------------- |
 | Database | **Provisioned sandbox (user-approved)** `.pgdata` on :5433, `grambiz` role, 21 tables, demo seed loaded. See *Update: DB provisioned* above. |
 | OSM data | **REAL & live.** 774 real records (`source=osm, is_demo=False`) = 46 businesses + 728 infrastructure, broadened `nwr` query (ways/relations captured). Readable via API. |
-| Census / govt data | **REAL & live: 145 official Census-2011 rows = 42 towns (DCHB) + 103 village panchayats** (erode.nic.in PDFs; OSM/Photon/relaxed-Nominatim geocoded Locations). 107 have DCHB households, 64 literacy (%), 26 workers — only from rows whose DCHB population EXACTLY matches the stored official figure (see DCHB profile below). Honest gaps: 132 villages/towns still ungeocoded (72 out-of-bbox near-misses logged for review), never fabricated. |
+| Census / govt data | **REAL & live: 250 official Census-2011 rows = 51 towns + 199 villages** (erode.nic.in DCHB PDFs; OSM/Photon + **LGD-via-Bharat-Atlas** geocoded Locations). 107 have DCHB households, 64 literacy (%), 26 workers — only from rows whose DCHB population EXACTLY matches the stored official figure (see DCHB profile below). Honest gaps: 23 villages/towns still unmatchable (listed), never fabricated. |
 | Market prices | **REAL & live.** `engines/prices.py` reads ingested `market_prices` rows → **109 rows** (Erode APMC/Agmarknet tables from the public ACROP mirror, dated 19–30 Aug 2026, unit=quintal) → `available: True`, `confidence: medium`. Official keyless paths (e-NAM, agmarknet) are blocked; this is a daily-refreshed public aggregator. |
 | Weather | **REAL & live.** **11,475 rows across all 145 locations** (Open-Meteo ERA5 annual 2020–24; NASA POWER MERRA-2 monthly for **2025**; Open-Meteo forecast current + 3-day). Reanalysis/forecast, not IMD. |
 | Agriculture | **REAL & live.** `agriculture_statistics` → **1,202 rows** (TN Digital Crop Survey taluk-wise sown area, ha, for Erode: Summer 2025, Rabi 2024, Kharif 2025, `is_demo=False`). |
@@ -441,6 +441,29 @@ layer except live official pricing APIs and scheme financing params (below):
   145 official population rows, 132 still unresolved** (written back to the
   `erode_census_2011_unresolved*.json` lists).
 
+### new: Bharat Atlas (LGD) backfill — 105 more locations geocoded
+- `scripts/ingest_government/ingest_bharatlas_geocode.py` pulls from the
+  **keyless Bharat Atlas API** (`bharatlas.com/api/v1`, no auth, 120 req/min) —
+  specifically its curated **`lgd_villages` layer** ("Villages (2024)",
+  source: **Local Government Directory**, licence **CC0-1.0**, attributed to
+  LGD/bharatlas). The Erode district slice (N=434 rows) carries, for every
+  village polygon, the **Census-2011 name + code** (`vilname11` / `vilcode11`)
+  that match our DCHB source exactly, plus a computed centroid (`_lat`/`_lng`).
+- A location is adopted only on an **exact normalized `vilname11` match** inside
+  the Erode slice, and the centroid is double-checked against the official
+  Erode bbox. Because LGD admins villages by the same Census-2011 identifiers
+  our census rows come from, these are genuine rather than synthetic: rows are
+  written **`confidence: high`, `is_estimate: false`** (contrast with the OSM
+  medium/estimated rows). A matched LGD row **upgrades** a pre-existing
+  medium/estimated OSM hit, but never regresses a `high`/official or `low` row.
+- **Result: 96 villages + 9 towns adopted**, each also adopting its official
+  Census-2011 population row (village via the Panchayat-Union CSV, town via the
+  town CSV) → **250 official population rows, 23 still unresolved** (22 villages
+  + 1 town: Kilampadi; genuinely unmatchable names like `Kalbavi` stay listed).
+- District totals after this pass: **250 Locations (51 town-style + 199
+  village), 250 official population rows**, 105 LGD-sourced (government) high
+  confidence, 141 OSM medium, 4 low/demo.
+
 ### new: DCHB village/town profile — households, literacy, workers
 - `scripts/ingest_government/ingest_dchb_village_profile.py` parses the
   **"Village" Primary Census Abstract** inside the DCHB (2018062114.pdf,
@@ -463,7 +486,7 @@ layer except live official pricing APIs and scheme financing params (below):
   DCHB revenue village 9,689; `Komarapalayam` 8,957 vs 2,489. The race
   condition that produced them (name-only match) is now structurally
   impossible: the identity gate requires population equality.
-- **Known-coverage limitation (honest):** workers only reach 26/145 because
+- **Known-coverage limitation (honest):** workers only reach 26/250 because
   the workers table's 9 numeric columns parse as a single line only when the
   village name is short; long names wrap across lines and are conservatively
   skipped (regexes kept strict to avoid misattribute). Literacy is dropped for
@@ -565,7 +588,7 @@ empty database have data.**
 | Source | Connected (live rows loadable) | Planned / code-only / demo |
 | ------ | ------------------------------ | -------------------------- |
 | OSM Overpass | **Yes — 774 real rows** (46 biz + 728 infra) via broadened `nwr` query | More tags/regions can be added |
-| Census 2011 | **Yes — 145 official rows** (42 towns + 103 village panchayats) via erode.nic.in DCHB PDFs; village rows additionally enriched from the DCHB Village PCA (107 households, 64 literacy, 26 workers, population-identity-gated); 35 more locations recovered by the Photon/relaxed-Nominatim fallback pass | 132 villages/towns lack OSM coords (listed in `erode_census_2011_unresolved*.json`, plus 72 bbox-safe near-misses in `erode_census_2011_nearmiss.json`); workers coverage limited by table row-wrapping; S&CR yield/production pages dropped (parse unreliable) |
+| Census 2011 | **Yes — 250 official rows** (51 towns + 199 villages) via erode.nic.in DCHB PDFs; village rows additionally enriched from the DCHB Village PCA (107 households, 64 literacy, 26 workers, population-identity-gated); 35 more locations recovered by the Photon/relaxed-Nominatim fallback pass + **105 more via the Bharat Atlas LGD backfill** (CC0-1.0, Census-2011 codes) | 23 villages/towns unmatchable (listed in `erode_census_2011_unresolved*.json`); workers coverage limited by table row-wrapping; S&CR yield/production pages dropped (parse unreliable) |
 | Weather | **Yes — 11,475 real rows** (Open-Meteo ERA5 annual 2020–24; NASA POWER MERRA-2 monthly **2025**; Open-Meteo forecast current + 3-day; **all 145 locations**) | Reanalysis/forecast, not IMD; Open-Meteo hourly rate-limit occasionally skips a location (ERA5 missing for a few tails); IMD needs key |
 | data.gov.in market arrivals | **Yes — via public mirror** | 109 Erode rows dated 19–30 Aug 2026 harvested from the ACROP aggregator (APMC/Agmarknet via data.gov.in). Official keyless paths fail: e-NAM HTML shell, agmarknet.nic.in + CEDA unreachable, data.gov.in needs API key |
 | IMD rainfall / weather | **No** | Code only; no key |
@@ -580,13 +603,13 @@ empty database have data.**
 
 - **Are OSM / govt data working?** OSM is **live**: 774 real rows
   (`is_demo=False, source=osm`) readable through the sandbox DB, with real
-  businesses near Bhavani. Census is now **live for 145 towns+villages** via
-  the official erode.nic.in DCHB PDFs, with village/town **households,
+  businesses near Bhavani. Census is now **live for 250 towns+villages** via
+  the official erode.nic.in DCHB PDFs (35 OSM fallback + **105 LGD/Bharat-Atlas
+  backfill** geocodes), with village/town **households,
   literacy and workers** added from the DCHB Village PCA under a
-  population-identity gate (official, never fabricated; ungeocoded
-  settlements listed in `erode_census_2011_unresolved*.json`, out-of-bbox
-  near-misses in `erode_census_2011_nearmiss.json`). Weather now covers
-  **all 145 locations** (ERA5 2020–24 annual, NASA POWER 2025 monthly,
+  population-identity gate (official, never fabricated; 23 unmatchable
+  settlements listed in `erode_census_2011_unresolved*.json`). Weather covers
+  **all 145 initially-geocoded locations** (ERA5 2020–24 annual, NASA POWER 2025 monthly,
   Open-Meteo current + 3-day forecast). Market
   arrivals are now **live via a daily public mirror** (109 Erode rows, dated
   19–30 Aug 2026), since every official keyless path fails (e-NAM
@@ -601,9 +624,11 @@ empty database have data.**
   based products**), 37 chunks, grounded retrieval with citations; out-of-
   corpus questions honestly return the "insufficient" mode.
 - **Is there real verified data end-to-end?** **Yes — multiple layers.** OSM
-  (774 rows), Census 2011 (**145 locations**, official rows + DCHB
-  households/literacy/workers), market prices (109 rows, ACROP mirror),
-  weather (**11,475 rows across all 145 locations**), agriculture (1,202 rows
+  (774 rows), Census 2011 (**250 locations**, official rows + DCHB
+  households/literacy/workers on the original 145), market prices (109 rows,
+  ACROP mirror), weather (**11,475 rows across all 145 initially-geocoded
+  locations** — the 105 LGD-backfilled locations have census but no weather
+  rows yet), agriculture (1,202 rows
   DCS), and RAG (37 chunks) are
   all real, attributed rows in the provisioned DB. The official keyless gap
   remains production/yield statistics and IMD; demo proxies remain only for
@@ -611,8 +636,8 @@ empty database have data.**
 
 **Bottom line:** the application is a well-engineered, unusually honest
 *demo scaffold* that now runs on a provisioned sandbox DB with **multiple real
-datasets loaded end-to-end** (OSM 774, Census 2011 for **145 locations**,
-market prices 109, weather **11,475 rows / 145 locations**, agriculture 1,202,
+datasets loaded end-to-end** (OSM 774, Census 2011 for **250 locations**,
+  market prices 109, weather **11,475 rows / 145 locations**, agriculture 1,202,
 RAG 37 chunks). Remaining demo/deferred:
 financial scheme rows, live official pricing/IMD APIs, and production/yield
 statistics.

@@ -50,6 +50,20 @@ def init_schema():
                                "ON document_chunks USING hnsw (embedding vector_cosine_ops)"))
         except Exception as exc:  # noqa: BLE001 - pgvector absent in sandbox; embedding_json fallback
             print(f"  (pgvector unavailable; using portable embedding_json: {exc})")
+        # Market price history (Phase 4/5): idempotency + history queries are
+        # guaranteed at the DB level, not just in ingest scripts. The partial
+        # index guards ONLY real rows (NULL/False is_demo), so demo/proxy price
+        # rows can never collide with real ones, and demo rows stay ingestable.
+        s.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_market_prices_real_dedupe "
+            "ON market_prices (item_name, market_name, district, reference_date)"
+            " WHERE (is_demo IS NOT TRUE)"
+        ))
+        s.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_market_prices_district_real "
+            "ON market_prices (district, reference_date DESC)"
+            " WHERE (is_demo IS NOT TRUE)"
+        ))
         # Business categories (OSM tag mapping + §14 profiles)
         seed_category_profiles(s)
         # Schemes

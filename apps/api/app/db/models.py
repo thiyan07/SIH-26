@@ -24,6 +24,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase
@@ -151,6 +152,25 @@ class MarketPrice(PG, ProvenanceMixin, Base):
     state = Column(String(100), nullable=True)
     district = Column(String(100), nullable=True)
     mandi = Column(String(120), nullable=True)
+
+    # Phase 4: idempotency is a DB guarantee. Real rows (is_demo NULL or False)
+    # must be unique per item/market/district/date so official re-runs cannot
+    # duplicate history; demo/proxy rows are deliberately excluded from the
+    # guard and never collide with real prices. Existing clusters get the same
+    # index additively via scripts/db/init_schema.py.
+    __table_args__ = (
+        Index(
+            "uq_market_prices_real_dedupe",
+            "item_name", "market_name", "district", "reference_date",
+            unique=True,
+            postgresql_where=text("is_demo IS NOT TRUE"),
+        ),
+        Index(
+            "ix_market_prices_district_real",
+            "district", "reference_date",
+            postgresql_where=text("is_demo IS NOT TRUE"),
+        ),
+    )
 
 
 class AgricultureStatistic(PG, ProvenanceMixin, Base):

@@ -32,7 +32,7 @@ def test_feature_geometry_is_lng_lat_and_carries_provenance(session):
     assert market["geometry"]["coordinates"] == [77.2400, 11.5050]
     assert market["properties"]["kind"] == "market"
     assert market["properties"]["name"] == "Sathya Market"
-    assert market["properties"]["source_type"] == "demo"
+    assert market["properties"]["source_type"] == "test"
     business = d["layers"]["businesses"]["features"][0]
     assert business["properties"]["category"] == business["properties"].get("category")
     assert "id" in business["properties"]

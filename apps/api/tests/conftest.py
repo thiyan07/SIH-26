@@ -62,6 +62,17 @@ def _apply_additive_schema(mod):
             s.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS embedding_json JSONB"))
             s.execute(text("ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS why_used TEXT"))
             s.execute(text("ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS known_limitations JSONB"))
+            # Phase 4: market-price dedupe + history indexes (idempotent), mirroring init_schema.
+            s.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_market_prices_real_dedupe "
+                "ON market_prices (item_name, market_name, district, reference_date)"
+                " WHERE (is_demo IS NOT TRUE)"
+            ))
+            s.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_market_prices_district_real "
+                "ON market_prices (district, reference_date DESC)"
+                " WHERE (is_demo IS NOT TRUE)"
+            ))
     except Exception:  # noqa: BLE001 - a fresh DB already has the columns
         pass
 
@@ -74,11 +85,11 @@ def seeded(engine):
         loc1 = Location(id="loc_sathya", state="Tamil Nadu", district="Erode",
                         block="Sathyamangalam", village="Sathyamangalam",
                         latitude=11.5056, longitude=77.2390, geo_precision="centroid",
-                        source_name="demo", source_type="demo", is_demo=True)
+                        source_name="test", source_type="test", is_demo=False)
         loc2 = Location(id="loc_peru", state="Tamil Nadu", district="Erode",
                         block="Perundurai", village="Perundurai",
                         latitude=11.2760, longitude=77.5800, geo_precision="centroid",
-                        source_name="demo", source_type="demo", is_demo=True)
+                        source_name="test", source_type="test", is_demo=False)
         s.add_all([loc1, loc2])
         s.flush()
         s.add_all([
@@ -88,33 +99,33 @@ def seeded(engine):
         s.flush()
         s.add_all([
             Business(id="b1", name="Dairy A", category_code="dairy",
-                     latitude=11.5040, longitude=77.2390, source="demo", source_id="1",
-                     source_name="demo", source_type="demo", is_demo=True),
+                     latitude=11.5040, longitude=77.2390, source="test", source_id="1",
+                     source_name="test", source_type="test", is_demo=False),
             Business(id="b2", name="Dairy B", category_code="dairy",
-                     latitude=11.5100, longitude=77.2450, source="demo", source_id="2",
-                     source_name="demo", source_type="demo", is_demo=True),
+                     latitude=11.5100, longitude=77.2450, source="test", source_id="2",
+                     source_name="test", source_type="test", is_demo=False),
             Business(id="b3", name="Grocery C", category_code="grocery",
-                     latitude=11.5150, longitude=77.2500, source="demo", source_id="3",
-                     source_name="demo", source_type="demo", is_demo=True),
+                     latitude=11.5150, longitude=77.2500, source="test", source_id="3",
+                     source_name="test", source_type="test", is_demo=False),
             Business(id="b4", name="Dup X", category_code="dairy",
-                     latitude=11.5060, longitude=77.2395, source="demo", source_id="4",
-                     source_name="demo", source_type="demo", is_demo=True),
+                     latitude=11.5060, longitude=77.2395, source="test", source_id="4",
+                     source_name="test", source_type="test", is_demo=False),
             Business(id="b5", name="Dup Y", category_code="dairy",
-                     latitude=11.5060, longitude=77.2395, source="demo", source_id="5",
-                     source_name="demo", source_type="demo", is_demo=True),
+                     latitude=11.5060, longitude=77.2395, source="test", source_id="5",
+                     source_name="test", source_type="test", is_demo=False),
         ])
         s.add_all([
             InfrastructurePoint(id="i1", kind="market", name="Sathya Market",
                                 latitude=11.5050, longitude=77.2400,
-                                source_name="demo", source_type="demo", is_demo=True),
+                                source_name="test", source_type="test", is_demo=False),
             InfrastructurePoint(id="i2", kind="transport", name="Sathya Bus Stop",
                                 latitude=11.5070, longitude=77.2410,
-                                source_name="demo", source_type="demo", is_demo=True),
+                                source_name="test", source_type="test", is_demo=False),
         ])
         s.add(PopulationStatistic(id="p1", location_id="loc_sathya", level="village",
                                   census_year=2011, population=12400, households=3400,
                                   source_name="Census India", source_type="government",
-                                  is_estimate=False, is_demo=True))
+                                  is_estimate=False, is_demo=False))
     return True
 
 

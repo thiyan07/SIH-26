@@ -81,6 +81,11 @@ export function Dashboard() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
+          <CardHeader title="Weather & Climate Evidence" subtitle={weatherSummary(result)} />
+          <WeatherPanel weather={result.weather} />
+        </Card>
+
+        <Card>
           <CardHeader title="Profit & Payment Model" subtitle={pm?.label} />
           {pm && (
             <div className="grid grid-cols-3 gap-3 text-center">
@@ -123,6 +128,62 @@ export function Dashboard() {
           {fp.scheme_reason && note(fp.scheme_reason)}
         </Card>
       </div>
+    </div>
+  )
+}
+
+function weatherSummary(result: any): string {
+  const w = result?.weather
+  if (!w) return 'No live rows stored'
+  if (!w.available) return 'UNAVAILABLE within 5 km — default risk adjustment applied'
+  return `${w.records?.length || 0} rows · risk +${w.risk?.risk_delta ?? 0} to risk score`
+}
+
+const RISK_COLOR: Record<string, string> = {
+  heat_stress: 'amber',
+  drought: 'red',
+  flood_risk: 'blue',
+}
+
+function WeatherPanel({ weather }: { weather?: any }) {
+  const records = weather?.records || []
+  const latest = records[records.length - 1]
+  const factors = weather?.risk?.factors || null
+
+  const latestRow =
+    latest && latest.value != null ? (
+      <div className="text-sm">
+        Latest recorded indicator: <strong>{latest.indicator}</strong> = {latest.value}
+        {latest.unit ? ` ${latest.unit}` : ''}
+        {latest.date ? ` on ${String(latest.date).slice(0, 10)}` : ''}
+      </div>
+    ) : null
+
+  return (
+    <div className="space-y-2 text-xs text-gray-600">
+      {!weather?.available && (
+        <div className="rounded-lg bg-gray-50 p-2">
+          No weather points within 5 km for this location. Treated as weather UNAVAILABLE (+5 to risk).
+        </div>
+      )}
+      {latestRow && <div className="rounded-lg bg-gray-50 p-2">{latestRow}</div>}
+      {!factors && weather?.available && (
+        <div className="rounded-lg bg-green-50 p-2 text-green-700">No climate risk flags from stored records.</div>
+      )}
+      {factors && (
+        <ul className="space-y-1.5">
+          {factors.map((f: any) => (
+            <li key={f.factor} className="flex items-center justify-between rounded-lg bg-gray-50 p-2">
+              <span>
+                <Badge color={RISK_COLOR[f.factor] || 'gray'}>{f.factor.replace('_', ' ')}</Badge>{' '}
+                <span className="capitalize">{f.level}</span>
+              </span>
+              <span className="font-medium text-gray-800">+{f.risk_delta}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {factors && <p className="text-[11px] italic text-gray-400">Stored weather rows power the risk score; no values are invented.</p>}
     </div>
   )
 }

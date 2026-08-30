@@ -71,9 +71,28 @@ def test_recommend_modify():
     assert label == "MODIFY"
 
 
-def test_low_confidence_forces_modify():
+def test_low_confidence_insufficient_data():
     label, _ = _recommend(95, 95, 10, "low")
+    assert label == "INSUFFICIENT DATA"
+
+
+def test_decision_thresholds_configurable():
+    # Stricter GO bar at this override; otherwise-strong case moves to MODIFY.
+    label, _ = _recommend(70, 80, 30, "high", go_above=80.0)
     assert label == "MODIFY"
+    label, _ = _recommend(70, 80, 30, "high", go_above=60.0)
+    assert label == "GO"
+    # Relaxed avoid bar.
+    label, _ = _recommend(50, 50, 50, "medium", avoid_below=55.0)
+    assert label == "AVOID"
+
+
+def test_four_state_decision_set():
+    assert {_recommend(78, 80, 30, "high")[0],
+            _recommend(30, 30, 90, "medium")[0],
+            _recommend(58, 45, 40, "medium")[0],
+            _recommend(95, 95, 10, "low")[0]} == {
+        "GO", "MODIFY", "AVOID", "INSUFFICIENT DATA"}
 
 
 def test_custom_weights():

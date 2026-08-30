@@ -13,6 +13,7 @@ export interface Business {
   source_type?: string
   confidence?: string
   retrieved_at_date?: string
+  is_demo?: boolean
 }
 
 export interface InfrastructurePoint {
@@ -25,6 +26,7 @@ export interface InfrastructurePoint {
   source_name?: string
   source_type?: string
   confidence?: string
+  is_demo?: boolean
 }
 
 export interface MapPoint {
@@ -36,6 +38,7 @@ export interface MapPoint {
   distance_km?: number
   source_name?: string
   confidence?: string
+  is_demo?: boolean
 }
 
 export interface MapLayersResponse {

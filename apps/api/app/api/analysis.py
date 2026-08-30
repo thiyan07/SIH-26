@@ -1,11 +1,12 @@
 """Analysis endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from app.db.models import AnalysisRun
 from app.db.session import get_db
+from app.limiter import limiter
 from app.schemas import AnalysisRequest
 from app.services.analysis import run_analysis
 
@@ -13,7 +14,8 @@ router = APIRouter(prefix="/analysis", tags=["analysis"])
 
 
 @router.post("")
-def create_analysis(req: AnalysisRequest, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def create_analysis(request: Request, req: AnalysisRequest, db: Session = Depends(get_db)):
     try:
         evidence, run = run_analysis(db, req)
     except ValueError as e:

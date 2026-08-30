@@ -17,10 +17,19 @@ import math
 from functools import lru_cache
 from typing import Any, Optional
 
-from sqlalchemy import text
+from sqlalchemy import or_, text
 
 # PostGIS geography point expression for bound params :lat / :lon.
 _PG_POINT = "ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography"
+
+
+def real_data_condition(model):
+    """SQLAlchemy condition selecting REAL (non-demo / unset) records.
+
+    Real analysis must never mix in demo/proxy rows. Rows where `is_demo`
+    was never set (NULL) are treated as real so older ingests keep working.
+    """
+    return or_(model.is_demo.is_(None), model.is_demo.is_(False))
 
 
 def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -127,7 +136,8 @@ def _radius_m(radius_km: float) -> float:
 
 
 def _postgis_radius_stmt(model, lat: float, lon: float, radius_km: float,
-                         filters: Optional[dict[str, Any]], limit: int):
+                         filters: Optional[dict[str, Any]], limit: int,
+                         real_only: bool = True):
     """Build a radius SELECT using PostGIS ST_DWithin / ST_Distance.
 
     Returns (statement, bound_params). Not executed here so the SQL can be
@@ -143,6 +153,8 @@ def _postgis_radius_stmt(model, lat: float, lon: float, radius_km: float,
     conds = [text(f"ST_DWithin(geom, {_PG_POINT}, :radius_m)")]
     for k, v in (filters or {}).items():
         conds.append(getattr(model, k) == v)
+    if real_only:
+        conds.append(real_data_condition(model))
     stmt = (
         select(model)
         .where(*conds)
@@ -154,8 +166,9 @@ def _postgis_radius_stmt(model, lat: float, lon: float, radius_km: float,
 
 
 def _postgis_nearby(session, model, lat: float, lon: float, radius_km: float,
-                    filters: Optional[dict[str, Any]], limit: int) -> list[Any]:
-    stmt, bound = _postgis_radius_stmt(model, lat, lon, radius_km, filters, limit)
+                    filters: Optional[dict[str, Any]], limit: int,
+                    real_only: bool = True) -> list[Any]:
+    stmt, bound = _postgis_radius_stmt(model, lat, lon, radius_km, filters, limit, real_only)
     result = session.execute(stmt, bound).scalars().all()
     return list(result)
 
@@ -165,7 +178,8 @@ def _postgis_nearby(session, model, lat: float, lon: float, radius_km: float,
 # --------------------------------------------------------------------------
 
 def _haversine_nearby(session, model, lat: float, lon: float, radius_km: float,
-                      filters: Optional[dict[str, Any]], limit: int) -> list[Any]:
+                      filters: Optional[dict[str, Any]], limit: int,
+                      real_only: bool = True) -> list[Any]:
     from sqlalchemy import select
 
     where_sql = distance_expr_sql(lat, lon)
@@ -175,6 +189,8 @@ def _haversine_nearby(session, model, lat: float, lon: float, radius_km: float,
     conds = []
     for k, v in (filters or {}).items():
         conds.append(getattr(model, k) == v)
+    if real_only:
+        conds.append(real_data_condition(model))
 
     stmt = select(model).where(cond_sql, *conds).order_by(text(where_sql)).limit(limit)
     result = session.execute(stmt, bound).scalars().all()
@@ -193,6 +209,7 @@ def find_nearby(
     radius_km: float,
     filters: Optional[dict[str, Any]] = None,
     limit: int = 500,
+    real_only: bool = True,
 ) -> list[Any]:
     """Return model rows within radius_km, nearest first.
 
@@ -200,10 +217,13 @@ def find_nearby(
     PostGIS and the table's `geom` column (bootstrap scripts/db/postgis.py);
     otherwise the portable haversine SQL expression. Either way the filter
     and radius check happen in the database.
+
+    `real_only=True` (default) excludes demo/proxy rows so real analysis and
+    map layers never mix synthetic data into real evidence.
     """
     if geography_enabled(session, model):
-        return _postgis_nearby(session, model, lat, lon, radius_km, filters, limit)
-    return _haversine_nearby(session, model, lat, lon, radius_km, filters, limit)
+        return _postgis_nearby(session, model, lat, lon, radius_km, filters, limit, real_only)
+    return _haversine_nearby(session, model, lat, lon, radius_km, filters, limit, real_only)
 
 
 def find_nearby_with_distance(
@@ -214,11 +234,12 @@ def find_nearby_with_distance(
     radius_km: float,
     filters: Optional[dict[str, Any]] = None,
     limit: int = 500,
+    real_only: bool = True,
 ) -> list[tuple[Any, float]]:
     """Like find_nearby but also returns distance_km for each row.
 
     Distance is always computed by the portable `distance_to` helper on the
     already-filtered set, so both backends return identical values.
     """
-    rows = find_nearby(session, model, lat, lon, radius_km, filters, limit)
+    rows = find_nearby(session, model, lat, lon, radius_km, filters, limit, real_only)
     return [(row, distance_to(row, lat, lon)) for row in rows]

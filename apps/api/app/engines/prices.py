@@ -7,12 +7,15 @@ keeps the price score neutral/None downstream.
 """
 from __future__ import annotations
 
+import datetime as dt
 from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.models import MarketPrice
+from app.geo import real_data_condition
+from app.provenance import freshness_for
 
 # Category -> relevant-ish commodities (lower-cased substring match).
 # An empty tuple means "any item available in the district" is accepted.
@@ -44,17 +47,13 @@ def _matches(needle: str, haystack) -> bool:
 def derive_price_evidence(db: Session, district: str, category_code: str) -> dict:
     """Latest reference date per commodity in `district`, filtered by category.
 
-    Returns a JSON-serialisable evidence dict; never fabricates values.
+    Reads ONLY real (non-demo) ingested MarketPrice rows so demo/proxy price
+    rows can never leak into real scoring. Returns a JSON-serialisable
+    evidence dict; never fabricates values.
     """
     relevant = tuple(RELEVANT_ITEMS.get(category_code, ()))
-    rows = list(db.execute(
-        select(MarketPrice)
-        .where(MarketPrice.district == district)
-        .distinct(MarketPrice.item_name)
-        .order_by(MarketPrice.item_name, MarketPrice.reference_date.desc().nulls_last())
-    ).scalars())
+    matched = _real_matched_rows(db, district, relevant)
 
-    matched = [r for r in rows if _matches(r.item_name or "", relevant)] if relevant else rows
     item_count = len(matched)
     if not item_count:
         return {
@@ -64,12 +63,17 @@ def derive_price_evidence(db: Session, district: str, category_code: str) -> dic
             "district": district,
             "item_count": 0,
             "coverage": 0.0,
+            "unavailable_reason": "No verified (non-demo) market price rows for this district.",
             "note": "No ingested market price rows for this district.",
             "items": [],
         }
 
     coverage = round(len(matched) / len(relevant), 2) if relevant else 1.0
     confidence = "high" if coverage >= 0.5 else ("medium" if coverage > 0 else "low")
+    history = _history_counts(db, district, relevant)
+    deltas = _item_deltas(db, district, matched)
+    latest = max((r.reference_date for r in matched if r.reference_date), default=None)
+    latest_days = (dt.date.today() - latest).days if latest else None
     return {
         "available": True,
         "price_score_unavailable": False,
@@ -81,6 +85,10 @@ def derive_price_evidence(db: Session, district: str, category_code: str) -> dic
         "reference_dates": sorted({
             r.reference_date.isoformat() for r in matched if r.reference_date
         }),
+        "latest_reference_date": latest.isoformat() if latest else None,
+        "days_since_latest": latest_days,
+        "freshness": freshness_for(source_type="market_price", reference_date=latest),
+        "history_rows": history,
         "source": _provenance(matched[0]),
         "note": f"{item_count} commodity price(s) from ingested mandi data"
                 f" ({confidence} coverage of relevant items).",
@@ -94,10 +102,77 @@ def derive_price_evidence(db: Session, district: str, category_code: str) -> dic
                 "market_name": r.market_name,
                 "mandi": r.mandi,
                 "reference_date": r.reference_date.isoformat() if r.reference_date else None,
+                "delta_pct": deltas.get(r.item_name),
             }
             for r in matched
         ],
     }
+
+
+def _real_matched_rows(db: Session, district: str, relevant: tuple[str, ...]):
+    rows = list(db.execute(
+        select(MarketPrice)
+        .where(
+            MarketPrice.district == district,
+            real_data_condition(MarketPrice),
+        )
+        .distinct(MarketPrice.item_name)
+        .order_by(MarketPrice.item_name, MarketPrice.reference_date.desc().nulls_last())
+    ).scalars())
+    return [r for r in rows if _matches(r.item_name or "", relevant)] if relevant else rows
+
+
+def _history_counts(db: Session, district: str, relevant: tuple[str, ...]) -> dict:
+    """Count of stored dated rows per matched item (the price history we hold)."""
+    from sqlalchemy import func
+
+    stmt = (
+        select(MarketPrice.item_name, func.count().label("n"))
+        .where(
+            MarketPrice.district == district,
+            real_data_condition(MarketPrice),
+        )
+        .group_by(MarketPrice.item_name)
+    )
+    if relevant:
+        stmt = stmt.where(MarketPrice.item_name.in_(relevant))
+    return {name: int(n) for name, n in db.execute(stmt).all()}
+
+
+def _item_deltas(db: Session, district: str, matched) -> dict[str, Optional[float]]:
+    """Percent change of modal price between the two most recent dates per item.
+
+    Trend is computed only from stored dated records (never guessed): when
+    fewer than two dated rows exist the value is None.
+    """
+    items = tuple({r.item_name for r in matched})
+    if not items:
+        return {}
+    rows = list(db.execute(
+        select(MarketPrice)
+        .where(
+            MarketPrice.district == district,
+            MarketPrice.item_name.in_(items),
+            MarketPrice.reference_date.is_not(None),
+            real_data_condition(MarketPrice),
+        )
+        .order_by(MarketPrice.item_name, MarketPrice.reference_date.desc())
+    ).scalars())
+    out: dict[str, Optional[float]] = {}
+    by_name: dict[str, list[MarketPrice]] = {}
+    for r in rows:
+        by_name.setdefault(r.item_name, []).append(r)
+    for name, recs in by_name.items():
+        if len(recs) < 2 or recs[0].modal_price is None or recs[1].modal_price in (None, 0):
+            out[name] = None
+            continue
+        try:
+            prev = float(recs[1].modal_price)
+            curr = float(recs[0].modal_price)
+            out[name] = round((curr - prev) / prev * 100.0, 1)
+        except (TypeError, ValueError, ZeroDivisionError):
+            out[name] = None
+    return out
 
 
 def price_score_from_evidence(evidence: dict) -> Optional[float]:

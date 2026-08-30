@@ -12,6 +12,7 @@ export function businessesToGeoJSON(businesses: Business[]): FeatureCollection<P
         category: b.category_code,
         distance_km: b.distance_km,
         source: b.source_name,
+        is_demo: b.is_demo,
       },
       geometry: { type: 'Point', coordinates: [b.longitude, b.latitude] },
     })),
@@ -23,7 +24,13 @@ export function pointsToGeoJSON(points: MapPoint[]): FeatureCollection<Point> {
     type: 'FeatureCollection',
     features: (points || []).map((p) => ({
       type: 'Feature',
-      properties: { id: p.id, name: p.name, kind: p.kind },
+      properties: {
+        id: p.id,
+        name: p.name,
+        kind: p.kind,
+        source: p.source_name,
+        is_demo: p.is_demo,
+      },
       geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
     })),
   }
@@ -41,6 +48,7 @@ export function infrastructureToGeoJSON(points: InfrastructurePoint[]): FeatureC
         distance_km: p.distance_km,
         source: p.source_name,
         confidence: p.confidence,
+        is_demo: p.is_demo,
       },
       geometry: { type: 'Point', coordinates: [p.longitude, p.latitude] },
     })),

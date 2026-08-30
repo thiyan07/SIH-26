@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from app.geo import find_nearby_with_distance
+from app.geo import find_nearby_with_distance, real_data_condition
 
 DEFAULT_SIGNAL_CODES = ("restaurant", "grocery", "market")  # demand proxies
 
@@ -72,7 +72,10 @@ def analyze(
     from sqlalchemy import select
 
     pop = db.execute(
-        select(PopulationStatistic).where(PopulationStatistic.location_id == location.id)
+        select(PopulationStatistic).where(
+            PopulationStatistic.location_id == location.id,
+            real_data_condition(PopulationStatistic),
+        )
     ).scalars().first()
 
     # commercial demand signals: mapped establishments per signal category

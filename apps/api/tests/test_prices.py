@@ -13,7 +13,7 @@ client = TestClient(app)
 
 
 def _add_price(session, item, district="Erode", ref="2026-01-15", modal=42.0,
-               market="Erode Market", source_name="Agmarknet", demo=True):
+               market="Erode Market", source_name="Agmarknet", demo=False):
     row = MarketPrice(
         item_name=item, category="agriculture", unit="kg",
         modal_price=modal, min_price=modal - 5, max_price=modal + 5,
@@ -106,3 +106,40 @@ def test_analysis_uses_verified_price_rows(session):
     assert d["opportunity_score"]["price_score"] >= 40
     names = {s["name"] for s in d["data_sources"]}
     assert "Mandi prices (verified)" in names
+
+
+def test_demo_price_rows_are_excluded_from_real_evidence(session):
+    _add_price(session, item="milk", ref="2026-06-15", modal=52.0, demo=True)
+    session.flush()
+    ev = derive_price_evidence(session, "Erode", "dairy")
+    assert ev["available"] is False
+    assert ev["item_count"] == 0
+    assert ev["unavailable_reason"].startswith("No verified")
+    assert price_score_from_evidence(ev) is None
+
+
+def test_real_and_demo_rows_keep_real_only(session):
+    _add_price(session, item="milk", ref="2026-01-01", modal=40.0, demo=True)
+    _add_price(session, item="milk", ref="2026-06-15", modal=52.0, demo=False)
+    session.flush()
+    ev = derive_price_evidence(session, "Erode", "dairy")
+    assert ev["available"] is True
+    (milk,) = ev["items"]
+    assert milk["modal_price"] == 52.0
+    assert milk["reference_date"] == "2026-06-15"
+
+
+def test_history_and_freshness_reported(session):
+    _add_price(session, item="milk", ref="2026-01-01", modal=40.0)
+    _add_price(session, item="milk", ref="2026-06-15", modal=52.0)
+    _add_price(session, item="ghee", ref="2026-06-15", modal=480.0)
+    session.flush()
+    ev = derive_price_evidence(session, "Erode", "dairy")
+    assert ev["history_rows"] == {"milk": 2, "ghee": 1}
+    assert ev["latest_reference_date"] == "2026-06-15"
+    assert ev["days_since_latest"] >= 0
+    assert ev["freshness"] in ("fresh", "recent", "aging", "old", "unknown")
+    # trend: milk went 40 -> 52 between its two dated records; ghee has no history
+    items = {i["item_name"]: i for i in ev["items"]}
+    assert items["milk"]["delta_pct"] == 30.0
+    assert items["ghee"]["delta_pct"] is None
