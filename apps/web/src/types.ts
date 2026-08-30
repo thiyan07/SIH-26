@@ -1,0 +1,161 @@
+// Shared domain types used across the frontend (mirrors backend Pydantic schemas).
+
+export interface Business {
+  id: string
+  name: string
+  category_code?: string
+  subcategory?: string
+  latitude: number
+  longitude: number
+  address?: string
+  distance_km?: number
+  source_name?: string
+  source_type?: string
+  confidence?: string
+  retrieved_at_date?: string
+}
+
+export interface InfrastructurePoint {
+  id: string
+  kind: string
+  name?: string
+  latitude: number
+  longitude: number
+  distance_km?: number
+  source_name?: string
+  source_type?: string
+  confidence?: string
+}
+
+export interface MapPoint {
+  id?: string
+  name?: string
+  kind?: string
+  latitude: number
+  longitude: number
+  distance_km?: number
+  source_name?: string
+  confidence?: string
+}
+
+export interface MapLayersResponse {
+  center: { latitude: number; longitude: number }
+  radius_km: number
+  layers: {
+    businesses?: any
+    infrastructure?: any
+    markets?: any
+  }
+  counts: { businesses: number; infrastructure: number; markets: number }
+  note?: string
+}
+
+export interface LocationOut {
+  id: string
+  state: string
+  district: string
+  block?: string
+  village?: string
+  latitude: number
+  longitude: number
+  geo_precision: string
+  source_name?: string
+  confidence?: string
+  reference_year?: number
+}
+
+export interface Category {
+  code: string
+  name: string
+}
+
+export interface OpportunityScore {
+  overall_score: number
+  demand_score: number
+  competition_score: number
+  accessibility_score: number
+  price_score: number
+  financial_fit_score: number
+  risk_score: number
+  confidence_score: number
+  confidence_label: string
+  confidence_factors?: any
+  component_breakdown?: any
+  weights?: any
+  label?: string
+}
+
+export interface FinancialPlan {
+  capital_available: number
+  project_cost: number
+  loan_amount: number
+  margin_pct: number
+  scheme_code?: string
+  scheme_name?: string
+  scheme_decision?: string
+  scheme_reason?: string
+  max_loan?: number
+  interest_rate?: number
+  tenure_years?: number
+  moratorium_months?: number
+  moratorium_mode?: string
+  emi?: number
+  source_document?: string
+  notes?: string[]
+}
+
+export interface Repayment {
+  monthly_emi?: number
+  coverage_ratio?: number
+  health_label?: string
+  disclaimer?: string
+}
+
+export interface ProfitModel {
+  category_code: string
+  label: string
+  is_estimate: boolean
+  inputs: Record<string, number>
+  outputs: Record<string, number>
+  notes?: string[]
+}
+
+export interface Recommendation {
+  label: 'GO' | 'MODIFY' | 'AVOID'
+  reason: string
+}
+
+export interface AnalysisResult {
+  analysis_id?: string
+  location: {
+    id: string
+    state: string
+    district: string
+    block?: string
+    village?: string
+    latitude: number
+    longitude: number
+    geo_precision: string
+    source?: any
+  }
+  population: any
+  business_competition: {
+    mapped_competitors_5km: number
+    mapped_competitors_10km: number
+    nearest_competitor_km?: number
+    nearest_competitor?: string
+    data_completeness: string
+    note?: string
+    businesses?: Business[]
+  }
+  market?: any
+  infrastructure: any
+  weather: any
+  data_confidence?: any
+  opportunity_score: OpportunityScore
+  financial_plan: FinancialPlan
+  repayment: Repayment
+  profit_model: ProfitModel
+  recommendation: Recommendation
+  data_sources: any[]
+}

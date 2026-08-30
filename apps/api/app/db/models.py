@@ -1,0 +1,355 @@
+"""GramBiz AI database models.
+
+Schema follows the spec (section 9). Coordinates are stored as numeric
+lat/lng columns for portability PLUS a PostGIS geometry column where available.
+Geospatial queries live in geo.py and use PostGIS with a haversine fallback.
+
+Provenance is embedded via a shared set of columns on every sourced fact table.
+"""
+from __future__ import annotations
+
+import datetime as dt
+import uuid
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import DeclarativeBase
+
+
+def gen_uuid() -> str:
+    return str(uuid.uuid4())
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class PG:
+    """Reusable PK/timestamp columns (mixin)."""
+
+    id = Column(String(36), primary_key=True, default=gen_uuid)
+    created_at = Column(DateTime(timezone=True), default=dt.datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow)
+
+
+class ProvenanceMixin:
+    """Shared provenance fields (spec section 3/9)."""
+
+    source_name = Column(String(200), nullable=True)
+    source_url = Column(String(500), nullable=True)
+    dataset_name = Column(String(200), nullable=True)
+    source_type = Column(String(50), nullable=True)  # government|osm|vendor|proxy|demo
+    reference_date = Column(Date, nullable=True)
+    reference_year = Column(Integer, nullable=True)
+    retrieved_at = Column(DateTime(timezone=True), nullable=True)
+    geographic_level = Column(String(50), nullable=True)
+    confidence = Column(String(20), nullable=True)  # low|medium|high
+    completeness = Column(Float, nullable=True)  # 0.0..1.0 record richness (plan §6)
+    methodology = Column(Text, nullable=True)
+    is_estimate = Column(Boolean, default=False)
+    is_demo = Column(Boolean, default=False)
+
+
+class Location(PG, ProvenanceMixin, Base):
+    __tablename__ = "locations"
+    state = Column(String(100), nullable=False)
+    district = Column(String(100), nullable=False, index=True)
+    block = Column(String(100), nullable=True, index=True)
+    village = Column(String(120), nullable=True, index=True)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    geo_precision = Column(String(20), default="point")  # point|centroid|village
+    metadata_json = Column(JSONB, nullable=True)
+
+    __table_args__ = (UniqueConstraint("state", "district", "block", "village", name="uq_location_admin"),)
+
+
+class AdministrativeBoundary(PG, ProvenanceMixin, Base):
+    __tablename__ = "administrative_boundaries"
+    level = Column(String(30), nullable=False)  # state|district|block|village
+    name = Column(String(120), nullable=False, index=True)
+    parent_code = Column(String(60), nullable=True)
+    code = Column(String(60), nullable=True, index=True)
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    bbox = Column(JSONB, nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class BusinessCategory(PG, Base):
+    __tablename__ = "business_categories"
+    code = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(120), nullable=False)
+    description = Column(Text, nullable=True)
+    osm_tags = Column(JSONB, nullable=True)  # mapping for ingestion
+    required_inputs = Column(JSONB, nullable=True)  # plan §14: operating-model input fields
+    demand_signals = Column(JSONB, nullable=True)   # plan §14: category codes / infra kinds proxying demand
+    competition_categories = Column(JSONB, nullable=True)  # plan §14: direct competitor categories
+    cost_components = Column(JSONB, nullable=True)  # plan §14: cost item keys
+    revenue_components = Column(JSONB, nullable=True)  # plan §14: revenue item keys
+    risk_factors = Column(JSONB, nullable=True)     # plan §14: [{factor, level, note}]
+    seasonality = Column(JSONB, nullable=True)      # plan §14: {note, considerations}
+    is_active = Column(Boolean, default=True)
+
+
+class Business(PG, ProvenanceMixin, Base):
+    __tablename__ = "businesses"
+    name = Column(String(200), nullable=False)
+    category_code = Column(String(50), ForeignKey("business_categories.code"), index=True)
+    subcategory = Column(String(120), nullable=True)
+    latitude = Column(Float, nullable=False, index=True)
+    longitude = Column(Float, nullable=False, index=True)
+    address = Column(Text, nullable=True)
+    source = Column(String(100), nullable=True)  # provider key, e.g. "osm"
+    source_id = Column(String(200), nullable=True, index=True)
+    tags = Column(JSONB, nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+    # geospatial lookup done via geometry/geography in geo.py
+
+    __table_args__ = (Index("ix_businesses_source_source_id", "source", "source_id"),
+                      UniqueConstraint("source", "source_id", name="uq_business_source_id"))
+
+
+class PopulationStatistic(PG, ProvenanceMixin, Base):
+    __tablename__ = "population_statistics"
+    location_id = Column(String(36), ForeignKey("locations.id"), nullable=True, index=True)
+    level = Column(String(30), nullable=False)  # village|block|district
+    census_year = Column(Integer, nullable=False, default=2011)  # always 2011 baseline
+    population = Column(Integer, nullable=True)
+    households = Column(Integer, nullable=True)
+    males = Column(Integer, nullable=True)
+    females = Column(Integer, nullable=True)
+    sex_ratio = Column(Float, nullable=True)
+    literacy = Column(Float, nullable=True)
+    workers = Column(Integer, nullable=True)
+    non_workers = Column(Integer, nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class MarketPrice(PG, ProvenanceMixin, Base):
+    __tablename__ = "market_prices"
+    item_name = Column(String(120), nullable=False, index=True)
+    category = Column(String(60), nullable=True, index=True)
+    unit = Column(String(40), nullable=True)
+    min_price = Column(Numeric(12, 2), nullable=True)
+    max_price = Column(Numeric(12, 2), nullable=True)
+    modal_price = Column(Numeric(12, 2), nullable=True)
+    market_name = Column(String(120), nullable=True)
+    state = Column(String(100), nullable=True)
+    district = Column(String(100), nullable=True)
+    mandi = Column(String(120), nullable=True)
+
+
+class AgricultureStatistic(PG, ProvenanceMixin, Base):
+    __tablename__ = "agriculture_statistics"
+    location_id = Column(String(36), ForeignKey("locations.id"), nullable=True, index=True)
+    level = Column(String(30), nullable=True)
+    crop = Column(String(120), nullable=True)
+    season = Column(String(60), nullable=True)
+    area = Column(Float, nullable=True)
+    production = Column(Float, nullable=True)
+    yield_value = Column(Float, nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class WeatherStatistic(PG, ProvenanceMixin, Base):
+    __tablename__ = "weather_statistics"
+    location_id = Column(String(36), ForeignKey("locations.id"), nullable=True, index=True)
+    level = Column(String(30), nullable=True)
+    indicator = Column(String(60), nullable=False)  # rainfall|temperature|etc
+    period = Column(String(40), nullable=True)
+    value = Column(Float, nullable=True)
+    unit = Column(String(20), nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class InfrastructurePoint(PG, ProvenanceMixin, Base):
+    __tablename__ = "infrastructure_points"
+    kind = Column(String(60), nullable=False, index=True)  # market|school|hospital|bank|transport|road
+    name = Column(String(200), nullable=True)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    source_id = Column(String(200), nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class GovernmentScheme(PG, ProvenanceMixin, Base):
+    __tablename__ = "government_schemes"
+    code = Column(String(50), unique=True, nullable=False)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    max_project_cost = Column(Numeric(16, 2), nullable=True)
+    max_loan_amount = Column(Numeric(16, 2), nullable=True)
+    min_project_cost = Column(Numeric(16, 2), nullable=True)
+    interest_rate = Column(Float, nullable=True)
+    tenure_years = Column(Float, nullable=True)
+    moratorium_months = Column(Integer, nullable=True)
+    margin_pct = Column(Float, nullable=True)  # e.g. 10.0 for 10%
+    moratorium_mode = Column(String(40), default="interest_only_during_moratorium")
+    scheme_type = Column(String(40), nullable=True)
+    document_id = Column(String(36), nullable=True)
+    is_active = Column(Boolean, default=True)
+
+
+class SchemeDocument(PG, ProvenanceMixin, Base):
+    __tablename__ = "scheme_documents"
+    title = Column(String(300), nullable=False)
+    doc_type = Column(String(60), nullable=True)
+    url = Column(String(500), nullable=True)
+    content_text = Column(Text, nullable=True)
+    file_path = Column(String(500), nullable=True)
+    embedding_ready = Column(Boolean, default=False)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class DocumentChunk(PG, Base):
+    __tablename__ = "document_chunks"
+    document_id = Column(String(36), ForeignKey("scheme_documents.id"), index=True)
+    chunk_index = Column(Integer, nullable=True)
+    content = Column(Text, nullable=False)
+    token_count = Column(Integer, nullable=True)
+    embedding_source = Column(String(50), nullable=True)
+    embedding_json = Column(JSONB, nullable=True)  # plan §21: portable vector (pgvector column added additively when available)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class BusinessModel(PG, Base):
+    __tablename__ = "business_models"
+    category_code = Column(String(50), ForeignKey("business_categories.code"), index=True)
+    model_name = Column(String(120), nullable=True)
+    inputs_schema = Column(JSONB, nullable=True)
+    default_inputs = Column(JSONB, nullable=True)
+    formulas = Column(JSONB, nullable=True)
+    is_active = Column(Boolean, default=True)
+
+
+class BusinessCostModel(PG, ProvenanceMixin, Base):
+    __tablename__ = "business_cost_models"
+    category_code = Column(String(50), nullable=False, index=True)
+    cost_item = Column(String(120), nullable=False)
+    cost_type = Column(String(40), default="capital")  # capital|equipment|inventory|operating|working|buffer
+    amount = Column(Numeric(16, 2), nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class OpportunityScore(PG, Base):
+    __tablename__ = "opportunity_scores"
+    analysis_id = Column(String(36), index=True)
+    location_id = Column(String(36), index=True)
+    category_code = Column(String(50), index=True)
+    overall_score = Column(Float)
+    demand_score = Column(Float)
+    competition_score = Column(Float)
+    accessibility_score = Column(Float)
+    price_score = Column(Float)
+    financial_fit_score = Column(Float)
+    risk_score = Column(Float)
+    confidence_score = Column(Float)
+    confidence_label = Column(String(20))
+    confidence_factors = Column(JSONB)
+    component_breakdown = Column(JSONB)
+    recommendation = Column(String(20))  # GO|MODIFY|AVOID
+    metadata_json = Column(JSONB)
+
+
+class RiskScore(PG, Base):
+    __tablename__ = "risk_scores"
+    analysis_id = Column(String(36), index=True)
+    risk_factors = Column(JSONB)
+    overall_risk = Column(Float)
+    metadata_json = Column(JSONB)
+
+
+class DataSource(PG, ProvenanceMixin, Base):
+    __tablename__ = "data_sources"
+    key = Column(String(80), unique=True, nullable=False)
+    display_name = Column(String(200), nullable=False)
+    category = Column(String(60), nullable=True)
+    last_updated = Column(DateTime(timezone=True), nullable=True)
+    freshness_note = Column(Text, nullable=True)
+    record_count = Column(Integer, nullable=True)
+    why_used = Column(Text, nullable=True)             # plan §27: why this data is used
+    known_limitations = Column(JSONB, nullable=True)   # plan §27: known caveats per source
+    is_active = Column(Boolean, default=True)
+
+
+class DataSnapshot(PG, Base):
+    __tablename__ = "data_snapshots"
+    job_name = Column(String(120), nullable=False)
+    status = Column(String(20), nullable=False)
+    records_ingested = Column(Integer, default=0)
+    errors = Column(Integer, default=0)
+    log = Column(JSONB, nullable=True)
+    started_at = Column(DateTime(timezone=True))
+    finished_at = Column(DateTime(timezone=True))
+
+
+class AnalysisRun(PG, Base):
+    __tablename__ = "analysis_runs"
+    state = Column(String(100))
+    district = Column(String(100))
+    block = Column(String(100), nullable=True)
+    village = Column(String(120), nullable=True)
+    location_id = Column(String(36), index=True)
+    category_code = Column(String(50))
+    capital_available = Column(Numeric(16, 2))
+    inputs = Column(JSONB)
+    result = Column(JSONB)  # full structured evidence + scores + financials
+    report_text = Column(Text, nullable=True)
+    language = Column(String(10), default="en")
+
+
+class Report(PG, Base):
+    __tablename__ = "reports"
+    analysis_id = Column(String(36), index=True)
+    language = Column(String(10), default="en")
+    content = Column(JSONB)
+    markdown = Column(Text, nullable=True)
+    html = Column(Text, nullable=True)
+
+
+class User(PG, Base):
+    __tablename__ = "users"
+    email = Column(String(200), unique=True, nullable=True)
+    display_name = Column(String(200), nullable=True)
+    language = Column(String(10), default="en")
+    metadata_json = Column(JSONB, nullable=True)
+
+__all__ = [
+    "Base",
+    "Location",
+    "AdministrativeBoundary",
+    "BusinessCategory",
+    "Business",
+    "PopulationStatistic",
+    "MarketPrice",
+    "AgricultureStatistic",
+    "WeatherStatistic",
+    "InfrastructurePoint",
+    "GovernmentScheme",
+    "SchemeDocument",
+    "DocumentChunk",
+    "BusinessModel",
+    "BusinessCostModel",
+    "OpportunityScore",
+    "RiskScore",
+    "DataSource",
+    "DataSnapshot",
+    "AnalysisRun",
+    "Report",
+    "User",
+    "ProvenanceMixin",
+]

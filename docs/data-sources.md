@@ -1,0 +1,160 @@
+# GramBiz AI — Data Sources & Provenance
+
+This document records every real/potential data source used by GramBiz AI,
+its reference period, and its provenance fields. **No value is presented as
+official unless it comes from a real, verifiable source.**
+
+## Provenance Fields (applied to every data record)
+
+| Field | Meaning |
+|-------|---------|
+| `source_name` | Human-readable source (e.g. Census India) |
+| `source_url` | URL where the dataset can be verified |
+| `dataset_name` | Name of the dataset/table |
+| `source_type` | e.g. `government`, `osm`, `vendor`, `proxy`, `demo` |
+| `reference_date` / `reference_year` | Period the data actually describes |
+| `retrieved_at` | When we fetched/stored it |
+| `geographic_level` | e.g. `village`, `block`, `district`, `state` |
+| `confidence` | `low` / `medium` / `high` for this value |
+| `methodology` | How the number was derived |
+| `is_estimate` | Whether this is an estimate/proxy vs. a direct observation |
+| `is_demo` | Whether it is demo/mock data (never presented as official) |
+
+## Primary Sources
+
+### OpenStreetMap (business/POI/geography)
+- **Source:** OpenStreetMap via Overpass API (cached locally).
+- **License:** ODbL — attribution **© OpenStreetMap contributors** required.
+- **Level:** point/POI.
+- **Usage:** nearby businesses, competitors, markets, restaurants, retail,
+  infrastructure (schools, hospitals, banks, transport).
+- **Note:** OSM coverage is incomplete. Always displayed as "Mapped X" with a
+  data-completeness indicator, never as an exhaustive count.
+- **Mapping & completeness:** category→tag mapping, region presets, and the
+  per-record completeness/confidence scoring are documented in
+  `docs/category-mappings.md` (plan §4–6).
+
+### Census India — Population Finder / Primary Census Abstract
+- **Source:** Census of India 2011 Population Finder (official).
+- **Reference year:** 2011 (`census_year = 2011`).
+- **Level:** village / sub-district / district.
+- **Indicators:** population, households, sex distribution, age groups, work
+  status.
+- **Important rule:** Census 2011 population is a **historical baseline** and
+  is **never** labelled as current population. If no current official source
+  exists, we say so explicitly.
+
+### data.gov.in (Indian Open Government Data Platform)
+- **Discovery source for government/open datasets.**
+- Potential datasets: agriculture, rainfall (IMD), market information (official
+  Mandi prices), economic indicators, transport/infrastructure, schemes,
+  district/block statistics.
+- **Rule:** not every data.gov.in dataset is current. Every dataset stores
+  `publisher, source_url, reference_period, retrieved_at, last_updated,
+  geographic_level, license`. The admin/data-source page shows freshness.
+- Official market price data, when available, is used for "Price Potential".
+  We never invent local prices.
+- **Normalization:** `scripts/ingest_government/normalize.py` turns a
+  downloaded resource (JSON list/`{records:[…]}`, CSV, or CSDL-XML) into
+  validated rows for the provenance-bearing fact tables. Run with:
+
+  ```
+  python -m scripts.ingest_government.ingest --dataset datagov \
+      --url <resource-url> --def market_arrivals
+  # or offline against a downloaded file:
+  python -m scripts.ingest_government.ingest --dataset datagov \
+      --file resource.json --def market_arrivals [--format json|csv|xml]
+  ```
+
+  Supported definitions (`--def`):
+
+  | Def | Target table | Fields mapped | Why useful | Known limitations |
+  | --- | ------------ | ------------- | ---------- | ----------------- |
+  | `market_arrivals` | `market_prices` | item, market/mandi, district, state, min/max/modal price, arrival date (`reference_date`), unit | Grounded local Mandi prices for price/margin potential | Coverage limited to registered mandis; date parsing/units vary per resource; rows without a commodity are dropped |
+  | `population` | `population_statistics` | state/district/block/village, population, households, males, females, census year | Demographic baseline per geo level | Requires a matching `locations` row; census-style data is historical |
+  | `agriculture` | `agriculture_statistics` | state/district (via location), crop, season, area, production, yield | Crop economics for agriculture-dependent businesses | Granularity is district-level; rows without matching location are skipped |
+  | `imd_rainfall` | `weather_statistics` | state/district (via location), month/period, rainfall value, unit | Seasonality and weather risk | Coarse district granularity; units assumed mm unless given |
+
+  Column names are matched case-insensitively with a small alias map (e.g.
+  `commodity_name`/`item` → `item_name`, `mod_price` → `modal_price`); values
+  are coerced defensively so one bad cell drops that row, never the dataset.
+  Provenance (source, URL, dataset, `retrieved_at`, `geographic_level`,
+  confidence, methodology) is written on every stored record.
+
+### Government Schemes & Documents (RAG corpus)
+- Official scheme guidelines, eligibility documents, notifications, and
+  business-support documents are ingested, chunked, embedded and
+  retrieved for RAG answers with citations:
+  `python -m scripts.ingest_docs.ingest --file guideline.txt --title "<title>" --url <official-url> --doc-type guideline`.
+- Pipeline (plan §21): extract → sentence-envelope chunking → deterministic
+  offline embeddings (portable `embedding_json`; additively a
+  `vector(1024)` column + HNSW index when pgvector is available) → hybrid
+  retrieval → grounded answer with citations (`POST /rag/retrieve`,
+  `POST /rag/answer`). Modern embeddings (e.g. an OpenAI-compatible model)
+  can be plugged in behind the same interface; the default needs no key and
+  is stable across processes.
+- Demo scheme documents (problem-statement parameters) can be seeded with
+  `python -m scripts.seed_demo.seed_scheme_docs`; they are flagged demo and
+  never presented as official.
+- Scheme parameters (thresholds, interest, tenure, moratorium) are stored in
+  the `government_schemes` table and are **configurable**, not hard-coded.
+- The values in the problem statement (Micro Finance: ≤₹1.40 lakh project /
+  ≤₹1.25 lakh loan / 6.5% / 3 yr / 3 mo; Term Loan: ≤₹50 lakh project /
+  ≤₹45 lakh loan / 8% / 7 yr / 6 mo) are treated as **assumed demo parameters
+  based on the supplied problem statement** until an official document is
+  retrieved and verified.
+
+### Weather / Market / Price Providers
+- **WeatherDataProvider** / **MarketPriceDataProvider** interfaces with
+  replaceable vendors (env-configured keys). Their concrete implementations
+  serve already-ingested rows (never per-request network calls). Price
+  potential reads the latest snapshot per commodity from `market_prices`,
+  scoped to the analysis district (`app/engines/prices.py`); when no rows
+  exist it reports unavailable and the price score stays neutral — prices
+  are never invented.
+
+### Geospatial query backend
+- Radius/nearby queries are served by `app/geo.py`, which auto-selects the
+  index-backed PostGIS geography path (`ST_DWithin`/`ST_Distance` on the
+  optional `geom` column bootstrap `scripts/db/postgis.py`) whenever the
+  database supports PostGIS and the table carries `geom`, and otherwise
+  falls back to a portable haversine SQL expression. Both branches return
+  the same rows ordered nearest-first with identical distance values; the
+  active backend is reported as `geo_backend` on `POST /geojson/layers` and
+  in the `geo` analysis log event.
+
+## Demo Dataset (Erode District, Tamil Nadu)
+
+The initial demo covers a small set of blocks/villages in **Erode District,
+Tamil Nadu**. It uses **only real, verifiable structure** (administrative
+hierarchy) plus clearly-flagged `is_demo=True` proxy values. Demo data is kept
+isolated in the seed script and can be replaced by real data without changing
+application code.
+
+## Freshness / Confidence Display Rules
+
+- Population → "Census 2011 baseline", not "Current population".
+- Business counts → "Mapped competitors: N · Data completeness: Medium/Low",
+  never "There are exactly N competitors".
+- Any unavailable value → marked unavailable/estimated/proxy with source,
+  reference date, retrieved date, confidence, and limitation.
+
+## Dataset register (plan §7)
+
+Every dataset we integrate must have a documented reason why it helps
+business-feasibility analysis; we do not ingest datasets merely to inflate a
+count. The reference `geographic_level`/`reference_period`/`last_updated`
+columns are stored in the `data_sources` table and shown on the Data Sources
+page.
+
+| Dataset | Publisher | URL | Geographic level | Reference period | Last updated | Fields used | Why useful | Known limitations |
+| ------- | --------- | --- | ---------------- | ---------------- | ------------ | ----------- | ---------- | ----------------- |
+| Primary Census Abstract / Population Finder | Census of India | https://censusindia.gov.in | village / block / district | 2011 (Census year) | 2011 | population, households, sex ratio, literacy, workers | Demographic baseline for demand potential and household estimates | Historical; must never be presented as current population |
+| OSM POIs & businesses | OpenStreetMap (Overpass) | https://www.openstreetmap.org | point (POI) | retrieved_at | on ingest | shops, restaurants, markets, banks, schools, hospitals, transport, roads | Mapped competitor count, market access, infrastructure proximity, commercial demand signals | Coverage incomplete; counts are minimums, not exhaustive |
+| Agmarknet / official Mandi prices | Agmarknet (Ministry of Agriculture) | https://agmarknet.gov.in | mandi / district | latest season | weekly (when integrated) | commodity, min/max/modal price, market, date | Grounded local prices for price/margin potential; no invented prices | Coverage limited to registered mandis; not all commodities/districts |
+| IMD rainfall | India Meteorological Department | https://mausam.imd.gov.in | district / block | by period (season/month) | periodic | rainfall indices | Seasonality and weather risk for agriculture-dependent businesses | Coarse (district) granularity may not match village |
+| District/block statistics | data.gov.in | https://data.gov.in | district / block | varies | varies | economic, infrastructure, administrative | Context for accessibility and commercial indicators | Dataset-specific quality varies; must be validated per dataset |
+
+**Integration rule:** a dataset is only wired into an indicator when its
+fields, geographic level, and reference period match the indicator's needs,
+and none of its values are presented as current/official unless verified.

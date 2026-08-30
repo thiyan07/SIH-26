@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: grambiz
+      POSTGRES_PASSWORD: grambiz
+      POSTGRES_DB: grambiz
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U grambiz -d grambiz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # enable pgvector on top of postgis image
+  db-init:
+    image: postgis/postgis:16-3.4
+    depends_on:
+      db:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      psql -h db -U grambiz -d grambiz -c 'CREATE EXTENSION IF NOT EXISTS postgis;' &&
+      psql -h db -U grambiz -d grambiz -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+      "
+
+  api:
+    build: ./apps/api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://grambiz:grambiz@db:5432/grambiz
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+  web:
+    build: ./apps/web
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
