@@ -93,6 +93,22 @@ Mapped business/competitor data comes from © OpenStreetMap and may be incomplet
 Census 2011 is stored as a labelled baseline. Prices are only shown when sourced; none
 are invented. Every number in a report carries its source, reference year and confidence.
 
+Live (non-demo) integration is key-gated and fail-fast — see `docs/data-sources.md`,
+`docs/LIVE-DATA-IMPLEMENTATION.md`, `docs/IMD.md` and `docs/REAL-DATA-AUDIT.md`:
+
+- **data.gov.in runners** (`scripts/ingest_government/`): official market
+  prices + IMD rainfall; exit 2 unless `DATA_GOV_API_KEY` (and a confirmed
+  resource id) is configured. Real price rows are protected by a partial
+  unique index, so re-ingests never duplicate.
+- **Refresh CLI**: `python -m scripts.refresh.refresh_all [--only K --force --dry-run]`
+  re-runs live jobs within their cooldowns.
+- **Provider health UI**: the Data Sources page shows live state + freshness
+  (from `GET /data-sources/status` and `/data-sources/providers`), and map
+  popups mark demo/test points so real vs. demonstration data is always
+  distinguishable.
+- **Weather risk**: stored rows drive named flags (heat stress, drought,
+  flood risk) into the risk score — no values are invented.
+
 ## Production notes
 
 - `docker-compose.yml` uses a PostGIS/pgvector-enabled database for production.
@@ -104,3 +120,8 @@ are invented. Every number in a report carries its source, reference year and co
   documented in `apps/api/scripts/db/postgis_queries.sql`.
 - `LLM_PROVIDER=mock` by default; set `OPENAI_API_KEY` / provider env to use a real model
   (the LLM only explains engine-computed numbers).
+- Security: analysis and map-layer POSTs are rate-limited (slowapi), and
+  Swagger/OpenAPI are only served when `APP_ENV=development`.
+- Set `DATA_GOV_API_KEY`, `DATA_GOV_MARKET_RESOURCE` and
+  `IMD_RAINFALL_RESOURCE` in `.env` to enable the official runners (see
+  `.env.example`). Never commit real keys.

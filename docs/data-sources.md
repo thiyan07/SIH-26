@@ -123,6 +123,34 @@ official unless it comes from a real, verifiable source.**
   active backend is reported as `geo_backend` on `POST /geojson/layers` and
   in the `geo` analysis log event.
 
+## Live data integration status (Phases 4–18)
+
+Operational plumbing for *real* (non-demo) providers — nothing runs without
+credentials and nothing ever fabricates rows:
+
+- **Official data.gov.in runners** (Phase 4/6): `scripts/ingest_government/`
+  — `ingest_market_datagov.py` (market prices, configurable resource id,
+  default `9ef84268-…d0070`, must be confirmed against a live key) and
+  `ingest_imd_rainfall.py` (IMD rainfall, resource id never hardcoded).
+  Both **exit 2 immediately** when `DATA_GOV_API_KEY` (and, for IMD, the
+  confirmed `IMD_RAINFALL_RESOURCE`) is missing. The IMD integration is
+  documented in `docs/IMD.md`; the data.gov.in market pipeline in
+  `docs/LIVE-DATA-IMPLEMENTATION.md`.
+- **Deduplication guard** (Phase 4): the `market_prices` table carries a
+  partial unique index on (item_name, market_name, district, reference_date)
+  `WHERE is_demo IS NOT TRUE`, so re-running an official ingest can never
+  create duplicate real rows.
+- **Price trends** (Phase 5): `app/engines/prices.py` reports a per-item
+  `delta_pct` between the two most recent dated modal prices when present.
+- **Refresh CLI** (Phase 18): `python -m scripts.refresh.refresh_all` runs
+  every live job within its cooldown window (`--only`, `--force`,
+  `--dry-run`); a failed job reports exit code 1.
+- **Observability** (Phase 17): `GET /data-sources/status` (derived status
+  + freshness bucket per source) and `GET /data-sources/providers`
+  (live-provider registry with ready/config-missing/no-rows state, stored
+  row counts, and missing env keys) back the Data Sources page in the web
+  app, where every provider card shows a live state/history badge.
+
 ## Demo Dataset (Erode District, Tamil Nadu)
 
 The initial demo covers a small set of blocks/villages in **Erode District,
