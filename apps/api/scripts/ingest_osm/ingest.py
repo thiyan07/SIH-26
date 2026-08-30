@@ -42,6 +42,7 @@ REGION_BBOXES = {
     "bhavani": "11.40,77.63,11.50,77.75",
     "gobichettipalayam": "11.41,77.38,11.50,77.48",
     "perundurai": "11.21,77.53,11.32,77.65",
+    "thindal": "11.28,77.64,11.36,77.72",
     "anthiyur": "11.53,77.11,11.62,77.22",
 }
 DEFAULT_REGION = "erode"
@@ -105,24 +106,42 @@ def _is_food_processing(tags: dict) -> bool:
     return any(kw in probe for kw in _FOOD_PROCESSING_KEYWORDS)
 
 
-def _overpass_query(bbox: str) -> str:
+def _overpass_query(bbox: str, include_ways: bool = True) -> str:
     # Canonical union form; `out` then emits combined elements from all clauses.
+    #
+    # Businesses/amenities/offices/healthcare/schools/hospitals/hotels are
+    # queried over `nwr` (node, way, relation) because village shops are
+    # frequently mapped as polygon `way` outlines, not single nodes —
+    # `out center` emits one center lat/lon for those.
+    #
+    # `highway` and `landuse=farmland` are deliberately kept NODE-only: as
+    # `way`s they return tens of thousands of road segments / farm polygons
+    # which flood infrastructure_points and drown the business signal. We only
+    # want bus-stops/points-of-infrastructure from highway, not every segment.
+    b = bbox
     return f"""
     [out:json][timeout:90];
     (
-      node["shop"]({bbox});
-      node["amenity"="restaurant"]({bbox});
-      node["amenity"="marketplace"]({bbox});
-      node["amenity"="bank"]({bbox});
-      node["amenity"="school"]({bbox});
-      node["amenity"="hospital"]({bbox});
-      node["amenity"="pharmacy"]({bbox});
-      node["amenity"="bus_station"]({bbox});
-      node["railway"="station"]({bbox});
-      node["highway"]({bbox});
-      node["craft"]({bbox});
-      node["tourism"="hotel"]({bbox});
-      node["landuse"="farmland"]({bbox});
+      nwr["shop"]({b});
+      nwr["amenity"="restaurant"]({b});
+      nwr["amenity"="cafe"]({b});
+      nwr["amenity"="fast_food"]({b});
+      nwr["amenity"="marketplace"]({b});
+      nwr["amenity"="bank"]({b});
+      nwr["amenity"="atm"]({b});
+      nwr["amenity"="pharmacy"]({b});
+      nwr["amenity"="clinic"]({b});
+      nwr["amenity"="hospital"]({b});
+      nwr["amenity"="school"]({b});
+      nwr["amenity"="bus_station"]({b});
+      nwr["railway"="station"]({b});
+      nwr["craft"]({b});
+      nwr["office"]({b});
+      nwr["healthcare"]({b});
+      nwr["tourism"="hotel"]({b});
+      nwr["tourism"="guest_house"]({b});
+      node["highway"]({b});
+      node["landuse"="farmland"]({b});
     );
     out center tags;
     """

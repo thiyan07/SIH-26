@@ -22,6 +22,7 @@ data/raw/*
 data/processed/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+apps/api/data/
 
 # Secrets
 *.pem

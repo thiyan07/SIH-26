@@ -67,7 +67,7 @@ def init_schema():
         # Data sources (plan §27: each includes why_used + known_limitations)
         defaults = [
             ("population_census", "Population (Census 2011)", "demographics", "population_statistics",
-             "2011", True, "Census 2011 baseline - historical, not current population",
+             "2011", False, "Census 2011 baseline - historical, not current population",
              "Only reliable village-level population figures available; needed as a baseline demand signal.",
              ["Census data is from 2011 and does not reflect current population growth.",
               "Village-level figures are sometimes village/block centroids rather than exact points."]),

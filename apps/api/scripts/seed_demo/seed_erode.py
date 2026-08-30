@@ -30,6 +30,9 @@ BLOCKS = {
         ("Bhavani", 11.4460, 77.6820, {
             "population": 11300, "households": 3100, "males": 5700, "females": 5600,
         }),
+        ("Thindal", 11.3200, 77.6760, {
+            "population": 10800, "households": 2900, "males": 5400, "females": 5400,
+        }),
     ],
 }
 
@@ -55,6 +58,12 @@ DEMO_BUSINESSES = {
         ("Priya Tailors", "textile", 11.4455, 77.6822),
         ("Fresh Food Works", "food_processing", 11.4460, 77.6840),
     ],
+    "Thindal": [
+        ("Thindal Murugan Dairy", "dairy", 11.3188, 77.6768),
+        ("Sakthi Grocery", "grocery", 11.3204, 77.6754),
+        ("Cauvery Restaurant", "restaurant", 11.3195, 77.6762),
+        ("Kongu Textiles", "textile", 11.3209, 77.6770),
+    ],
 }
 
 # Demo market / transport infra.
@@ -62,6 +71,7 @@ DEMO_MARKETS = {
     "Sathyamangalam": (11.5050, 77.2400),
     "Perundurai": (11.2750, 77.5800),
     "Bhavani": (11.4450, 77.6820),
+    "Thindal": (11.3190, 77.6760),
 }
 
 

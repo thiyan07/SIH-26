@@ -207,7 +207,7 @@ def build_report(evidence: dict, language: str = "en") -> list[dict]:
         {
             "section": "Pricing",
             "items": [
-                ("Verified local price data", "Available" if evidence.get("prices") else "Unavailable"),
+                ("Verified local price data", "Available" if (evidence.get("price") or evidence.get("prices")) else "Unavailable"),
             ],
             "notes": ["No invented local prices. Where unavailable, the entrepreneur may enter a manual price."],
         },

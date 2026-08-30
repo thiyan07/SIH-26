@@ -115,6 +115,8 @@ def _population(db: Session, location: Location) -> dict:
         return {
             "population": None,
             "households": None,
+            "workers": None,
+            "non_workers": None,
             "census_year": 2011,
             "available": False,
             "note": "Population unavailable - Census 2011 baseline not loaded.",
@@ -127,10 +129,18 @@ def _population(db: Session, location: Location) -> dict:
         "females": row.females,
         "sex_ratio": row.sex_ratio,
         "literacy": row.literacy,
+        "workers": row.workers,
+        "non_workers": row.non_workers,
         "census_year": row.census_year or 2011,
         "available": True,
         "is_historical": True,
         "note": f"Census {row.census_year or 2011} baseline - NOT current population.",
+        "source_name": row.source_name,
+        "dataset_name": row.dataset_name,
+        "source_type": row.source_type,
+        "confidence": row.confidence,
+        "is_demo": bool(row.is_demo),
+        "is_estimate": bool(row.is_estimate),
     }
 
 
@@ -277,7 +287,7 @@ def run_analysis(db: Session, req) -> dict:
         coverage=competition["data_completeness"],
         completeness=(4.0 if population.get("available") else 3.0) / 5.0,
         source_reliability="medium",
-        any_demo=False,
+        any_demo=bool(population.get("is_demo")),
         any_missing_indicators=([] if population.get("available") else ["population"]),
     ))
     log_event("stale",
@@ -483,10 +493,24 @@ def _collect_data_sources(competition: dict, population: dict, weather: dict,
                           price: Optional[dict] = None) -> list[dict]:
     sources = []
     if population.get("available"):
-        sources.append({"name": "Census India", "dataset": "Primary Census Abstract",
-                        "reference_year": population.get("census_year"),
-                        "confidence": "high", "is_historical": True,
-                        "note": "Census 2011 baseline"})
+        if population.get("is_demo"):
+            sources.append({
+                "name": population.get("source_name") or "Demo population",
+                "dataset": population.get("dataset_name") or "seed_demo",
+                "reference_year": population.get("census_year"),
+                "confidence": population.get("confidence") or "low",
+                "is_demo": True,
+                "is_historical": True,
+                "note": "Demo proxy population, NOT official Census figures.",
+            })
+        else:
+            sources.append({"name": "Census India", "dataset": "Primary Census Abstract",
+                            "reference_year": population.get("census_year"),
+                            "confidence": "high", "is_historical": True,
+                            "note": "Census 2011 baseline"})
+    else:
+        sources.append({"name": "Population", "confidence": "low",
+                        "note": "Census 2011 baseline not loaded."})
     sources.append({"name": "OpenStreetMap", "dataset": "Business/POI",
                     "confidence": competition.get("data_completeness"),
                     "note": "Mapped data may be incomplete"})
