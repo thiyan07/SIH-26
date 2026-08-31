@@ -73,6 +73,12 @@ def _apply_additive_schema(mod):
                 "ON market_prices (district, reference_date DESC)"
                 " WHERE (is_demo IS NOT TRUE)"
             ))
+            # Phase 18b: infrastructure dedupe index (idempotent), mirroring init_schema.
+            s.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_infrastructure_real_dedupe "
+                "ON infrastructure_points (source_name, source_id)"
+                " WHERE (is_demo IS NOT TRUE AND source_id IS NOT NULL)"
+            ))
     except Exception:  # noqa: BLE001 - a fresh DB already has the columns
         pass
 

@@ -23,6 +23,7 @@ from app.engines.category_profiles import get_category_profile
 from app.engines.competition import analyze as analyze_competition
 from app.engines.competition import to_dict as competition_to_dict
 from app.engines.finance import derive_financial_plan
+from app.engines.health import health_access_evidence
 from app.engines.market import DEFAULT_SIGNAL_CODES as market_default_signal_codes
 from app.engines.market import analyze as analyze_market
 from app.engines.prices import derive_price_evidence, price_score_from_evidence
@@ -33,6 +34,7 @@ from app.engines.score import (
     ConfidenceFactors,
     compute_opportunity,
 )
+from app.engines.soil import soil_health_evidence
 from app.engines.weather import weather_risk_factors
 from app.geo import distance_to, geo_backend_name, real_data_condition
 from app.provenance import (
@@ -151,8 +153,10 @@ def _population(db: Session, location: Location) -> dict:
 def _infrastructure(db: Session, location: Location) -> dict:
     lat, lon = location.latitude, location.longitude
     from app.geo import find_nearby
+
     markets = find_nearby(db, InfrastructurePoint, lat, lon, 20.0, {"kind": "market"}, limit=20)
     transport = find_nearby(db, InfrastructurePoint, lat, lon, 20.0, {"kind": "transport"}, limit=20)
+    health = health_access_evidence(db, lat, lon)
     nearest_market = min((distance_to(m, lat, lon) for m in markets), default=None)
     nearest_transport = min((distance_to(t, lat, lon) for t in transport), default=None)
     return {
@@ -160,6 +164,10 @@ def _infrastructure(db: Session, location: Location) -> dict:
         "nearest_transport_km": round(nearest_transport, 2) if nearest_transport else None,
         "markets_nearby": len(markets),
         "transport_points": len(transport),
+        "nearest_health_km": health.get("nearest_health_km"),
+        "health_facilities_nearby": health.get("health_facilities_nearby"),
+        "health_available": health.get("available"),
+        "nearest_health": health.get("nearest_health"),
     }
 
 
@@ -253,6 +261,10 @@ def run_analysis(db: Session, req) -> dict:
     population = _population(db, location)
     infrastructure = _infrastructure(db, location)
     weather = _weather(db, location)
+    soil = soil_health_evidence(
+        db, state=location.state, district=location.district,
+        block=location.block, village=location.village, location_id=location.id,
+    )
 
     # 5. derive component scores (deterministic, evidence-based)
     demand = _demand_score(population, competition, infrastructure)
@@ -261,7 +273,7 @@ def run_analysis(db: Session, req) -> dict:
     price_evidence = _price_potential(db, category, location.district)
     price = _price_score(price_evidence)
     fin_fit = _financial_fit_score(capital, fin.loan_amount)
-    risk = _risk_score(competition, weather, infrastructure)
+    risk = _risk_score(competition, weather, infrastructure, soil)
 
     years_since_2011 = 2026 - (population.get("census_year") or 2011) if population.get("available") else None
 
@@ -282,6 +294,7 @@ def run_analysis(db: Session, req) -> dict:
             "population": population,
             "infrastructure": infrastructure,
             "price": price_evidence,
+            "soil": soil,
         },
     )
 
@@ -293,14 +306,22 @@ def run_analysis(db: Session, req) -> dict:
     # OSM business records carry a retrieval timestamp; treat age since
     # retrieval as "unknown" when no retrieved_at was recorded.
     bus_bucket = "unknown"
+    missing_indicators = []
+    if not population.get("available"):
+        missing_indicators.append("population")
+    if not soil.get("available"):
+        missing_indicators.append("soil_health")
+    present_slots = (3.0  # base (osm + price + infra-quality)
+                     + (1.0 if population.get("available") else 0.0)
+                     + (1.0 if soil.get("available") else 0.0))
     data_quality = compute_data_quality(QualityInputs(
         freshness_buckets=[pop_bucket, bus_bucket],
         geographic_precision=location.geo_precision,
         coverage=competition["data_completeness"],
-        completeness=(4.0 if population.get("available") else 3.0) / 5.0,
+        completeness=present_slots / 5.0,
         source_reliability="medium",
         any_demo=bool(population.get("is_demo")),
-        any_missing_indicators=([] if population.get("available") else ["population"]),
+        any_missing_indicators=missing_indicators,
     ))
     log_event("stale",
               population_freshness=pop_bucket,
@@ -314,6 +335,19 @@ def run_analysis(db: Session, req) -> dict:
               item_count=price_evidence.get("item_count"),
               coverage=price_evidence.get("coverage"),
               price_score=price)
+    log_event("soil",
+              district=location.district,
+              available=soil.get("available"),
+              records=soil.get("records"),
+              sample_year=soil.get("sample_year"),
+              risk_delta=soil.get("risk_delta"))
+    log_event("infrastructure",
+              location_id=location.id,
+              nearest_market_km=infrastructure.get("nearest_market_km"),
+              nearest_transport_km=infrastructure.get("nearest_transport_km"),
+              nearest_health_km=infrastructure.get("nearest_health_km"),
+              health_facilities_nearby=infrastructure.get("health_facilities_nearby"),
+              health_source=(infrastructure.get("nearest_health") or {}).get("source_name"))
 
     evidence = {
         "location": {"id": location.id, "state": location.state, "district": location.district,
@@ -326,6 +360,7 @@ def run_analysis(db: Session, req) -> dict:
         "market": market,
         "infrastructure": infrastructure,
         "weather": weather,
+        "soil": soil,
         "price": price_evidence,
         "data_confidence": data_quality,
         "opportunity_score": {
@@ -379,7 +414,7 @@ def run_analysis(db: Session, req) -> dict:
             "label": result.recommendation,
             "reason": result.recommendation_reason,
         },
-        "data_sources": _collect_data_sources(competition, population, weather, price_evidence),
+        "data_sources": _collect_data_sources(competition, population, weather, price_evidence, soil, infrastructure),
     }
 
     # persist
@@ -469,6 +504,16 @@ def _accessibility_score(infrastructure: dict) -> Optional[float]:
             score += 10
         elif nt <= 15:
             score += 5
+    # public-health access is only rewarded/penalised when real facilities exist
+    # (never scores on absence of data):
+    nh = infrastructure.get("nearest_health_km")
+    if nh is not None:
+        if nh <= 5:
+            score += 8
+        elif nh <= 10:
+            score += 4
+        else:
+            score -= 6
     return round(max(0.0, min(100.0, score)), 1)
 
 
@@ -484,7 +529,8 @@ def _financial_fit_score(capital: float, loan_amount: float) -> float:
     return round(fit, 1)
 
 
-def _risk_score(competition: dict, weather: dict, infrastructure: dict) -> float:
+def _risk_score(competition: dict, weather: dict, infrastructure: dict,
+                soil: Optional[dict] = None) -> float:
     risk = 30.0
     c5 = competition.get("mapped_competitors_5km") or 0
     if c5 >= 10:
@@ -496,15 +542,22 @@ def _risk_score(competition: dict, weather: dict, infrastructure: dict) -> float
     nm = infrastructure.get("nearest_market_km")
     if nm is not None and nm > 15:
         risk += 15
+    nh = infrastructure.get("nearest_health_km")
+    if nh is not None and nh > 15:
+        risk += 12
     if weather.get("available") is False:
         risk += 5
     else:
         risk += weather.get("risk", {}).get("risk_delta", 0)
+    if soil and soil.get("available"):
+        risk += soil.get("risk_delta", 0)
     return round(max(0.0, min(100.0, risk)), 1)
 
 
 def _collect_data_sources(competition: dict, population: dict, weather: dict,
-                          price: Optional[dict] = None) -> list[dict]:
+                          price: Optional[dict] = None,
+                          soil: Optional[dict] = None,
+                          infrastructure: Optional[dict] = None) -> list[dict]:
     sources = []
     if population.get("available"):
         if population.get("is_demo"):
@@ -535,6 +588,21 @@ def _collect_data_sources(competition: dict, population: dict, weather: dict,
                         "note": "Ingested market price rows; never fabricated"})
     if weather.get("available"):
         sources.append({"name": "Weather provider", "confidence": "medium"})
+    if soil and soil.get("available"):
+        sources.append({"name": "Soil Health Card (MOAFW)",
+                        "dataset": "Soil Health Card - Soil Nutrient Analysis",
+                        "reference_year": soil.get("sample_year"),
+                        "confidence": "medium",
+                        "note": soil.get("note") or "Ingested soil nutrient rows; never fabricated"})
+    if infrastructure and infrastructure.get("nearest_health") is not None:
+        health_src = infrastructure["nearest_health"]
+        sources.append({
+            "name": "Health facilities",
+            "dataset": "infrastructure_points (hospital)",
+            "confidence": health_src.get("confidence") or "medium",
+            "note": "Official NIC health establishments (GODL-India, via Bharat Atlas) "
+                    "plus mapped OSM hospitals; nearest-facility provenance attached to evidence",
+        })
     if not sources:
         sources.append({"name": "No verified sources loaded", "confidence": "low"})
     return sources

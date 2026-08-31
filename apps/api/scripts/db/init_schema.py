@@ -64,6 +64,14 @@ def init_schema():
             "ON market_prices (district, reference_date DESC)"
             " WHERE (is_demo IS NOT TRUE)"
         ))
+        # Infrastructure idempotency (Phase 18b): one real facility per
+        # (source, source_id). Demo/proxy infra rows are excluded from the
+        # guard so they never collide with official ODI/GODL rows.
+        s.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_infrastructure_real_dedupe "
+            "ON infrastructure_points (source_name, source_id)"
+            " WHERE (is_demo IS NOT TRUE AND source_id IS NOT NULL)"
+        ))
         # Business categories (OSM tag mapping + §14 profiles)
         seed_category_profiles(s)
         # Schemes

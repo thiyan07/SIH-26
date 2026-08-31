@@ -130,16 +130,46 @@ credentials and nothing ever fabricates rows:
 
 - **Official data.gov.in runners** (Phase 4/6): `scripts/ingest_government/`
   — `ingest_market_datagov.py` (market prices, configurable resource id,
-  default `9ef84268-…d0070`, must be confirmed against a live key) and
-  `ingest_imd_rainfall.py` (IMD rainfall, resource id never hardcoded).
-  Both **exit 2 immediately** when `DATA_GOV_API_KEY` (and, for IMD, the
-  confirmed `IMD_RAINFALL_RESOURCE`) is missing. The IMD integration is
+  default `9ef84268-…d0070`, must be confirmed against a live key),
+  `ingest_imd_rainfall.py` (IMD rainfall, resource id never hardcoded) and
+  `ingest_soil_health.py` (Soil Health Card nutrient analysis, resource id
+  never hardcoded). All three **exit 2 immediately** when `DATA_GOV_API_KEY`
+  (and, for IMD, the confirmed `IMD_RAINFALL_RESOURCE`; for SHC, the
+  confirmed `SOIL_HEALTH_RESOURCE`) is missing. The IMD integration is
   documented in `docs/IMD.md`; the data.gov.in market pipeline in
   `docs/LIVE-DATA-IMPLEMENTATION.md`.
 - **Deduplication guard** (Phase 4): the `market_prices` table carries a
   partial unique index on (item_name, market_name, district, reference_date)
-  `WHERE is_demo IS NOT TRUE`, so re-running an official ingest can never
-  create duplicate real rows.
+  `WHERE is_demo IS NOT TRUE`; `soil_health_statistics` similarly guards on
+  (state, district, block, village, nutrient_type, nutrient_name,
+  sample_year) `WHERE is_demo IS NOT TRUE` — re-running an official ingest
+  can never create duplicate real rows.
+- **Soil nutrient levels** (Phase 33): stored in their own
+  `soil_health_statistics` table with provenance-bearing rows that never mix
+  with crop area/production/yield. Rows keep their admin path
+  (state/district/block/village) even before a village is geo-resolved, so
+  district-scoped analysis queries work immediately. Provider key:
+  `soil_health`.
+- **Bharat Atlas keyless layers** (Phase 18b): the public API at
+  https://bharatlas.com exposes curated, keyless layers over openly-licensed
+  official data (no auth, no API key, ~120 req/min) — the same source of
+  record the LGD geocoder already uses. Two Erode slices are stored:
+  - **Health facilities** (provider `bharatlas_health`, `nic_health` layer,
+    NIC/MoHFW, **GODL-India**): ~249 Erode establishments (sub-centres,
+    PHCs, CHCs, hospitals) ingested into `infrastructure_points`
+    (`kind=hospital`) with real coordinates straight from the source. These
+    are live scoring inputs: nearest hospital distance + nearby count feed
+    accessibility and risk (`app/engines/health.py`), with only real rows —
+    no facility data means no score change.
+  - **Admin boundaries** (provider `bharatlas_boundaries`, `lgd_districts` +
+    `lgd_blocks` layers, Local Government Directory, **CC0-1.0**): Erode
+    district + 13 block names/codes into `administrative_boundaries`. The
+    API exposes no centroids for these polygon layers, so no coordinates are
+    written (never approximated).
+  - **Dedup guard**: `infrastructure_points` carries a partial unique index
+    on `(source_name, source_id)` `WHERE is_demo IS NOT TRUE AND source_id
+    IS NOT NULL` — an official re-run can never duplicate a facility, and
+    OSM rows never collide with NIC rows.
 - **Price trends** (Phase 5): `app/engines/prices.py` reports a per-item
   `delta_pct` between the two most recent dated modal prices when present.
 - **Refresh CLI** (Phase 18): `python -m scripts.refresh.refresh_all` runs
@@ -181,7 +211,10 @@ page.
 | OSM POIs & businesses | OpenStreetMap (Overpass) | https://www.openstreetmap.org | point (POI) | retrieved_at | on ingest | shops, restaurants, markets, banks, schools, hospitals, transport, roads | Mapped competitor count, market access, infrastructure proximity, commercial demand signals | Coverage incomplete; counts are minimums, not exhaustive |
 | Agmarknet / official Mandi prices | Agmarknet (Ministry of Agriculture) | https://agmarknet.gov.in | mandi / district | latest season | weekly (when integrated) | commodity, min/max/modal price, market, date | Grounded local prices for price/margin potential; no invented prices | Coverage limited to registered mandis; not all commodities/districts |
 | IMD rainfall | India Meteorological Department | https://mausam.imd.gov.in | district / block | by period (season/month) | periodic | rainfall indices | Seasonality and weather risk for agriculture-dependent businesses | Coarse (district) granularity may not match village |
+| Soil Health Card | MOAFW via data.gov.in | https://data.gov.in | village / block / district | sample year | yearly | nutrient type/name/level + value | Input-cost awareness (fertilizer/soil input) for agri businesses | Official SHC rollout is gradual; coverage varies by district and year |
 | District/block statistics | data.gov.in | https://data.gov.in | district / block | varies | varies | economic, infrastructure, administrative | Context for accessibility and commercial indicators | Dataset-specific quality varies; must be validated per dataset |
+| NIC health establishments | NIC / MoHFW via Bharat Atlas `nic_health` (GODL-India) | https://bharatlas.com | point | retrieved_at | on ingest | name, type, place, coordinates | Grounded health-access context for rural infrastructure analysis; real points, no invented facilities | Coverage reflects govt NIC health layer/registration; type granularity is broad (sub-centre vs PHC/CHC) |
+| LGD administrative boundaries | Local Government Directory via Bharat Atlas `lgd_districts`/`lgd_blocks` (CC0-1.0) | https://bharatlas.com | district / block | LGD version | on ingest | name, Census-2011 codes, parent code | Code-keyed joins on admin hierarchy (vs name-only matching) | No centroids exposed for these polygon layers; code registry only |
 
 **Integration rule:** a dataset is only wired into an indicator when its
 fields, geographic level, and reference period match the indicator's needs,

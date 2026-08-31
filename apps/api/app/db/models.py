@@ -196,6 +196,47 @@ class WeatherStatistic(PG, ProvenanceMixin, Base):
     metadata_json = Column(JSONB, nullable=True)
 
 
+class SoilHealthStatistic(PG, ProvenanceMixin, Base):
+    """Soil Health Card nutrient analysis (Ministry of Agriculture & Farmers Welfare).
+
+    Formatted after the official MOAFW "Soil Nutrient Analysis" data.gov.in
+    resource (state/district/block/village + nutrient type/name/level + value).
+    Rows are provenance-bearing government data; kept separate from crop
+    agriculture statistics so nutrient levels never mix with area/production.
+    Location is resolved best-effort by admin path; district text is retained
+    so district-scoped queries work even before a village is geo-resolved.
+    """
+
+    __tablename__ = "soil_health_statistics"
+    location_id = Column(String(36), ForeignKey("locations.id"), nullable=True, index=True)
+    level = Column(String(30), nullable=True)  # village|block|district
+    state = Column(String(100), nullable=True)
+    district = Column(String(100), nullable=True, index=True)
+    block = Column(String(100), nullable=True)
+    village = Column(String(120), nullable=True)
+    nutrient_type = Column(String(60), nullable=True)   # macro/micro/physical
+    nutrient_name = Column(String(120), nullable=True)  # e.g. Nitrogen, pH, Organic Carbon
+    nutrient_level = Column(String(40), nullable=True)  # low|medium|high|deficient
+    value = Column(Float, nullable=True)
+    sample_year = Column(Integer, nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "uq_soil_health_real_dedupe",
+            "state", "district", "block", "village",
+            "nutrient_type", "nutrient_name", "sample_year",
+            unique=True,
+            postgresql_where=text("is_demo IS NOT TRUE"),
+        ),
+        Index(
+            "ix_soil_health_district_real",
+            "district", "sample_year",
+            postgresql_where=text("is_demo IS NOT TRUE"),
+        ),
+    )
+
+
 class InfrastructurePoint(PG, ProvenanceMixin, Base):
     __tablename__ = "infrastructure_points"
     kind = Column(String(60), nullable=False, index=True)  # market|school|hospital|bank|transport|road
@@ -204,6 +245,20 @@ class InfrastructurePoint(PG, ProvenanceMixin, Base):
     longitude = Column(Float, nullable=False)
     source_id = Column(String(200), nullable=True)
     metadata_json = Column(JSONB, nullable=True)
+
+    # DB-level idempotency guard: real rows (is_demo NULL or False) must be
+    # unique per (source, source_id) so official re-runs (OSM, GODL-India health
+    # facilities via Bharat Atlas) can never duplicate a facility; demo/proxy
+    # rows are excluded and never collide. Applied additively to existing
+    # clusters via scripts/db/init_schema.py.
+    __table_args__ = (
+        Index(
+            "uq_infrastructure_real_dedupe",
+            "source_name", "source_id",
+            unique=True,
+            postgresql_where=text("is_demo IS NOT TRUE AND source_id IS NOT NULL"),
+        ),
+    )
 
 
 class GovernmentScheme(PG, ProvenanceMixin, Base):

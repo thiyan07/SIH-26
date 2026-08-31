@@ -32,10 +32,13 @@ from app.db.models import DataSnapshot
 from app.db.session import session_scope
 from scripts import ingest_osm  # noqa: F401  (import side effect: Overpass runner)
 from scripts.ingest_government import (
+    ingest_bharatlas_boundaries,
     ingest_bharatlas_geocode,
+    ingest_bharatlas_health,
     ingest_mandi_live,
     ingest_market_datagov,
     ingest_openmeteo_weather,
+    ingest_soil_health,
     ingest_weather_current,
 )
 
@@ -92,9 +95,24 @@ JOBS: list[Job] = [
         snapshot_job_hint="geocode_bharatlas_backfill",
     ),
     Job(
+        key="bharatlas_health", label="Health facilities (GODL-India via Bharat Atlas)",
+        run=lambda: ingest_bharatlas_health.main([]), cooldown=dt.timedelta(days=7),
+        snapshot_job_hint="bharatlas_health_erode",
+    ),
+    Job(
+        key="bharatlas_boundaries", label="Admin boundaries (LGD via Bharat Atlas)",
+        run=lambda: ingest_bharatlas_boundaries.main([]), cooldown=dt.timedelta(days=90),
+        snapshot_job_hint="bharatlas_boundaries_erode",
+    ),
+    Job(
         key="census", label="Census 2011 (historical baseline)",
         run=None, cooldown=dt.timedelta(days=3650),
         note="Historical by design - never refreshed from a live source.",
+    ),
+    Job(
+        key="soil_health", label="Soil Health Card (data.gov.in, MOAFW)",
+        run=lambda: ingest_soil_health.main([]), cooldown=dt.timedelta(days=30),
+        note="Key-gated; skipped cleanly when DATA_GOV_API_KEY or SOIL_HEALTH_RESOURCE is absent.",
     ),
 ]
 

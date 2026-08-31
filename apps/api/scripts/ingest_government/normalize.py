@@ -23,6 +23,7 @@ from app.db.models import (
     Location,
     MarketPrice,
     PopulationStatistic,
+    SoilHealthStatistic,
     WeatherStatistic,
 )
 
@@ -47,6 +48,7 @@ _NOTES = {
     "population": "Population figures from a data.gov.in census-derived resource (historical).",
     "agriculture": "Crop area/production/yield from a data.gov.in agriculture resource.",
     "imd_rainfall": "Rainfall indices from IMD-published data.gov.in resources (district granularity).",
+    "soil_health": "Soil nutrient levels from the MOAFW Soil Health Card programme (village granularity).",
 }
 
 
@@ -256,6 +258,33 @@ DATAGOV_DEFS: dict[str, dict] = {
         "confidence": "medium",
         "is_estimate": False,
     },
+    "soil_health": {
+        "model": "soil_health",
+        "field_map": {
+            "state": "state",
+            "state_name": "state",
+            "district": "district",
+            "district_name": "district",
+            "block": "block",
+            "block_name": "block",
+            "village": "village",
+            "village_name": "village",
+            "year": "sample_year",
+            "sample_year": "sample_year",
+            "nutrient_type": "nutrient_type",
+            "nutrient": "nutrient_name",
+            "nutrient_name": "nutrient_name",
+            "level": "nutrient_level",
+            "nutrient_level": "nutrient_level",
+            "value": "value",
+        },
+        "requires": ["nutrient_name"],
+        "geo_level": "village",
+        "dataset_name": "Soil Health Card - Soil Nutrient Analysis",
+        "reference_period": "sample year",
+        "confidence": "medium",
+        "is_estimate": False,
+    },
 }
 
 
@@ -294,6 +323,18 @@ def _coerce_row(mapped: dict, defn: dict) -> Optional[dict]:
         if isinstance(mapped.get("period"), (int, float)):
             mapped["period"] = str(int(mapped["period"]))
         return mapped
+    if model == "soil_health":
+        mapped["state"] = (mapped.get("state") or "").strip() or None
+        mapped["district"] = (mapped.get("district") or "").strip() or None
+        mapped["block"] = (mapped.get("block") or "").strip() or None
+        mapped["village"] = (mapped.get("village") or "").strip() or None
+        mapped["nutrient_type"] = (mapped.get("nutrient_type") or "").strip() or None
+        mapped["nutrient_name"] = (mapped.get("nutrient_name") or "").strip() or None
+        mapped["nutrient_level"] = (mapped.get("nutrient_level") or "").strip() or None
+        mapped["value"] = _coerce_number(mapped.get("value"))
+        sy = _coerce_number(mapped.get("sample_year"), as_int=True)
+        mapped["sample_year"] = sy
+        return mapped if mapped["nutrient_name"] or mapped["nutrient_level"] else None
     return None
 
 
@@ -407,6 +448,48 @@ def store_datagov(session, defn: dict, rows: list[dict], url: Optional[str] = No
                 males=rec.get("males"),
                 females=rec.get("females"),
                 reference_year=cy,
+                **base,
+            ))
+            n += 1
+    elif model == "soil_health":
+        # Soil nutrient rows are stored even when the village is not yet
+        # geo-resolved: the admin path (state/district/block/village) and the
+        # district text are retained, so analysis queries by district still
+        # work. No rows are ever fabricated.
+        for rec in rows:
+            loc, level = _resolve_location(
+                session, rec.get("state"), rec.get("district"), rec.get("block"), rec.get("village")
+            )
+            if rec.get("village"):
+                level = level or "village"
+            elif rec.get("block"):
+                level = "block"
+            else:
+                level = "district"
+            dupe = session.query(SoilHealthStatistic).filter(
+                SoilHealthStatistic.state == rec.get("state"),
+                SoilHealthStatistic.district == rec.get("district"),
+                SoilHealthStatistic.block == rec.get("block"),
+                SoilHealthStatistic.village == rec.get("village"),
+                SoilHealthStatistic.nutrient_type == rec.get("nutrient_type"),
+                SoilHealthStatistic.nutrient_name == rec.get("nutrient_name"),
+                SoilHealthStatistic.sample_year == rec.get("sample_year"),
+            ).first()
+            if dupe:
+                continue
+            session.add(SoilHealthStatistic(
+                location_id=loc.id if loc else None,
+                level=level,
+                state=rec.get("state"),
+                district=rec.get("district"),
+                block=rec.get("block"),
+                village=rec.get("village"),
+                nutrient_type=rec.get("nutrient_type"),
+                nutrient_name=rec.get("nutrient_name"),
+                nutrient_level=rec.get("nutrient_level"),
+                value=rec.get("value"),
+                sample_year=rec.get("sample_year"),
+                reference_year=rec.get("sample_year"),
                 **base,
             ))
             n += 1

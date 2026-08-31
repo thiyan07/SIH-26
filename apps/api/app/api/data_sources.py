@@ -9,15 +9,21 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db.models import (
+    AdministrativeBoundary,
     Business,
     DataSnapshot,
     DataSource,
+    InfrastructurePoint,
     Location,
     MarketPrice,
+    PopulationStatistic,
+    SoilHealthStatistic,
     WeatherStatistic,
 )
 from app.db.session import get_db
 from app.provenance import freshness_for
+from scripts.ingest_government.ingest_bharatlas_boundaries import SOURCE_NAME as LGD_BOUNDARY_SOURCE
+from scripts.ingest_government.ingest_bharatlas_health import SOURCE_NAME as NIC_HEALTH_SOURCE
 
 router = APIRouter(prefix="/data-sources", tags=["data-sources"])
 
@@ -65,6 +71,28 @@ LIVE_PROVIDERS = [
         "needs_keys": ["imd_api_key"], "refresh_cadence": "hourly",
         "note": "No keyless public endpoint is available; Open-Meteo/NASA POWER are used instead.",
     },
+    {
+        "key": "soil_health", "name": "Soil Health Card (MOAFW)",
+        "fact": "soil_health_statistics",
+        "source_fields": {"dataset_name": "Soil Health Card - Soil Nutrient Analysis"},
+        "needs_keys": ["data_gov_api_key", "soil_health_resource"],
+        "refresh_cadence": "yearly",
+        "note": "Ingest runner is key-gated; nothing is ever approximated for SHC.",
+    },
+    {
+        "key": "bharatlas_health", "name": "NIC health facilities (GODL-India via Bharat Atlas)",
+        "fact": "infrastructure_points",
+        "source_fields": {"kind": "hospital", "source_name": NIC_HEALTH_SOURCE},
+        "needs_keys": [], "refresh_cadence": "weekly",
+        "note": "Keyless; coordinates straight from the source (never estimated).",
+    },
+    {
+        "key": "bharatlas_boundaries", "name": "LGD admin boundaries (Bharat Atlas)",
+        "fact": "administrative_boundaries",
+        "source_fields": {"source_name": LGD_BOUNDARY_SOURCE},
+        "needs_keys": [], "refresh_cadence": "quarterly",
+        "note": "Keyless; names/codes from Local Government Directory, no coords.",
+    },
 ]
 
 _SOURCE_MODELS = {
@@ -72,6 +100,10 @@ _SOURCE_MODELS = {
     "businesses": Business,
     "weather_statistics": WeatherStatistic,
     "locations": Location,
+    "population_statistics": PopulationStatistic,
+    "soil_health_statistics": SoilHealthStatistic,
+    "infrastructure_points": InfrastructurePoint,
+    "administrative_boundaries": AdministrativeBoundary,
 }
 
 

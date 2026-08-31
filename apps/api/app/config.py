@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     imd_api_key: str = ""
     imd_rainfall_resource: str = ""  # confirmed data.gov.in resource id for IMD rainfall
     data_gov_market_resource: str = ""  # confirmed data.gov.in resource id for market prices
+    soil_health_resource: str = ""  # confirmed data.gov.in resource id for Soil Health Card nutrient analysis
 
     # Decision-logic thresholds (Phase 12). Opportunity score vs data confidence:
     confidence_medium_at: float = 40.0  # confidence < this -> low

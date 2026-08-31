@@ -57,7 +57,7 @@ Monorepo `grambiz-ai/`: `apps/api` (FastAPI + SQLAlchemy + PostgreSQL) and
 ### Ingestion (`apps/api/scripts/`)
 - `ingest_government/`: `ingest.py` generic data.gov.in pipeline (`--dataset`
   supports `census|datagov`; `normalize.py` `DATAGOV_DEFS` =
-  `market_arrivals`, `population`, `agriculture`, `imd_rainfall`;
+  `market_arrivals`, `population`, `agriculture`, `imd_rainfall`, `soil_health`;
   `store_datagov()`; `register_data_source()`).
   - `scrape_erode_census.py` (Census 2011 Erode build), `ingest_village_census.py`,
     `ingest_dchb_village_profile.py` (DCHB enrichment), `geocode_erode_locations.py`,
@@ -88,8 +88,11 @@ Monorepo `grambiz-ai/`: `apps/api` (FastAPI + SQLAlchemy + PostgreSQL) and
 | LGD 2024 village geocoding | ingest_bharatlas_geocode | CC0-1.0, attribution LGD + yashveeeeeeer/india-geodata | 2024 layer | 105 locations (+9 towns) adopted | high | Live (23 still unresolved) |
 | OSM points (Erode bbox) | ingest_osm | ODbL | current | 46 businesses + 728 infra | medium | Live |
 | Weather (current+historical) | ingest_weather_current / ingest_openmeteo_weather | Open-Meteo (CC-BY), NASA POWER | live/forecast | original 145 locations only | medium | Live (gap: 105 new locations lack weather) |
+| NIC health facilities (Erode) | ingest_bharatlas_health (`nic_health` layer) | GODL-India, via Bharat Atlas keyless API | retrieved_at | 249 Erode health establishments | high | **Live** (provider `bharatlas_health`) |
+| LGD admin boundaries (Erode) | ingest_bharatlas_boundaries (`lgd_districts`/`lgd_blocks`) | CC0-1.0, LGD via Bharat Atlas | LGD version | 1 district + 13 blocks (codes) | high | **Live** (provider `bharatlas_boundaries`; no coords — API exposes none) |
 | Market prices (APMC/Agmarknet via ACROP mirror) | ingest_mandi_live | aggregator mirror, ministry-reported | daily | 109 Erode rows, ~19–30 Aug 2026 | medium | Live (mirror; official API keyed yet unused) |
 | data.gov.in official downloads (market_arrivals, population, agriculture, imd_rainfall) | ingest.py/normalize.py (generic) | CC-BY / data.gov.in | on ingest | district-level | — | **Code only, not yet run** (needs DATA_GOV_API_KEY) |
+| Soil Health Card (MOAFW nutrient analysis) | ingest_soil_health + normalize `soil_health` def | CC-BY / data.gov.in | sample year | village → soil_health_statistics | — | **Code only, not yet run** (needs `DATA_GOV_API_KEY` + confirmed `SOIL_HEALTH_RESOURCE`; exit 2 otherwise) |
 | IMD weather | — none — | IMD API needs key | — | — | — | **Not integrated** (document, keep Open-Meteo) |
 | Bhuvan/ISRO geospatial | — none — | eval required | — | — | — | **Not integrated** (Bharat Atlas used instead) |
 | Scheme documents (MoFPI) | ingest_scheme_docs | official PDFs | 2024 docs | 2 docs / 37 chunks | high | Live (grounded RAG) |
@@ -116,7 +119,18 @@ constraint must be added (Phase 4/5).
 0–100 component scores → `compute_opportunity()` fuses them into
 `overall_score` + `confidence_score/label` + `recommendation`
 (GO/MODIFY/AVOID). Missing evidence lowers confidence; it never invents
-values. Price component reads stored `MarketPrice` rows only.
+values. Price component reads stored `MarketPrice` rows only. Infrastructure
+accessibility (`_accessibility_score`) and risk (`_risk_score`) now also read
+real `InfrastructurePoint` rows with `kind=hospital` via
+`health_access_evidence` (`app/engines/health.py`): a nearby facility (<5 km)
+scores +8 accessibility, <10 km +4, only-distant facilities −6, and a
+>15 km nearest-facility adds +12 risk. No facility rows → no change (absence
+of data never scores). Soil component
+(`app/engines/soil.py`) reads stored real `SoilHealthStatistic` rows: nutrient
+deficiencies (low/deficient readings in the latest sample year) add a capped
+risk contribution for input/fertiliser cost exposure (max +12; a majority-
+healthy sample small relief −3), absent data adds nothing. Neither engine
+invents values.
 
 Phase 12 will split **opportunity score** (can I do well here?) from
 **data confidence** (can I trust the evidence?) into an explicit decision:
@@ -136,8 +150,8 @@ engines already produce.
 | 5 | Market price geo-analysis (nearest mandi, history, unavailable) | Pending |
 | 6 | IMD weather integration (or document unavailability) | Pending |
 | 7 | Weather→business-risk heuristics (labelled heuristic) | Pending |
-| 8 | Bhuvan or alternative geospatial eval | Pending (Bharat Atlas already adopted) |
-| 9 | LGD codes in admin boundaries | Partial (codes in LGD geocode metadata) |
+| 8 | Bhuvan or alternative geospatial eval | Pending (Bharat Atlas already adopted; keyless layers added Phase 18b) |
+| 9 | LGD codes in admin boundaries | **Live for Erode** (district + 13 blocks in `administrative_boundaries`); BHUVAN not needed |
 | 10 | Newer official population (or honesty label Census-2011) | Pending (document only) |
 | 11 | Hyper-local market analysis (nearest market/demand) | Partial |
 | 12 | Opportunity vs data-confidence decision logic, configurable | Pending |
@@ -167,6 +181,19 @@ engines already produce.
   geocoding/refresh.
 - **Bharat Atlas** `lgd_villages` (2024, CC0-1.0) is the geocoding source of
   record; Bhuvan only pursued if it adds geometry beyond LGD centroids.
+- **Bharat Atlas keyless API** also supplies GODL-India health facilities
+  (`nic_health`, real points) and LGD district/block codes — all stored as
+  real rows with provenance. The health facilities feed a real scoring signal:
+  `InfrastructurePoint` rows with `kind=hospital` (NIC + mapped OSM) power
+  `health_access_evidence` (engines/health.py), a +8/+4/−6 accessibility
+  contributor and a +12 risk penalty when the nearest facility is beyond
+  15 km; no facility data means no score change. Polygon layers
+  (`lgd_blocks` and most others) expose no centroids through the query API,
+  so coordinates are never approximated for them; only layers that natively
+  carry `_lat/_lng` (`lgd_villages`, `nic_health`) contribute coordinates.
+- **Pincode layers** (`datagov_pincodes`, `bharatviz_pincodes`) carry no
+  coordinates and cannot be district-sliced cleanly — documented as not
+  integrated rather than half-integrated.
 - **Open-Meteo archive hourly** is rate-limited (429) — respect quotas; four
   tail villages (Kanakampalayam, Chellipalayam, Kuhalur, Modakurichi) are
   ERA5-missing until quota resets; they already have forecast + NASA POWER.
