@@ -78,14 +78,20 @@ cd apps/web && npm run typecheck && npm run lint && npm run build
 
 ## Demo flow
 
-1. Open the web app → **Analyze My Business** → **Load a demo workspace (Erode, dairy)**.
-2. View the opportunity report on the **Dashboard** (score, confidence, GO/MODIFY/AVOID).
+1. Open the web app → **Analyze My Business** → **Load a demo workspace (Perundurai, restaurant)**.
+2. In the **Your Location** card you can also drag the pin on the map (or click the map)
+   to set an **exact proposed shop location**, then **Confirm this location**. When
+   confirmed, competitor/market/infrastructure queries run from that exact point
+   (kept distinct from the selected admin area's centroid; unconfirmed, the centroid is used).
+3. View the opportunity report on the **Dashboard** (score, confidence, GO/MODIFY/AVOID).
 3. Explore **Market** (competitors map + prices), **Finance** (plan + EMI schedule),
    **Simulator** (loan what-if), **Report** (printable + AI narrative), **Schemes**,
    and **Data** (provenance).
 
-> The demo dairy model with default inputs yields a negative operating profit and thus
-> a High-Risk repayment label by design — an honest "estimated operating model".
+> The demo usually runs on default "estimated" operating-model assumptions — outputs
+> are estimates, not guaranteed profit. (The older dairy demo with default inputs
+> yielded a negative operating profit and a High-Risk repayment label; the current
+> restaurant demo yields a positive one.)
 
 ## Data & provenance
 
@@ -125,3 +131,10 @@ Live (non-demo) integration is key-gated and fail-fast — see `docs/data-source
 - Set `DATA_GOV_API_KEY`, `DATA_GOV_MARKET_RESOURCE` and
   `IMD_RAINFALL_RESOURCE` in `.env` to enable the official runners (see
   `.env.example`). Never commit real keys.
+
+> **Deployment readiness (current gap):** `docker-compose.yml` references
+> `build: ./apps/api` and `build: ./apps/web`, but no `Dockerfile` exists in either
+> app directory yet. For Vercel (web) + Render (managed PostGIS) deploy as planned,
+> add these Dockerfiles (or platform build configs) plus the CI wiring; the codebase
+> already reads env vars (`DATABASE_URL`, `VITE_API_URL`, `APP_ENV`, `CORS_ORIGINS`)
+> and keeps docs/OpenAPI local-only outside `APP_ENV=development`.

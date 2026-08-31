@@ -33,16 +33,16 @@ export function Market() {
     setDemoLoading(true)
     try {
       const locs = await api.get<LocationOut[]>(
-        `/locations/search?q=${encodeURIComponent('Bhavani')}&state=${encodeURIComponent('Tamil Nadu')}&limit=5`,
+        `/locations/search?q=${encodeURIComponent('Perundurai')}&state=${encodeURIComponent('Tamil Nadu')}&limit=5`,
       )
       const loc = locs[0]
       const payload = {
         state: 'Tamil Nadu',
         district: 'Erode',
         block: loc?.block || 'Erode',
-        village: loc?.village || 'Bhavani',
+        village: loc?.village || 'Perundurai',
         capital_available: 100000,
-        category_code: 'dairy',
+        category_code: 'restaurant',
         business_experience: false,
         existing_shop: false,
         existing_equipment: false,
@@ -205,7 +205,7 @@ function Empty({ onLoadDemo, loadingDemo }: { onLoadDemo: () => void; loadingDem
           disabled={loadingDemo}
           className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
         >
-          {loadingDemo ? 'Loading demo…' : 'Load demo workspace (Erode, dairy)'}
+          {loadingDemo ? 'Loading demo…' : 'Load demo workspace (Perundurai, restaurant)'}
         </button>
         <a href="/analyze" className="text-sm text-brand-600 underline">
           Analyze now →

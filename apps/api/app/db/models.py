@@ -152,16 +152,24 @@ class MarketPrice(PG, ProvenanceMixin, Base):
     state = Column(String(100), nullable=True)
     district = Column(String(100), nullable=True)
     mandi = Column(String(120), nullable=True)
+    # Variety-wise daily price dataset also publishes the commodity variety and
+    # grade per market row; retained so commodity-level granularity is preserved.
+    variety = Column(String(120), nullable=True, index=True)
+    grade = Column(String(80), nullable=True)
 
     # Phase 4: idempotency is a DB guarantee. Real rows (is_demo NULL or False)
-    # must be unique per item/market/district/date so official re-runs cannot
-    # duplicate history; demo/proxy rows are deliberately excluded from the
-    # guard and never collide with real prices. Existing clusters get the same
-    # index additively via scripts/db/init_schema.py.
+    # must be unique per item/variety/market/district/date so official re-runs
+    # cannot duplicate history; the variety-wise dataset reports one row per
+    # commodity & variety, so variety is part of the identity. Demo/proxy rows
+    # are deliberately excluded from the guard and never collide with real
+    # prices. Existing clusters get the same index additively via
+    # scripts/db/init_schema.py.
     __table_args__ = (
         Index(
             "uq_market_prices_real_dedupe",
-            "item_name", "market_name", "district", "reference_date",
+            "item_name",
+            text("COALESCE(variety, '')"),
+            "market_name", "district", "reference_date",
             unique=True,
             postgresql_where=text("is_demo IS NOT TRUE"),
         ),
@@ -194,6 +202,65 @@ class WeatherStatistic(PG, ProvenanceMixin, Base):
     value = Column(Float, nullable=True)
     unit = Column(String(20), nullable=True)
     metadata_json = Column(JSONB, nullable=True)
+
+
+class IndicatorStatistic(PG, ProvenanceMixin, Base):
+    """Generic national/state-level indicator time-series.
+
+    Holds official datasets that are NOT pinned to a single Erode locality,
+    e.g. national annual pesticide consumption, national textile exports, or
+    state-wise retail-outlet class counts. ``state``/``district`` are stored as
+    plain text (never fabricated); only the scope the source actually provides
+    is recorded. ``period`` is the time bucketing (e.g. "2018-19", "2021-22",
+    a year, or a slice). Values are authoritative and never estimated; unit and
+    indicator describe what the number means. Real rows are unique per
+    (indicator, period, state, dimension) so re-runs are idempotent.
+    """
+
+    __tablename__ = "indicator_statistics"
+    indicator = Column(String(120), nullable=False, index=True)
+    period = Column(String(80), nullable=True, index=True)
+    value = Column(Float, nullable=True)
+    unit = Column(String(40), nullable=True)
+    state = Column(String(100), nullable=True, index=True)
+    district = Column(String(100), nullable=True)
+    dimension = Column(String(120), nullable=True)  # e.g. outlet class, commodity sub-category
+    dimension_type = Column(String(40), nullable=True)  # e.g. class|variety|category
+    metadata_json = Column(JSONB, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "uq_indicator_statistics_real_dedupe",
+            "indicator", "period", "state", "dimension",
+            unique=True,
+            postgresql_where=text("is_demo IS NOT TRUE"),
+        ),
+    )
+
+
+class MarketName(PG, ProvenanceMixin, Base):
+    """APMC / mandi market-name reference (from the AGMARKNET market directory).
+
+    A dictionary of official market (mandi) names as published by Agmarknet,
+    grouped by state and district. Used to normalize/validate ``market_name``
+    values on price rows and to expand coverage where a market is known but has
+    no price row yet. Real rows are unique per (state, district, name).
+    """
+
+    __tablename__ = "market_names"
+    state = Column(String(100), nullable=True, index=True)
+    district = Column(String(100), nullable=True, index=True)
+    name = Column(String(160), nullable=False, index=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "uq_market_names_real_dedupe",
+            "state", "district", "name",
+            unique=True,
+            postgresql_where=text("is_demo IS NOT TRUE"),
+        ),
+    )
 
 
 class SoilHealthStatistic(PG, ProvenanceMixin, Base):
@@ -372,6 +439,137 @@ class DataSnapshot(PG, Base):
     finished_at = Column(DateTime(timezone=True))
 
 
+class DataSourceQuality(PG, Base):
+    """Source-level quality ledger (plan §10 extension).
+
+    One row per (source key) capturing the Quality of Service dimensions that
+    are scored *per source* rather than per analysis run:
+
+      - ``source_quality_score``  0-100 structural soundness (documented,
+        licensed, maintained, stable schema)
+      - ``freshness_score``       0-100 recency vs today (source cadence aware)
+      - ``completeness_score``    0-100 record richness / column coverage
+      - ``verification_score``    0-100 how thoroughly we cross-checked the
+        source against the authoritative origin
+      - ``overall_confidence_score``  weighted blend of the above (0-100)
+      - ``confidence_label``      low|medium|high mapped from the overall score
+      - ``verification_status``   VERIFIED|PARTIALLY_VERIFIED|UNVERIFIED|CONFLICTING
+
+    These are audit/diagnostic records for the data-sources UI and report, and
+    are complementary to (never a replacement for) the per-analysis
+    ``data_confidence_score`` computed by ``app.provenance.compute_data_quality``.
+    ``score_meta`` carries the transparent per-factor reasons.
+    """
+
+    __tablename__ = "data_source_quality"
+    source_key = Column(String(80), unique=True, nullable=False, index=True)
+    source_name = Column(String(200), nullable=True)
+    source_type = Column(String(50), nullable=True)  # government|osm|vendor|proxy|derived
+    license_id = Column(String(120), nullable=True)  # e.g. ODbL / GODL-India
+    source_quality_score = Column(Float, nullable=True)
+    freshness_score = Column(Float, nullable=True)
+    completeness_score = Column(Float, nullable=True)
+    verification_score = Column(Float, nullable=True)
+    overall_confidence_score = Column(Float, nullable=True)
+    confidence_label = Column(String(20), nullable=True)  # low|medium|high
+    verification_status = Column(String(30), nullable=True)  # VERIFIED|PARTIALLY_VERIFIED|UNVERIFIED|CONFLICTING
+    freshness_status = Column(String(20), nullable=True)  # FRESH|RECENT|STALE|VERY_STALE|UNKNOWN
+    last_successful_sync = Column(DateTime(timezone=True), nullable=True)
+    last_source_update = Column(DateTime(timezone=True), nullable=True)
+    record_age_days = Column(Integer, nullable=True)
+    geo_resolution = Column(String(30), nullable=True)  # point|pincode|district|state
+    cadence = Column(String(40), nullable=True)  # REAL_TIME|NEAR_REAL_TIME|DAILY|WEEKLY|MONTHLY|HISTORICAL|STATIC
+    score_meta = Column(JSONB, nullable=True)
+    limitations = Column(JSONB, nullable=True)
+
+
+class UdyamUnit(PG, ProvenanceMixin, Base):
+    """MSME units registered under UDYAM (Ministry of MSME, via data.gov.in).
+
+    The official "List of MSME Registered Units under UDYAM" resource ships
+    unit-level records with **pincode** (not exact lat/lng) granularity. Per
+    the geo-resolution policy, a unit is located at its pincode centroid
+    (``pincode_latitude``/``pincode_longitude``) and flagged
+    ``geographic_level="pincode"`` with a reduced ``confidence``. Pincode-level
+    rows support district/pincode-scoped ``nearby_msmes`` / ``relevant_msmes``
+    aggregation and are never counted as point-radius competitors (OSM covers
+    that role).
+
+    Unit-level list carries **no turnover / investment / MSME-class** fields,
+    so those are kept null and never fabricated. NIC (2008) activity codes are
+    retained for category matching; ``udyam_number`` is the natural key.
+
+    Rows that ship with a registration number are unique per ``udyam_number``.
+    Some data.gov.in exports of this resource omit ``udyam_number``; for those
+    rows a deterministic ``source_key`` derived from (state, district,
+    enterprise_name, pincode, registration_date) is used, so official re-runs
+    cannot duplicate units.
+    """
+
+    __tablename__ = "udyam_units"
+    udyam_number = Column(String(120), nullable=True, index=True)
+    source_key = Column(String(160), nullable=True, index=True)
+    enterprise_name = Column(String(300), nullable=True)
+    category = Column(String(40), nullable=True)  # micro|small|medium (when provided)
+    sector = Column(String(40), nullable=True)  # manufacturing|services|trading
+    nic_code = Column(String(20), nullable=True, index=True)  # NIC-2008 activity code
+    state = Column(String(100), nullable=True, index=True)
+    district = Column(String(100), nullable=True, index=True)
+    pincode = Column(String(20), nullable=True, index=True)
+    address = Column(Text, nullable=True)
+    registration_date = Column(Date, nullable=True, index=True)
+    latitude = Column(Float, nullable=True)  # pincode-centroid latitude (approx)
+    longitude = Column(Float, nullable=True)  # pincode-centroid longitude (approx)
+    metadata_json = Column(JSONB, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "uq_udyam_real_dedupe",
+            "source_key",
+            unique=True,
+            postgresql_where=text("is_demo IS NOT TRUE AND source_key IS NOT NULL"),
+        ),
+        Index(
+            "ix_udyam_district_real",
+            "district", "registration_date",
+            postgresql_where=text("is_demo IS NOT TRUE"),
+        ),
+    )
+
+
+class IndustrialUnit(PG, ProvenanceMixin, Base):
+    """Registered factories/industrial units (district-scoped aggregates).
+
+    Official factory data (Registered Factories / Annual Survey of Industries)
+    is published at **district** granularity - it is deliberately kept as a
+    district-level aggregate and is never used in point-radius math because the
+    source does not carry exact coordinates. ``count``/``employment`` capacity
+    facts (where published by the source, e.g. ASI) are stored when present and
+    left null otherwise.
+
+    Real rows are unique per (state, district, unit_type, reference_year) so
+    official re-runs are idempotent.
+    """
+
+    __tablename__ = "industrial_units"
+    state = Column(String(100), nullable=False, index=True)
+    district = Column(String(100), nullable=False, index=True)
+    unit_type = Column(String(40), nullable=True)  # registered_factory|asi_factory
+    count = Column(Integer, nullable=True)
+    employment = Column(Integer, nullable=True)
+    reference_year = Column(Integer, nullable=True, index=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "uq_industrial_units_real_dedupe",
+            "state", "district", "unit_type", "reference_year",
+            unique=True,
+            postgresql_where=text("is_demo IS NOT NULL AND is_demo IS NOT TRUE"),
+        ),
+    )
+
+
 class AnalysisRun(PG, Base):
     __tablename__ = "analysis_runs"
     state = Column(String(100))
@@ -413,6 +611,8 @@ __all__ = [
     "MarketPrice",
     "AgricultureStatistic",
     "WeatherStatistic",
+    "IndicatorStatistic",
+    "MarketName",
     "InfrastructurePoint",
     "GovernmentScheme",
     "SchemeDocument",
@@ -423,6 +623,9 @@ __all__ = [
     "RiskScore",
     "DataSource",
     "DataSnapshot",
+    "DataSourceQuality",
+    "UdyamUnit",
+    "IndustrialUnit",
     "AnalysisRun",
     "Report",
     "User",

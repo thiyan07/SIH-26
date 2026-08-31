@@ -172,6 +172,21 @@ credentials and nothing ever fabricates rows:
     OSM rows never collide with NIC rows.
 - **Price trends** (Phase 5): `app/engines/prices.py` reports a per-item
   `delta_pct` between the two most recent dated modal prices when present.
+- **Erode MSME + industrial ingests** (downloaded reference datasets): the
+  downloaded `data/raw/` CSVs are loaded by idempotent runners —
+  `scripts/ingest_government/ingest_udyam_csv.py` (UDYAM Erode register,
+  ~95.9k real deduped units into `udyam_units`) and
+  `scripts/ingest_government/ingest_industrial_erode.py` (Erode SSI FY
+  2018-19 aggregate, 6,430 units into `industrial_units`), with
+  `ingest_downloaded_reference.py` for `indicator_statistics` /
+  `market_names`. All are provenance-bearing, dedup-guarded, and
+  idempotent (re-runs store 0 rows).
+  - **Wiring:** `industrial_units` drives a real district-scoped
+    `industrial_units` block in `app/engines/location_features.py`
+    (available/total_units/by_type; `available: False` when no data);
+    `indicator_statistics` surfaces as the `industry_context` evidence block
+    in the analysis report. **`market_names` (Meghalaya APMC) is stored but
+    intentionally NOT wired** — out-of-state for the Erode-focused analyses.
 - **Refresh CLI** (Phase 18): `python -m scripts.refresh.refresh_all` runs
   every live job within its cooldown window (`--only`, `--force`,
   `--dry-run`); a failed job reports exit code 1.
@@ -215,6 +230,10 @@ page.
 | District/block statistics | data.gov.in | https://data.gov.in | district / block | varies | varies | economic, infrastructure, administrative | Context for accessibility and commercial indicators | Dataset-specific quality varies; must be validated per dataset |
 | NIC health establishments | NIC / MoHFW via Bharat Atlas `nic_health` (GODL-India) | https://bharatlas.com | point | retrieved_at | on ingest | name, type, place, coordinates | Grounded health-access context for rural infrastructure analysis; real points, no invented facilities | Coverage reflects govt NIC health layer/registration; type granularity is broad (sub-centre vs PHC/CHC) |
 | LGD administrative boundaries | Local Government Directory via Bharat Atlas `lgd_districts`/`lgd_blocks` (CC0-1.0) | https://bharatlas.com | district / block | LGD version | on ingest | name, Census-2011 codes, parent code | Code-keyed joins on admin hierarchy (vs name-only matching) | No centroids exposed for these polygon layers; code registry only |
+| UDYAM MSME registers (Erode) | Ministry of MSME — UDYAM portal | https://udyamregistration.gov.in | unit / pincode | FY 2024-25 (download) | on ingest | enterprise name, sector, NIC code, state, district, pincode, coordinates | District-scale MSME density & local sector mix; feeds `location_features.nearby_msmes` and category→NIC demand signals | Source ships **without** `udyam_number`; ~34k records have no NIC code; coordinates are pincode/geo-derived (medium confidence) |
+| Small-scale industries profile (Erode) | Erode District SSI Profile (FY 2018-19) | official district profile | district | 2018-19 | on ingest | `unit_type`, `count`, 21-division NIC breakdown | District industrial base context; `industrial_units` block (available/total/by_type) | Official aggregate with ~2 yr lag; district-only, not per-pincode |
+| National/state economic indicators | data.gov.in (pesticide consumption, textiles-apparel exports, retail outlet classes) | https://data.gov.in | national / state | 2017-18–2021-22 | on ingest | indicator, period, value, unit, dimension | Cross-cutting industry context in the report `industry_context` block | Reference only (not per-locality); granularity/period varies per indicator |
+| APMC market directory (Meghalaya) | Meghalaya APMC | https://data.gov.in | market | retrieved_at | on ingest | market name, location | **Reference only — not wired** (out-of-state for Erode); kept for future north-eastern use | Out of scope for the current Erode-focused analyses |
 
 **Integration rule:** a dataset is only wired into an indicator when its
 fields, geographic level, and reference period match the indicator's needs,

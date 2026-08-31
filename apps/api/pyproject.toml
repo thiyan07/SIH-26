@@ -30,6 +30,7 @@ dev = [
 data = [
     "pandas>=2.2",
     "geopandas>=0.14",
+    "xlrd>=2.0",
 ]
 
 [tool.setuptools.packages.find]

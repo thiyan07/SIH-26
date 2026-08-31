@@ -6,6 +6,7 @@ persists an AnalysisRun.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any, Optional
 
 from sqlalchemy import select
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.db.models import (
     AnalysisRun,
     Business,
+    IndicatorStatistic,
     InfrastructurePoint,
     Location,
     PopulationStatistic,
@@ -24,6 +26,7 @@ from app.engines.competition import analyze as analyze_competition
 from app.engines.competition import to_dict as competition_to_dict
 from app.engines.finance import derive_financial_plan
 from app.engines.health import health_access_evidence
+from app.engines.location_features import location_features
 from app.engines.market import DEFAULT_SIGNAL_CODES as market_default_signal_codes
 from app.engines.market import analyze as analyze_market
 from app.engines.prices import derive_price_evidence, price_score_from_evidence
@@ -192,6 +195,38 @@ def _price_potential(db: Session, category_code: str, district: str) -> dict:
     return derive_price_evidence(db, district=district, category_code=category_code)
 
 
+def _industry_context(db: Session, state: str) -> dict:
+    """Background national/state industry indicators (indicator_statistics).
+
+    Category-scoped, reference data (pesticide, textiles exports, retail
+    outlets). Read as context for the report; never fabricated. Returns
+    available=False when no rows exist for the state or the national set.
+    """
+    rows = db.execute(
+        select(IndicatorStatistic).where(real_data_condition(IndicatorStatistic))
+    ).scalars().all()
+    by_indicator: dict[str, list] = {}
+    for r in rows:
+        if r.state and r.state != state:
+            continue
+        by_indicator.setdefault(r.indicator, []).append({
+            "period": r.period,
+            "dimension": r.dimension,
+            "value": float(r.value) if r.value is not None else None,
+            "unit": r.unit,
+            "state": r.state,
+        })
+    available = bool(by_indicator)
+    return {
+        "available": available,
+        "scope": "national & state background",
+        "indicators": {
+            k: {"rows": v[:5]}
+            for k, v in by_indicator.items()
+        },
+    }
+
+
 def run_analysis(db: Session, req) -> dict:
     """Execute the full deterministic pipeline for an AnalysisRequest."""
     from app.log import log_event
@@ -205,8 +240,20 @@ def run_analysis(db: Session, req) -> dict:
     if location is None:
         raise ValueError("location not found for the given administrative selection")
 
+    # The geospatial centre of all near-distance queries. When the user has
+    # pinned an exact shop location on the map, those exact coordinates are
+    # used; otherwise fall back to the selected admin area's baseline centroid.
+    # The admin `Location` (population, weather, provenance) stays resolution-
+    # aware: only the lat/lng used for distance math differ.
+    location_view = _geo_center_view(location, getattr(req, "proposed_latitude", None),
+                                     getattr(req, "proposed_longitude", None))
+    uses_proposed = location_view is not location
+
     log_event("geo", run_id=req.analysis_id if getattr(req, "analysis_id", None) else None,
               location_id=location.id,
+              center_latitude=location_view.latitude,
+              center_longitude=location_view.longitude,
+              uses_proposed_location=bool(uses_proposed),
               business_backend=geo_backend_name(db, Business),
               infrastructure_backend=geo_backend_name(db, InfrastructurePoint))
 
@@ -246,25 +293,34 @@ def run_analysis(db: Session, req) -> dict:
     # 4. competition / market evidence (reusable engines, plan §12-13)
     profile = get_category_profile(db, category)
     competitor = analyze_competition(
-        db, latitude=location.latitude, longitude=location.longitude,
+        db, latitude=location_view.latitude, longitude=location_view.longitude,
         category_code=category, radius_km=5.0,
         data_completeness="medium",
     )
     competition = competition_to_dict(competitor)
     signal_codes = tuple(profile.get("demand_signals") or market_default_signal_codes())
     market_reach = analyze_market(
-        db, location=location, radius_km=10.0,
+        db, location=location_view, radius_km=10.0,
         signal_codes=signal_codes,
         data_completeness="medium",
     )
     market = market_reach.to_dict()
     population = _population(db, location)
-    infrastructure = _infrastructure(db, location)
+    infrastructure = _infrastructure(db, location_view)
     weather = _weather(db, location)
     soil = soil_health_evidence(
         db, state=location.state, district=location.district,
         block=location.block, village=location.village, location_id=location.id,
     )
+    # Location-scoped MSME / industrial context (UDYAM pincode-level, factories
+    # district-level). Never point-radius competitors; approximate + labelled.
+    loc_features = location_features(
+        db, state=location.state, district=location.district,
+        latitude=location_view.latitude, longitude=location_view.longitude,
+        radius_km=10.0, profile=profile,
+    )
+
+    industry_ctx = _industry_context(db, location.state)
 
     # 5. derive component scores (deterministic, evidence-based)
     demand = _demand_score(population, competition, infrastructure)
@@ -313,12 +369,13 @@ def run_analysis(db: Session, req) -> dict:
         missing_indicators.append("soil_health")
     present_slots = (3.0  # base (osm + price + infra-quality)
                      + (1.0 if population.get("available") else 0.0)
-                     + (1.0 if soil.get("available") else 0.0))
+                     + (1.0 if soil.get("available") else 0.0)
+                     + (0.5 if loc_features.get("available") else 0.0))
     data_quality = compute_data_quality(QualityInputs(
         freshness_buckets=[pop_bucket, bus_bucket],
         geographic_precision=location.geo_precision,
         coverage=competition["data_completeness"],
-        completeness=present_slots / 5.0,
+        completeness=present_slots / 5.5,
         source_reliability="medium",
         any_demo=bool(population.get("is_demo")),
         any_missing_indicators=missing_indicators,
@@ -352,8 +409,11 @@ def run_analysis(db: Session, req) -> dict:
     evidence = {
         "location": {"id": location.id, "state": location.state, "district": location.district,
                      "block": location.block, "village": location.village,
-                     "latitude": location.latitude, "longitude": location.longitude,
+                     "latitude": location_view.latitude, "longitude": location_view.longitude,
                      "geo_precision": location.geo_precision,
+                     "proposed_latitude": getattr(req, "proposed_latitude", None),
+                     "proposed_longitude": getattr(req, "proposed_longitude", None),
+                     "uses_proposed_location": bool(uses_proposed),
                      "source": _entry(location)},
         "population": population,
         "business_competition": competition,
@@ -362,6 +422,8 @@ def run_analysis(db: Session, req) -> dict:
         "weather": weather,
         "soil": soil,
         "price": price_evidence,
+        "location_features": loc_features,
+        "industry_context": industry_ctx,
         "data_confidence": data_quality,
         "opportunity_score": {
             "overall_score": result.overall_score,
@@ -414,7 +476,7 @@ def run_analysis(db: Session, req) -> dict:
             "label": result.recommendation,
             "reason": result.recommendation_reason,
         },
-        "data_sources": _collect_data_sources(competition, population, weather, price_evidence, soil, infrastructure),
+        "data_sources": _collect_data_sources(competition, population, weather, price_evidence, soil, infrastructure, loc_features),
     }
 
     # persist
@@ -457,6 +519,29 @@ def _resolve_location(db, state, district, block=None, village=None) -> Optional
         stmt = stmt.where(Location.village == village)
     stmt = stmt.limit(1)
     return db.execute(stmt).scalars().first()
+
+
+def _geo_center_view(location: Location, proposed_lat=None, proposed_lng=None):
+    """Return a location-like object whose lat/lng drive distance queries.
+
+    When exact proposed shop coordinates are supplied they are used as the
+    geospatial centre; otherwise the resolved admin `Location` is returned
+    unchanged (identity preserved so callers can tell the difference). The
+    object keeps the admin Location's `id` so population/weather lookups,
+    which are village- (not point-) scoped, remain keyed to the admin area.
+    """
+    if proposed_lat is None or proposed_lng is None:
+        return location
+    view = SimpleNamespace()
+    view.id = location.id
+    view.state = location.state
+    view.district = location.district
+    view.block = location.block
+    view.village = location.village
+    view.geo_precision = location.geo_precision
+    view.latitude = proposed_lat
+    view.longitude = proposed_lng
+    return view
 
 
 def _demand_score(population: dict, competition: dict, infrastructure: dict) -> Optional[float]:
@@ -557,7 +642,8 @@ def _risk_score(competition: dict, weather: dict, infrastructure: dict,
 def _collect_data_sources(competition: dict, population: dict, weather: dict,
                           price: Optional[dict] = None,
                           soil: Optional[dict] = None,
-                          infrastructure: Optional[dict] = None) -> list[dict]:
+                          infrastructure: Optional[dict] = None,
+                          loc_features: Optional[dict] = None) -> list[dict]:
     sources = []
     if population.get("available"):
         if population.get("is_demo"):
@@ -602,6 +688,15 @@ def _collect_data_sources(competition: dict, population: dict, weather: dict,
             "confidence": health_src.get("confidence") or "medium",
             "note": "Official NIC health establishments (GODL-India, via Bharat Atlas) "
                     "plus mapped OSM hospitals; nearest-facility provenance attached to evidence",
+        })
+    if loc_features and loc_features.get("available"):
+        sources.append({
+            "name": "UDYAM (Ministry of MSME)",
+            "dataset": "List of MSME Registered Units under UDYAM",
+            "confidence": loc_features.get("confidence") or "medium",
+            "geo_resolution": "pincode",
+            "note": "Pincode-centroid MSME context (nearby/relevant units) - "
+                    "approximate, not point-located; never used as point competitors.",
         })
     if not sources:
         sources.append({"name": "No verified sources loaded", "confidence": "low"})

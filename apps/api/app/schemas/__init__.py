@@ -78,6 +78,8 @@ class AnalysisRequest(BaseModel):
     district: str
     block: Optional[str] = None
     village: Optional[str] = None
+    proposed_latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    proposed_longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     capital_available: float = Field(gt=0)
     category_code: str
     business_experience: Optional[bool] = None

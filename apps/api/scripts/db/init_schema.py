@@ -54,14 +54,72 @@ def init_schema():
         # guaranteed at the DB level, not just in ingest scripts. The partial
         # index guards ONLY real rows (NULL/False is_demo), so demo/proxy price
         # rows can never collide with real ones, and demo rows stay ingestable.
+        # The variety-wise dataset reports one row per commodity & variety, so
+        # variety is part of a row's identity; old clusters get the columns and
+        # an upgraded index additively.
+        s.execute(text("ALTER TABLE market_prices ADD COLUMN IF NOT EXISTS variety VARCHAR(120)"))
+        s.execute(text("ALTER TABLE market_prices ADD COLUMN IF NOT EXISTS grade VARCHAR(80)"))
+        s.execute(text("DROP INDEX IF EXISTS uq_market_prices_real_dedupe"))
         s.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_market_prices_real_dedupe "
-            "ON market_prices (item_name, market_name, district, reference_date)"
+            "ON market_prices (item_name, COALESCE(variety, ''), "
+            "market_name, district, reference_date)"
             " WHERE (is_demo IS NOT TRUE)"
         ))
         s.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_market_prices_district_real "
             "ON market_prices (district, reference_date DESC)"
+            " WHERE (is_demo IS NOT TRUE)"
+        ))
+        s.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_market_prices_variety_real "
+            "ON market_prices (variety)"
+            " WHERE (is_demo IS NOT TRUE)"
+        ))
+        # National/state indicator time-series (plan: generic fact table for
+        # datasets not pinned to one Erode locality) + APMC market-name
+        # reference directory. Both are created idempotently so existing
+        # clusters pick them up without a destructive drop. The provenance
+        # columns mirror the shared ProvenanceMixin.
+        s.execute(text(
+            "CREATE TABLE IF NOT EXISTS indicator_statistics ("
+            "  id VARCHAR(36) PRIMARY KEY,"
+            "  created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ,"
+            "  indicator VARCHAR(120) NOT NULL, period VARCHAR(80),"
+            "  value DOUBLE PRECISION, unit VARCHAR(40),"
+            "  state VARCHAR(100), district VARCHAR(100),"
+            "  dimension VARCHAR(120), dimension_type VARCHAR(40),"
+            "  metadata_json JSONB,"
+            "  source_name VARCHAR(200), source_url VARCHAR(500),"
+            "  dataset_name VARCHAR(200), source_type VARCHAR(50),"
+            "  reference_date DATE, reference_year INTEGER,"
+            "  retrieved_at TIMESTAMPTZ, geographic_level VARCHAR(50),"
+            "  confidence VARCHAR(20), completeness DOUBLE PRECISION,"
+            "  methodology TEXT, is_estimate BOOLEAN, is_demo BOOLEAN"
+            ")"
+        ))
+        s.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_indicator_statistics_real_dedupe "
+            "ON indicator_statistics (indicator, period, state, dimension)"
+            " WHERE (is_demo IS NOT TRUE)"
+        ))
+        s.execute(text(
+            "CREATE TABLE IF NOT EXISTS market_names ("
+            "  id VARCHAR(36) PRIMARY KEY,"
+            "  created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ,"
+            "  state VARCHAR(100), district VARCHAR(100),"
+            "  name VARCHAR(160) NOT NULL, metadata_json JSONB,"
+            "  source_name VARCHAR(200), source_url VARCHAR(500),"
+            "  dataset_name VARCHAR(200), source_type VARCHAR(50),"
+            "  reference_date DATE, reference_year INTEGER,"
+            "  retrieved_at TIMESTAMPTZ, geographic_level VARCHAR(50),"
+            "  confidence VARCHAR(20), completeness DOUBLE PRECISION,"
+            "  methodology TEXT, is_estimate BOOLEAN, is_demo BOOLEAN"
+            ")"
+        ))
+        s.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_market_names_real_dedupe "
+            "ON market_names (state, district, name)"
             " WHERE (is_demo IS NOT TRUE)"
         ))
         # Infrastructure idempotency (Phase 18b): one real facility per
@@ -71,6 +129,34 @@ def init_schema():
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_infrastructure_real_dedupe "
             "ON infrastructure_points (source_name, source_id)"
             " WHERE (is_demo IS NOT TRUE AND source_id IS NOT NULL)"
+        ))
+        # UDYAM MSME idempotency (Phase 19 / CSV export): real rows unique per
+        # source_key, which is `udyam_number` when present else a deterministic
+        # composite-derived key for exports that omit the registration number.
+        s.execute(text(
+            "ALTER TABLE udyam_units ALTER COLUMN udyam_number DROP NOT NULL"
+        ))
+        s.execute(text(
+            "ALTER TABLE udyam_units ADD COLUMN IF NOT EXISTS "
+            "source_key VARCHAR(160)"
+        ))
+        s.execute(text("DROP INDEX IF EXISTS uq_udyam_real_dedupe"))
+        s.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_udyam_real_dedupe "
+            "ON udyam_units (source_key)"
+            " WHERE (is_demo IS NOT TRUE AND source_key IS NOT NULL)"
+        ))
+        s.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_udyam_district_real "
+            "ON udyam_units (district, registration_date DESC)"
+            " WHERE (is_demo IS NOT TRUE)"
+        ))
+        # Industrial aggregates idempotency (Phase 19): one row per
+        # (state, district, unit_type, reference_year) for real rows.
+        s.execute(text(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_industrial_units_real_dedupe "
+            "ON industrial_units (state, district, unit_type, reference_year)"
+            " WHERE (is_demo IS NOT NULL AND is_demo IS NOT TRUE)"
         ))
         # Business categories (OSM tag mapping + §14 profiles)
         seed_category_profiles(s)

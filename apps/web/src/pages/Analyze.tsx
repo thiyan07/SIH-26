@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
 import { Button, Card, CardHeader } from '../components/ui'
+import { ShopLocationPicker } from '../components/ShopLocationPicker'
 import type { AnalysisResult, Category, LocationOut } from '../types'
 
 export function Analyze() {
@@ -29,6 +30,11 @@ export function Analyze() {
     family_members: 0,
     preferred_scale: 'small',
   })
+  // Exact proposed shop location (dragged on the map). Kept separate from the
+  // admin-area selection so the proposed point never overwrites the village.
+  const [areaPinned, setAreaPinned] = useState(false)
+  const [draftProposed, setDraftProposed] = useState<{ lat: number; lng: number } | null>(null)
+  const [confirmedProposed, setConfirmedProposed] = useState<{ lat: number; lng: number } | null>(null)
 
   useEffect(() => {
     api.get<{ categories: Category[] }>('/financial/categories')
@@ -60,6 +66,9 @@ export function Analyze() {
       latitude: l.latitude,
       longitude: l.longitude,
     }))
+    setAreaPinned(true)
+    setDraftProposed(null)
+    setConfirmedProposed(null)
     setLocations([])
   }
 
@@ -68,16 +77,16 @@ export function Analyze() {
     setError(null)
     try {
       const locs = await api.get<LocationOut[]>(
-        `/locations/search?q=${encodeURIComponent('Bhavani')}&state=${encodeURIComponent('Tamil Nadu')}&limit=5`,
+        `/locations/search?q=${encodeURIComponent('Perundurai')}&state=${encodeURIComponent('Tamil Nadu')}&limit=5`,
       )
       const loc = locs[0]
       const payload = {
         state: 'Tamil Nadu',
         district: 'Erode',
         block: loc?.block || 'Erode',
-        village: loc?.village || 'Bhavani',
+        village: loc?.village || 'Perundurai',
         capital_available: 100000,
-        category_code: 'dairy',
+        category_code: 'restaurant',
         business_experience: false,
         existing_shop: false,
         existing_equipment: false,
@@ -94,6 +103,10 @@ export function Analyze() {
     }
   }
 
+  const confirmProposed = () => {
+    if (draftProposed) setConfirmedProposed({ lat: draftProposed.lat, lng: draftProposed.lng })
+  }
+
   const submit = async (ev: React.FormEvent) => {
     ev.preventDefault()
     setLoading(true)
@@ -104,6 +117,8 @@ export function Analyze() {
         district: form.district,
         block: form.block || undefined,
         village: form.village || undefined,
+        proposed_latitude: confirmedProposed ? confirmedProposed.lat : undefined,
+        proposed_longitude: confirmedProposed ? confirmedProposed.lng : undefined,
         capital_available: form.capital_available,
         category_code: form.category_code,
         business_experience: form.business_experience,
@@ -135,7 +150,7 @@ export function Analyze() {
       <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
         <strong>Quick start:</strong> not sure what to enter yet?{' '}
         <button onClick={loadDemo} disabled={loading} className="font-semibold underline">
-          {loading ? 'Running…' : 'Load a demo workspace (Erode, dairy)'}
+          {loading ? 'Running…' : 'Load a demo workspace (Perundurai, restaurant)'}
         </button>
       </div>
 
@@ -178,12 +193,52 @@ export function Analyze() {
           <div className="mt-3 grid grid-cols-2 gap-3">
             <Field label="Village" value={form.village} onChange={(v) => setLocalForm((f) => ({ ...f, village: v }))} />
             <label className="text-xs text-gray-500">
-              <span className="font-medium">Pinned location</span>
+              <span className="font-medium">Admin area centre</span>
               <div className="mt-1 rounded-lg bg-gray-50 p-2 font-mono text-xs">
                 {form.latitude ? `${form.latitude.toFixed(4)}, ${form.longitude.toFixed(4)}` : 'Not pinned — demo will pin it'}
               </div>
             </label>
           </div>
+
+          {areaPinned && form.latitude && form.longitude ? (
+            <div className="mt-4">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-600">Exact proposed shop location</span>
+                <span className="text-[10px] text-gray-400">drag the pin or click the map</span>
+              </div>
+              <ShopLocationPicker
+                latitude={form.latitude}
+                longitude={form.longitude}
+                confirmedLat={confirmedProposed ? confirmedProposed.lat : null}
+                confirmedLng={confirmedProposed ? confirmedProposed.lng : null}
+                onProposedChange={(lat, lng) => setDraftProposed({ lat, lng })}
+              />
+              <div className="mt-2 flex items-center justify-between gap-3">
+                {confirmedProposed ? (
+                  <span className="text-xs font-medium text-emerald-600">
+                    Using exact location {confirmedProposed.lat.toFixed(5)}, {confirmedProposed.lng.toFixed(5)} for competitor search
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-500">
+                    {draftProposed
+                      ? `${draftProposed.lat.toFixed(5)}, ${draftProposed.lng.toFixed(5)} — not yet used.`
+                      : 'Pin the exact spot on the map.'}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={confirmProposed}
+                  disabled={!draftProposed || !!confirmedProposed}
+                  className="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+                >
+                  {confirmedProposed ? 'Confirmed' : 'Confirm this location'}
+                </button>
+              </div>
+              <p className="mt-1 text-[10px] text-gray-400">
+                If unconfirmed, analysis uses the selected admin area centre. Competitors are searched from the exact confirmed point.
+              </p>
+            </div>
+          ) : null}
         </Card>
 
         <Card>

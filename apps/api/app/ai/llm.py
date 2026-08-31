@@ -75,7 +75,10 @@ class OpenAILikeProvider(LLMProvider):
             from openai import OpenAI
         except ImportError as e:  # pragma: no cover
             return {"content": f"OpenAI client unavailable: {e}"}
-        client = OpenAI(api_key=settings.llm_api_key)
+        kwargs = {"api_key": settings.llm_api_key}
+        if settings.llm_base_url:
+            kwargs["base_url"] = settings.llm_base_url
+        client = OpenAI(**kwargs)
         resp = client.chat.completions.create(
             model=settings.llm_model or "gpt-4o-mini",
             messages=[
@@ -89,7 +92,7 @@ class OpenAILikeProvider(LLMProvider):
 
 def get_provider() -> LLMProvider:
     prov = settings.llm_provider
-    if prov.lower() == "openai":
+    if prov.lower() in ("openai", "nvidia"):
         return OpenAILikeProvider()
     return MockLLMProvider()
 

@@ -139,6 +139,9 @@ export interface AnalysisResult {
     latitude: number
     longitude: number
     geo_precision: string
+    proposed_latitude?: number | null
+    proposed_longitude?: number | null
+    uses_proposed_location?: boolean
     source?: any
   }
   population: any

@@ -16,9 +16,10 @@ class Settings(BaseSettings):
         "postgresql+psycopg://grambiz:grambiz@localhost:5432/grambiz"
     )
 
-    llm_provider: str = "mock"  # mock | openai | anthropic
+    llm_provider: str = "mock"  # mock | openai | nvidia
     llm_api_key: str = ""
     llm_model: str = ""
+    llm_base_url: str = ""  # override for OpenAI-compatible providers (e.g. NVIDIA NIM)
 
     embedding_mode: str = "tf_hash_v0"  # plan §21: deterministic offline embeddings
     rag_chunk_tokens: int = 420
@@ -42,6 +43,8 @@ class Settings(BaseSettings):
     imd_rainfall_resource: str = ""  # confirmed data.gov.in resource id for IMD rainfall
     data_gov_market_resource: str = ""  # confirmed data.gov.in resource id for market prices
     soil_health_resource: str = ""  # confirmed data.gov.in resource id for Soil Health Card nutrient analysis
+    udyam_resource: str = ""  # confirmed data.gov.in resource id for the UDYAM MSME unit list
+    udyam_pincode_directory: str = ""  # path to CSV: pincode,latitude,longitude for pincode->centroid
 
     # Decision-logic thresholds (Phase 12). Opportunity score vs data confidence:
     confidence_medium_at: float = 40.0  # confidence < this -> low

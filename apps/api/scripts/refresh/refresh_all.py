@@ -39,6 +39,7 @@ from scripts.ingest_government import (
     ingest_market_datagov,
     ingest_openmeteo_weather,
     ingest_soil_health,
+    ingest_udyam,
     ingest_weather_current,
 )
 
@@ -113,6 +114,13 @@ JOBS: list[Job] = [
         key="soil_health", label="Soil Health Card (data.gov.in, MOAFW)",
         run=lambda: ingest_soil_health.main([]), cooldown=dt.timedelta(days=30),
         note="Key-gated; skipped cleanly when DATA_GOV_API_KEY or SOIL_HEALTH_RESOURCE is absent.",
+    ),
+    Job(
+        key="udyam", label="UDYAM MSME units (data.gov.in, Ministry of MSME)",
+        run=lambda: ingest_udyam.main([]), cooldown=dt.timedelta(days=7),
+        snapshot_job_hint="udyam_erode",
+        note="Pincode-level MSME units. Key-gated (DATA_GOV_API_KEY + UDYAM_RESOURCE). "
+             "Never fabricated; used for district/pincode-scoped MSME context.",
     ),
 ]
 

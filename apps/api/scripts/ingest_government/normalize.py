@@ -179,6 +179,8 @@ DATAGOV_DEFS: dict[str, dict] = {
             "date": "reference_date",
             "unit": "unit",
             "units": "unit",
+            "variety": "variety",
+            "grade": "grade",
         },
         "requires": ["item_name"],
         "geo_level": "mandi",
@@ -305,6 +307,8 @@ def _coerce_row(mapped: dict, defn: dict) -> Optional[dict]:
             mapped[field] = _coerce_number(mapped.get(field))
         mapped["reference_date"] = _coerce_date(mapped.get("reference_date"))
         mapped["unit"] = (mapped.get("unit") or None)
+        mapped["variety"] = str(mapped.get("variety") or "").strip() or None
+        mapped["grade"] = str(mapped.get("grade") or "").strip() or None
         return mapped if mapped["item_name"] else None
     if model == "population":
         for field in ("population", "households", "males", "females"):
@@ -401,6 +405,7 @@ def store_datagov(session, defn: dict, rows: list[dict], url: Optional[str] = No
         for rec in rows:
             dupe = session.query(MarketPrice).filter(
                 MarketPrice.item_name == rec["item_name"],
+                MarketPrice.variety == rec.get("variety"),
                 MarketPrice.market_name == rec.get("market_name"),
                 MarketPrice.state == rec.get("state"),
                 MarketPrice.district == rec.get("district"),
@@ -419,6 +424,8 @@ def store_datagov(session, defn: dict, rows: list[dict], url: Optional[str] = No
                 state=rec.get("state"),
                 district=rec.get("district"),
                 mandi=rec.get("mandi"),
+                variety=rec.get("variety"),
+                grade=rec.get("grade"),
                 reference_date=rec.get("reference_date"),
                 **base,
             ))
