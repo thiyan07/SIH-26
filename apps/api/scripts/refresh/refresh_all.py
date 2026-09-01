@@ -54,6 +54,16 @@ def _osm_run(argv: list[str] | None = None):
     return 0
 
 
+def _hdx_run(argv: list[str] | None = None):
+    from scripts.ingest_hdx.ingest import download_hdx, ingest
+
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="hdx_ingest_") as tmp:
+        src = download_hdx(tmp)   # returns extracted .geojson path
+        ingest(src, "Erode", None, False)
+    return 0
+
+
 @dataclass
 class Job:
     key: str
@@ -68,6 +78,12 @@ JOBS: list[Job] = [
     Job(
         key="osm", label="OpenStreetMap businesses & infrastructure",
         run=_osm_run, cooldown=dt.timedelta(days=7), snapshot_job_hint="osm",
+    ),
+    Job(
+        key="hdx_poi", label="POI / places of interest (HDX OSM export, Erode)",
+        run=_hdx_run, cooldown=dt.timedelta(days=30), snapshot_job_hint="hdx_erode",
+        note="Bulk OSM POI export filtered to Erode (ODbL, © OpenStreetMap contributors). "
+             "Seeds real businesses & amenities beyond the live Overpass extract.",
     ),
     Job(
         key="prices_mirror", label="Mandi prices (ACROP Agmarknet mirror)",

@@ -21,6 +21,7 @@ export default defineConfig({
     proxy: {
       '/analysis': { target: 'http://localhost:8000', changeOrigin: true },
       '/geojson': { target: 'http://localhost:8000', changeOrigin: true },
+      '/geocode': { target: 'http://localhost:8000', changeOrigin: true },
       '/schemes': { target: 'http://localhost:8000', changeOrigin: true, bypass: spaBypass },
       '/locations': { target: 'http://localhost:8000', changeOrigin: true },
       '/businesses': { target: 'http://localhost:8000', changeOrigin: true },

@@ -7,7 +7,18 @@ from fastapi.responses import JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-from app.api import ai, analysis, businesses, data_sources, financial, geo, locations, market, rag
+from app.api import (
+    ai,
+    analysis,
+    businesses,
+    data_sources,
+    financial,
+    geo,
+    geocoder,
+    locations,
+    market,
+    rag,
+)
 from app.config import settings
 from app.limiter import limiter
 
@@ -43,6 +54,7 @@ app.include_router(analysis.router)
 app.include_router(ai.router)
 app.include_router(data_sources.router)
 app.include_router(geo.router)
+app.include_router(geocoder.router)
 app.include_router(rag.router)
 
 

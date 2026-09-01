@@ -82,7 +82,8 @@ def _business_competition(db: Session, location: Location, category_code: str) -
         if nearest_dist is None or d < nearest_dist:
             nearest_dist = d
             nearest = r
-    return {
+    discovery = _live_discovery_evidence(db, lat, lon, category_code)
+    result = {
         "mapped_competitors_5km": len(rows5),
         "mapped_competitors_10km": len(rows10),
         "nearest_competitor_km": round(nearest_dist, 2) if nearest_dist is not None else None,
@@ -91,6 +92,56 @@ def _business_competition(db: Session, location: Location, category_code: str) -
         "note": "OSM mapped businesses may be incomplete.",
         "source": _entry(rows10[0]) if rows10 else {"source_name": "OpenStreetMap", "source_type": "osm"},
         "businesses": [_business_out(r, lat, lon) for r in rows10[:50]],
+        "live_discovery": discovery,
+    }
+    return result
+
+
+def _live_discovery_evidence(db: Session, lat: float, lon: float, category_code: str) -> dict:
+    """Best-effort live competitor discovery evidence for the AI layer.
+
+    Runs the on-demand Overpass discovery against the exact lat/lon/radius and
+    returns a compact, provenance-carrying evidence block (plan §23). Never
+    blocks analysis: any failure / timeout yields an availability marker with
+    no fabricated competitors.
+    """
+    if not lat or not lon:
+        return {"available": False, "reason": "no_coordinates"}
+    try:
+        from app.services.competitors import discover_competitors
+
+        r = discover_competitors(db, latitude=lat, longitude=lon, category_code=category_code)
+    except Exception as exc:  # network timeouts, mirror failures, etc.
+        return {
+            "available": False,
+            "reason": "discovery_unavailable",
+            "detail": str(exc)[:200],
+            "note": "Live competitor discovery could not complete; competitor counts are "
+                    "still reported from the static evidence only.",
+        }
+    comp = r["competitors"]
+    direct = comp.get("direct") or 0
+    return {
+        "available": True,
+        "source": r["data"]["primary_source"],
+        "source_code": r["data"].get("source", "osm"),
+        "mirror": r["data"].get("mirror"),
+        "retrieved_at": r["data"].get("retrieved_at"),
+        "freshness": r["data"].get("freshness"),
+        "data_status": r["data_status"],
+        "search_radius_m": r.get("search_radius_m"),
+        "coverage": r["confidence"].get("label"),
+        "confidence": r["confidence"].get("score"),
+        "total_mapped": comp.get("total_mapped"),
+        "direct": direct,
+        "indirect": comp.get("indirect"),
+        "unrelated": comp.get("unrelated"),
+        "nearest_km": comp.get("nearest_km"),
+        "rings": comp.get("rings"),
+        "category_saturation": comp.get("category_saturation"),
+        "note": r["data"].get("note"),
+        "counts_have_uncertainty": bool(r.get("data_uncertain", False))
+        or r["data_status"] in ("UNAVAILABLE", "FRESH_EMPTY", "STALE_CACHE"),
     }
 
 

@@ -33,6 +33,28 @@ class Settings(BaseSettings):
     data_provider_keys: str = ""
 
     overpass_url: str = "https://overpass-api.de/api/interpreter"
+    # Comma-separated fallback mirrors for competitor discovery (P0). The first
+    # is tried, then the rest in order; all failing -> data_status UNAVAILABLE.
+    overpass_mirrors: str = (
+        "https://overpass-api.de/api/interpreter,"
+        "https://overpass.kumi.systems/api/interpreter,"
+        "https://overpass.private.coffee/api/interpreter"
+    )
+    overpass_timeout_s: int = 40
+
+    # Geocoder (place / address search for the exact proposed shop location).
+    # Provider is configurable; official API keys stay server-side only.
+    geocoder_provider: str = "nominatim"  # nominatim | photon | google
+    geocoder_base_url: str = ""  # empty -> provider default
+    geocoder_api_key: str = ""
+    geocoder_user_agent: str = "GramBiz AI (Smart India Hackathon 2026)"
+    geocoder_timeout_s: int = 10
+    # Geographic TTL cache (P0): how long a competitor result for a geo-bucket
+    # is reused before a live refresh, and the lat/lon bucket size in km.
+    competitor_cache_ttl_hours: float = 24.0
+    competitor_cache_bucket_km: int = 1
+    # Fail fast vs fallback to stale cache when Overpass is down.
+    competitor_allow_stale_on_failure: bool = True
 
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     rate_limit_rpm: int = 60

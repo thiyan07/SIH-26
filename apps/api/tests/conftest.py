@@ -79,6 +79,18 @@ def _apply_additive_schema(mod):
                 "ON infrastructure_points (source_name, source_id)"
                 " WHERE (is_demo IS NOT TRUE AND source_id IS NOT NULL)"
             ))
+            # P0 competitor pipeline: absolute-requirement businesses columns on
+            # older test clusters (mirrors scripts/db/init_schema.py).
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS normalized_name VARCHAR(200)"))
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS phone VARCHAR(80)"))
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS website VARCHAR(300)"))
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS opening_hours VARCHAR(200)"))
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS brand VARCHAR(200)"))
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ"))
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ"))
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ"))
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS confidence_score DOUBLE PRECISION"))
+            s.execute(text("ALTER TABLE businesses ADD COLUMN IF NOT EXISTS verification_status VARCHAR(200)"))
     except Exception:  # noqa: BLE001 - a fresh DB already has the columns
         pass
 

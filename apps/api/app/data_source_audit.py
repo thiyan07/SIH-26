@@ -33,6 +33,36 @@ SNAPSHOT_HINTS: dict[str, str] = {
     "health_facilities": "bharatlas_health",
 }
 
+# Resolve a declarative quality-catalog key to the actual DataSource.key used in
+# the `data_sources` table. Some catalog keys (e.g. "osm") cover a real dataset
+# registered under a more specific key (e.g. "osm_business"). Falling back to an
+# exact match keeps direct-keyed sources working unchanged.
+_SOURCE_KEY_ALIASES: dict[str, str] = {
+    "osm": "osm_business",
+    "infrastructure_osm": "osm_infrastructure",
+}
+
+
+def _resolve_source_key(catalog_key: str) -> str:
+    return _SOURCE_KEY_ALIASES.get(catalog_key, catalog_key)
+
+
+def _placeholder_source(key: str):
+    """Minimal stand-in for a catalog key with no registered DataSource row.
+
+    Carries just enough attributes (key / display_name / last_updated) so the
+    audit can still persist a documented quality ledger entry without inventing
+    a provenance-bearing DataSource row. Freshness is scored honestly as
+    unknown when there is no real row / snapshot.
+    """
+    entry = SOURCE_QUALITY_CATALOG.get(key)
+    name = entry.name if entry is not None else key
+    return type("_DataSourceProxy", (), {
+        "key": key,
+        "display_name": name,
+        "last_updated": None,
+    })()
+
 
 def _latest_success(conn: Session, hint: str) -> DataSnapshot | None:
     rows = (
@@ -87,7 +117,8 @@ def run_audit(conn: Session) -> dict[str, dict]:
     now = dt.datetime.now(dt.timezone.utc)
 
     for key, entry in SOURCE_QUALITY_CATALOG.items():
-        source = by_key.get(key)
+        source_key = _resolve_source_key(key)
+        source = by_key.get(source_key)
         hint = SNAPSHOT_HINTS.get(key)
         snap = _latest_success(conn, hint) if hint else None
         age_years = None
@@ -99,7 +130,7 @@ def run_audit(conn: Session) -> dict[str, dict]:
         elif source is not None and source.last_updated is not None:
             age_years = max(0.0, (now - source.last_updated).total_seconds() / 86400.0 / 365.25)
             alive = False
-        scored = audit_source(conn, source, entry, age_years, alive)
+        scored = audit_source(conn, source or _placeholder_source(source_key), entry, age_years, alive)
         results[key] = scored
     conn.commit() if getattr(conn, "commit", None) else None
     return results

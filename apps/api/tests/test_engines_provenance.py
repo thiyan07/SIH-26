@@ -145,8 +145,12 @@ def test_osm_category_mapping():
     assert _category_for_tags({"shop": "dairy"}) == "dairy"
     assert _category_for_tags({"amenity": "restaurant"}) == "restaurant"
     assert _category_for_tags({"shop": "convenience"}) == "grocery"
-    # An unrelated shop should not map to a known business category
-    assert _category_for_tags({"shop": "car_repair"}) is None
+    # Expanded competitor catalog: an automotive repair shop IS a real rival
+    # (mechanic), so it maps to a competitor category rather than None.
+    assert _category_for_tags({"shop": "car_repair"}) == "mechanic"
+    assert _category_for_tags({"shop": "chemist"}) == "pharmacy"
+    # A genuinely-unknown/irrelevant shop must not map to a known category.
+    assert _category_for_tags({"shop": "wizard_fantasy_shop"}) is None
 
 
 def test_osm_region_preset_resolves_bbox():

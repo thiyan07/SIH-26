@@ -44,6 +44,7 @@ REGION_BBOXES = {
     "perundurai": "11.21,77.53,11.32,77.65",
     "thindal": "11.28,77.64,11.36,77.72",
     "anthiyur": "11.53,77.11,11.62,77.22",
+    "avalpoondurai": "11.20,77.70,11.28,77.74",  # rural village east of Perundurai (pilot rural benchmark)
 }
 DEFAULT_REGION = "erode"
 
@@ -80,6 +81,23 @@ def _completeness_and_confidence(tags: dict) -> tuple[float, str]:
     return completeness, confidence
 
 
+def _normalize_name(name: Optional[str]) -> Optional[str]:
+    """Normalized name for conservative dedupe (lowercase, collapsed spaces)."""
+    if not name:
+        return None
+    return " ".join(str(name).strip().lower().split())
+
+
+def _confidence_score(completeness: float, label: str) -> float:
+    """Map per-record completeness/label to a transparent 0..1 confidence.
+
+    Confidence reflects how rich a record's identifying/contact detail is
+    (the source's own completeness), not a claim of ground truth.
+    """
+    base = {"high": 0.9, "medium": 0.65, "low": 0.4}.get(label, 0.4)
+    return round(min(1.0, max(0.0, base * (0.5 + 0.5 * completeness))), 3)
+
+
 # Food-processing is tagged ambiguously (shop/craft/man_made). We only assign
 # it when the element's tags mention food-related words, so generic
 # craft/man_made elements fall through to manufacturing/handicrafts (plan §4).
@@ -90,14 +108,40 @@ _FOOD_PROCESSING_KEYWORDS = (
 
 
 def _category_for_tags(tags: dict) -> Optional[str]:
-    for code, tag_sets in CATEGORY_OSM_TAGS.items():
-        for ts in tag_sets:
-            if all(tags.get(k) == v for k, v in ts.items() if v is not None):
-                # heuristic: any matching key
-                if any(k in tags for k in ts):
-                    if code == "food_processing" and not _is_food_processing(tags):
-                        continue
-                    return code
+    """Categorize an OSM element using the configurable rich catalog.
+
+    Maps the element's primary shop/amenity/craft/healthcare tag value through
+    ``category_for_osm_tag`` (the same reverse index the competitor discovery
+    service uses for its direct/indirect relationship matrix), so the
+    ``businesses`` table stores *fine-grained* competitor categories (grocery,
+    supermarket, pharmacy, bakery, hardware, mobile_shop, ...) instead of the
+    narrow legacy set. This closes the category-coverage gap for point-radius
+    competitor search.
+    """
+    from app.catalog.business_categories import category_for_osm_tag
+
+    # Candidate OSM keys that best identify a competitor business category.
+    for key in ("shop", "craft", "office", "healthcare"):
+        value = tags.get(key)
+        if value:
+            code = category_for_osm_tag(value)
+            if code != "other":
+                return code
+    # amenity is the primary tag for food service / health competitors.
+    for key in ("amenity",):
+        value = tags.get(key)
+        if value == "marketplace":
+            return None  # marketplaces are routed to infrastructure, not businesses
+        if value:
+            code = category_for_osm_tag(value)
+            if code != "other":
+                return code
+    # food_processing / manufacturing fallbacks (tag ambiguity heuristic).
+    if "man_made" in tags or "industrial" in tags:
+        if _is_food_processing(tags):
+            return "food_processing"
+        if tags.get("man_made") == "works" or tags.get("industrial") == "factory":
+            return "manufacturing"
     return None
 
 
@@ -192,17 +236,29 @@ def _upsert_infrastructure(session, kind: str, name: str, lat: float, lon: float
 
 
 def fetch_overpass(bbox: str) -> list[dict]:
-    url = settings.overpass_url
+    """Fetch real OSM elements for a bbox, iterating public mirrors.
+
+    Mirrors come from the shared ``settings.overpass_mirrors`` list (same as the
+    live competitor-discovery provider) so a transient 5xx on one mirror does
+    not fail a scheduled ingest. Real data only — never fabricated.
+    """
     headers = {"User-Agent": os.environ.get("OVERPASS_USER_AGENT", "GramBizAI/1.0 (scheduled OSM ingestion)")}
-    try:
-        resp = httpx.post(url, data={"data": _overpass_query(bbox)}, headers=headers, timeout=120)
-        resp.raise_for_status()
-    except httpx.HTTPStatusError:
+    last_err: Optional[Exception] = None
+    mirrors = [m.strip() for m in settings.overpass_mirrors.split(",") if m.strip()] or [settings.overpass_url]
+    for url in mirrors:
+        try:
+            resp = httpx.post(url, data={"data": _overpass_query(bbox)}, headers=headers, timeout=120)
+            resp.raise_for_status()
+            return resp.json().get("elements", [])
+        except httpx.HTTPStatusError as e:
+            last_err = e
+            continue
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+            continue
         # Some Overpass mirrors reject POST at the Apache layer; the `data`
         # param is also accepted as a GET query string for read queries.
-        resp = httpx.get(url, params={"data": _overpass_query(bbox)}, headers=headers, timeout=120)
-        resp.raise_for_status()
-    return resp.json().get("elements", [])
+    raise RuntimeError(f"all Overpass mirrors failed: {last_err}")
 
 
 def _provenance(tags: Optional[dict] = None) -> dict:
@@ -227,7 +283,15 @@ def _provenance(tags: Optional[dict] = None) -> dict:
 
 
 def ingest(bbox: str, region: str, dry_run: bool = False) -> int:
-    elements = fetch_overpass(bbox) if not dry_run else []
+    try:
+        elements = fetch_overpass(bbox) if not dry_run else []
+    except RuntimeError as e:
+        log.error("overpass ingest failed for %s: %s", region, e)
+        from app.log import log_event
+
+        log_event("ingest", job=f"osm_{region}", errors=1, dry_run=dry_run,
+                  status="unavailable", detail=str(e))
+        return 0
     snapshot = DataSnapshot(job_name=f"osm_{region}", status="running",
                             started_at=datetime.now(timezone.utc),
                             records_ingested=0)
@@ -262,10 +326,22 @@ def ingest(bbox: str, region: str, dry_run: bool = False) -> int:
                                                             Business.source_id == source_id).first()
                         if existing:
                             continue
+                        now = datetime.now(timezone.utc)
+                        comp, conf_label = _completeness_and_confidence(tags)
                         b = Business(
-                            name=name, category_code=cat, latitude=float(lat), longitude=float(lon),
+                            name=name, normalized_name=_normalize_name(name),
+                            category_code=cat, latitude=float(lat), longitude=float(lon),
                             source="osm", source_id=source_id,
                             address=tags.get("addr:street"),
+                            phone=tags.get("phone") or tags.get("contact:phone"),
+                            website=tags.get("website") or tags.get("contact:website"),
+                            opening_hours=tags.get("opening_hours"),
+                            brand=tags.get("brand"),
+                            source_updated_at=now,
+                            first_seen_at=now,
+                            last_seen_at=now,
+                            confidence_score=_confidence_score(comp, conf_label),
+                            verification_status="UNVERIFIED",
                             tags=tags, **_provenance(tags),
                         )
                         s.add(b)

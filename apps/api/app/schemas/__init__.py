@@ -73,6 +73,15 @@ class CompetitorQuery(BaseModel):
     radius_km: float = Field(default=5, gt=0, le=100)
 
 
+class CompetitorDiscoveryQuery(BaseModel):
+    """P0 exact-location competitor discovery (map marker is the source of truth)."""
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    category_code: str
+    radius_km: Optional[float] = Field(default=None, gt=0, le=20)
+    radius_m: Optional[int] = Field(default=None, gt=0, le=20000)
+
+
 class AnalysisRequest(BaseModel):
     state: str
     district: str

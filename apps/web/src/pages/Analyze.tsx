@@ -6,6 +6,26 @@ import { Button, Card, CardHeader } from '../components/ui'
 import { ShopLocationPicker } from '../components/ShopLocationPicker'
 import type { AnalysisResult, Category, LocationOut } from '../types'
 
+interface DiscoveryResult {
+  data_status: string
+  search_radius_m?: number
+  data?: {
+    primary_source?: string
+    freshness?: string
+    note?: string
+    retrieved_at?: string
+  }
+  confidence?: { score: number; label: string }
+  competitors?: {
+    total_mapped?: number
+    direct?: number
+    indirect?: number
+    nearest_km?: number | null
+    rings?: Record<string, number>
+  }
+}
+
+
 export function Analyze() {
   const navigate = useNavigate()
   const { result, setResult, setForm } = useAnalysis()
@@ -35,6 +55,11 @@ export function Analyze() {
   const [areaPinned, setAreaPinned] = useState(false)
   const [draftProposed, setDraftProposed] = useState<{ lat: number; lng: number } | null>(null)
   const [confirmedProposed, setConfirmedProposed] = useState<{ lat: number; lng: number } | null>(null)
+  // Live competitor preview around the exact dragged map marker. Re-fetched
+  // (debounced) on every marker move so results track the pin (A !== B when moved).
+  const [liveComp, setLiveComp] = useState<DiscoveryResult | null>(null)
+  const [liveCompLoading, setLiveCompLoading] = useState(false)
+  const [liveCompError, setLiveCompError] = useState<string | null>(null)
 
   useEffect(() => {
     api.get<{ categories: Category[] }>('/financial/categories')
@@ -54,6 +79,35 @@ export function Analyze() {
       .catch(() => setLocations([]))
       .finally(() => setSearching(false))
   }, [form.q])
+
+  // Live competitor preview: whenever the exact search radius. Debounce ~600ms
+  // so dragging the pin issues one query at rest, keyed by the exact lat/lng.
+  useEffect(() => {
+    if (!draftProposed) {
+      setLiveComp(null)
+      setLiveCompError(null)
+      return
+    }
+    setLiveCompLoading(true)
+    setLiveCompError(null)
+    const timer = window.setTimeout(() => {
+      api
+        .post<DiscoveryResult>('/businesses/discovery', {
+          latitude: draftProposed.lat,
+          longitude: draftProposed.lng,
+          category_code: form.category_code,
+        })
+        .then((r) => setLiveComp(r))
+        .catch((e: any) => {
+          setLiveComp(null)
+          setLiveCompError(e.message || 'Competitor preview unavailable')
+        })
+        .finally(() => setLiveCompLoading(false))
+    }, 600)
+    return () => window.clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftProposed])
+
 
   const pickLocation = (l: LocationOut) => {
     setLocalForm((f) => ({
@@ -106,6 +160,17 @@ export function Analyze() {
   const confirmProposed = () => {
     if (draftProposed) setConfirmedProposed({ lat: draftProposed.lat, lng: draftProposed.lng })
   }
+
+  // Exact pin placement is mandatory before a real analysis: any new pin
+  // placement (drag, map click, GPS, search result) invalidates a previous
+  // confirmation, so generate stays blocked until the exact spot is confirmed.
+  const exactConfirmed =
+    confirmedProposed !== null &&
+    draftProposed !== null &&
+    confirmedProposed.lat === draftProposed.lat &&
+    confirmedProposed.lng === draftProposed.lng
+  const canGenerate =
+    areaPinned && !!form.latitude && !!form.longitude && !!draftProposed && exactConfirmed
 
   const submit = async (ev: React.FormEvent) => {
     ev.preventDefault()
@@ -211,18 +276,74 @@ export function Analyze() {
                 longitude={form.longitude}
                 confirmedLat={confirmedProposed ? confirmedProposed.lat : null}
                 confirmedLng={confirmedProposed ? confirmedProposed.lng : null}
-                onProposedChange={(lat, lng) => setDraftProposed({ lat, lng })}
+                onProposedChange={(lat, lng) => {
+                  setDraftProposed({ lat, lng })
+                  setConfirmedProposed(null)
+                }}
               />
+              <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-xs text-gray-700">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="font-medium text-gray-800">Competitors around this exact point (preview)</span>
+                  {draftProposed && (
+                    <span className="text-[10px] text-gray-400">
+                      refresh on marker move · {liveCompLoading ? 'loading…' : ''}
+                    </span>
+                  )}
+                </div>
+                {!draftProposed ? (
+                  <p className="text-gray-400">Move the pin to preview nearby competitors before confirming.</p>
+                ) : liveCompError ? (
+                  <p className="text-red-600">{liveCompError}</p>
+                ) : liveComp ? (
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <strong className="text-base text-gray-900">
+                        {liveComp.competitors?.total_mapped ?? 0} mapped
+                      </strong>
+                      <span className="text-emerald-700">{liveComp.competitors?.direct ?? 0} direct</span>
+                      <span className="text-amber-700">{liveComp.competitors?.indirect ?? 0} indirect</span>
+                      {liveComp.competitors?.nearest_km != null && (
+                        <span>nearest ~{liveComp.competitors.nearest_km} km</span>
+                      )}
+                      <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] uppercase">
+                        {liveComp.data_status}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
+                      <span>
+                        within {Math.round((liveComp.search_radius_m || 3000) / 1000)} km ·{' '}
+                        {liveComp.data?.primary_source || 'OSM'}
+                      </span>
+                      {liveComp.confidence?.label && (
+                        <span>coverage {liveComp.confidence.label}</span>
+                      )}
+                      {liveComp.competitors?.rings &&
+                        Object.entries(liveComp.competitors.rings)
+                          .filter(([, v]) => Number(v) > 0)
+                          .slice(0, 4)
+                          .map(([k, v]) => (
+                            <span key={k}>
+                              {k.replace('m', ' m')}: {v}
+                            </span>
+                          ))}
+                    </div>
+                    <p className="text-[10px] text-gray-400">
+                      {liveComp.data?.note ||
+                        '0 mapped competitors means none found in the available data, not that none exist.'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-gray-400">Searching…</p>
+                )}
+              </div>
               <div className="mt-2 flex items-center justify-between gap-3">
-                {confirmedProposed ? (
+                {exactConfirmed ? (
                   <span className="text-xs font-medium text-emerald-600">
-                    Using exact location {confirmedProposed.lat.toFixed(5)}, {confirmedProposed.lng.toFixed(5)} for competitor search
+                    ✓ Exact shop location confirmed — {confirmedProposed.lat.toFixed(5)}, {confirmedProposed.lng.toFixed(5)}
                   </span>
                 ) : (
-                  <span className="text-xs text-gray-500">
-                    {draftProposed
-                      ? `${draftProposed.lat.toFixed(5)}, ${draftProposed.lng.toFixed(5)} — not yet used.`
-                      : 'Pin the exact spot on the map.'}
+                  <span className="text-xs font-medium text-amber-600">
+                    ⚠️ Exact shop location not confirmed
                   </span>
                 )}
                 <button
@@ -234,8 +355,14 @@ export function Analyze() {
                   {confirmedProposed ? 'Confirmed' : 'Confirm this location'}
                 </button>
               </div>
+              {!exactConfirmed && (
+                <p className="mt-1 text-[11px] text-amber-600">
+                  Please confirm your exact shop location before generating the analysis.
+                </p>
+              )}
               <p className="mt-1 text-[10px] text-gray-400">
-                If unconfirmed, analysis uses the selected admin area centre. Competitors are searched from the exact confirmed point.
+                Moving the pin, using GPS, or searching a place sets the proposal as unconfirmed. Confirmed coordinates
+                are what analysis and competitor search run from.
               </p>
             </div>
           ) : null}
@@ -314,9 +441,16 @@ export function Analyze() {
           <Button type="button" variant="outline" onClick={() => navigate('/')}>
             Back
           </Button>
-          <Button type="submit" disabled={loading}>
-            {loading ? 'Computing…' : 'Generate Report'}
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            {!canGenerate && !loading && areaPinned && (
+              <p className="text-xs font-medium text-amber-700">
+                ⚠️ Please confirm your exact shop location before generating the analysis.
+              </p>
+            )}
+            <Button type="submit" disabled={loading || !canGenerate}>
+              {loading ? 'Computing…' : 'Generate Report'}
+            </Button>
+          </div>
         </div>
       </form>
     </div>

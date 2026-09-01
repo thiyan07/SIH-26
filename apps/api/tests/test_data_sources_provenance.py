@@ -60,7 +60,10 @@ def test_seed_defaults_persist_why_used(engine):
     init_schema()
     with db_session.session_scope() as s:
         rows = s.query(DataSource).all()
-        assert {r.key for r in rows} == {"population_census", "osm_business", "osm_infrastructure", "schemes"}
+        assert {r.key for r in rows} == {
+            "population_census", "osm_business", "osm_infrastructure",
+            "hdx_poi", "schemes",
+        }
         for r in rows:
             assert r.why_used
             assert r.known_limitations

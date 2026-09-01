@@ -1,6 +1,64 @@
 import type { FeatureCollection, Point } from 'geojson'
 import type { Business, InfrastructurePoint, MapPoint } from '../types'
 
+export interface GeoCoordinate {
+  latitude: number
+  longitude: number
+}
+
+export type GeolocationFailure =
+  | { code: 'denied' }
+  | { code: 'unavailable' }
+  | { code: 'timeout' }
+  | { code: 'unsupported' }
+  | { code: 'error'; message: string }
+
+/**
+ * Promise wrapper around the browser Geolocation API (a single, shared helper).
+ * No coordinates are persisted or sent anywhere by this function — the caller
+ * decides when to use them (the required flow is: locate -> draft -> confirm).
+ */
+export function getCurrentPosition(
+  options?: PositionOptions,
+): Promise<GeoCoordinate> {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject({ code: 'unsupported' } as GeolocationFailure)
+      return
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+        })
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) reject({ code: 'denied' } as GeolocationFailure)
+        else if (err.code === err.POSITION_UNAVAILABLE) reject({ code: 'unavailable' } as GeolocationFailure)
+        else if (err.code === err.TIMEOUT) reject({ code: 'timeout' } as GeolocationFailure)
+        else reject({ code: 'error', message: err.message } as GeolocationFailure)
+      },
+      options ?? { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    )
+  })
+}
+
+export function geolocationMessage(failure: GeolocationFailure): string {
+  switch (failure.code) {
+    case 'denied':
+      return 'Location permission was denied. You can choose the location manually on the map.'
+    case 'unavailable':
+      return 'Unable to determine your location. Please choose the location manually.'
+    case 'timeout':
+      return 'Location request timed out. Please try again or choose the location manually.'
+    case 'unsupported':
+      return 'Your browser does not support location services. Please choose the location manually.'
+    default:
+      return failure.message || 'Location request failed. Please choose the location manually.'
+  }
+}
+
 export function businessesToGeoJSON(businesses: Business[]): FeatureCollection<Point> {
   return {
     type: 'FeatureCollection',

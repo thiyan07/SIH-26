@@ -51,6 +51,7 @@ class CompetitionResult:
     data_completeness: str
     nearest_competitor: Optional[str] = None
     businesses: list[dict] = field(default_factory=list)
+    demo_businesses: list[dict] = field(default_factory=list)
 
 
 def _level(count: int) -> str:
@@ -105,6 +106,28 @@ def analyze(
     nearest = min(distances) if distances else None
     nearest_row = min(rows, key=lambda r: r[1])[0] if rows else None
 
+    # Also collect nearby demo/proxy businesses (seeded, never real) so under-
+    # covered localities like Nallampatti still surface businesses in the UI.
+    # They are kept SEPARATE from mapped_competitors: real-only counts and the
+    # competition score stay honest, and demo rows are clearly flagged so they
+    # are never mistaken for verified evidence.
+    demo_rows = find_nearby_with_distance(
+        db, __import__("app.db.models", fromlist=["Business"]).Business,
+        latitude, longitude, radius_km, {"category_code": category_code},
+        limit=50, real_only=False,
+    )
+    demo_businesses = [
+        {
+            "name": r.name, "category_code": r.category_code,
+            "latitude": r.latitude, "longitude": r.longitude,
+            "distance_km": round(d, 2),
+            "source_name": r.source_name, "source_type": r.source_type,
+            "is_demo": True,
+        }
+        for r, d in demo_rows
+        if getattr(r, "is_demo", False)  # only report synthetic rows, never real
+    ]
+
     return CompetitionResult(
         mapped_competitors=count,
         density=_density(count, radius_km),
@@ -124,6 +147,7 @@ def analyze(
             }
             for r, d in rows[:50]
         ],
+        demo_businesses=demo_businesses,
     )
 
 
@@ -142,4 +166,5 @@ def to_dict(r: CompetitionResult, *, as_mapped: bool = True) -> dict:
         "coverage": r.coverage,
         "note": "Mapped business data may be incomplete; competitor counts are minimums, not exhaustive.",
         "businesses": r.businesses,
+        "demo_competitors": r.demo_businesses,
     }

@@ -107,18 +107,39 @@ class BusinessCategory(PG, Base):
 
 
 class Business(PG, ProvenanceMixin, Base):
+    """Real business/POI (competitor) records (P0 competitor pipeline).
+
+    Extends the original minimal row with the competitor mission's absolute
+    requirement fields (see docs/data/COMPETITOR_DATA_*.md): normalized name,
+    contact detail (phone/website/opening_hours/brand), provenance timestamps
+    (source_updated_at / first_seen_at / last_seen_at), a transparent
+    per-record confidence score, and a verification status. ``geometry`` is an
+    optional PostGIS geography point bootstrapped additively when available
+    (geo.py falls back to portable haversine otherwise).
+    """
+
     __tablename__ = "businesses"
     name = Column(String(200), nullable=False)
+    normalized_name = Column(String(200), nullable=True, index=True)
     category_code = Column(String(50), ForeignKey("business_categories.code"), index=True)
     subcategory = Column(String(120), nullable=True)
     latitude = Column(Float, nullable=False, index=True)
     longitude = Column(Float, nullable=False, index=True)
     address = Column(Text, nullable=True)
-    source = Column(String(100), nullable=True)  # provider key, e.g. "osm"
+    phone = Column(String(80), nullable=True)
+    website = Column(String(300), nullable=True)
+    opening_hours = Column(String(200), nullable=True)
+    brand = Column(String(120), nullable=True)
+    source = Column(String(100), nullable=True, index=True)  # provider key, e.g. "osm"
     source_id = Column(String(200), nullable=True, index=True)
+    source_updated_at = Column(DateTime(timezone=True), nullable=True)  # source's own freshness
+    first_seen_at = Column(DateTime(timezone=True), nullable=True)      # first time we stored it
+    last_seen_at = Column(DateTime(timezone=True), nullable=True)       # most recent confirmation
+    confidence_score = Column(Float, nullable=True)                      # 0..1 per-record confidence
+    verification_status = Column(String(30), nullable=True)  # VERIFIED|PARTIALLY_VERIFIED|UNVERIFIED|BUSINESS_REGISTRATION_SIGNAL
     tags = Column(JSONB, nullable=True)
     metadata_json = Column(JSONB, nullable=True)
-    # geospatial lookup done via geometry/geography in geo.py
+    # geospatial lookup done via optional geometry/geography in geo.py (bootstrap scripts/db/postgis.py)
 
     __table_args__ = (Index("ix_businesses_source_source_id", "source", "source_id"),
                       UniqueConstraint("source", "source_id", name="uq_business_source_id"))
@@ -439,6 +460,54 @@ class DataSnapshot(PG, Base):
     finished_at = Column(DateTime(timezone=True))
 
 
+class DataSyncRun(PG, Base):
+    """Audit trail for competitor-discovery sync runs (P0).
+
+    One row per Overpass (or other provider) fetch so the competitor pipeline
+    is auditable: what was queried, when, how many records were fetched/linked,
+    and any errors. Mirrors the DataSnapshot pattern but is scoped to the live
+    competitor-discovery path rather than bulk estate ingests.
+    """
+    __tablename__ = "data_sync_runs"
+
+    source = Column(String(80), nullable=False)        # e.g. "osm"
+    scope_key = Column(String(120), nullable=False, index=True)  # source|latbucket|lonbucket|radius|category
+    status = Column(String(20), nullable=False)        # running|ok|partial|unavailable
+    started_at = Column(DateTime(timezone=True), nullable=False, default=dt.datetime.utcnow)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    records_fetched = Column(Integer, default=0)
+    records_inserted = Column(Integer, default=0)
+    records_updated = Column(Integer, default=0)
+    records_rejected = Column(Integer, default=0)
+    errors = Column(Integer, default=0)
+    error_detail = Column(Text, nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class CompetitorCache(PG, Base):
+    """Geographic TTL cache of competitor-discovery results (P0, §17).
+
+    Keyed by the query scope (source + rounded lat/lon bucket + radius +
+    category) so marker movement re-uses nearby in-DB results instead of hitting
+    Overpass on every pixel move. ``payload`` holds the normalized competitor
+    list; ``queried_at`` is the Overpass retrieval time and drives freshness.
+    """
+    __tablename__ = "competitor_cache"
+
+    scope_key = Column(String(160), nullable=False, unique=True, index=True)
+    source = Column(String(80), nullable=False)
+    category_code = Column(String(50), nullable=False, index=True)
+    lat_center = Column(Float, nullable=False)
+    lon_center = Column(Float, nullable=False)
+    radius_m = Column(Integer, nullable=False)
+    payload = Column(JSONB, nullable=True)            # normalized competitor POIs
+    queried_at = Column(DateTime(timezone=True), nullable=False)
+    mirror = Column(String(200), nullable=True)
+    analyzed_nodes = Column(Integer, default=0)
+    analyzed_ways = Column(Integer, default=0)
+    response_ok = Column(Boolean, default=True)
+
+
 class DataSourceQuality(PG, Base):
     """Source-level quality ledger (plan §10 extension).
 
@@ -626,6 +695,8 @@ __all__ = [
     "DataSourceQuality",
     "UdyamUnit",
     "IndustrialUnit",
+    "DataSyncRun",
+    "CompetitorCache",
     "AnalysisRun",
     "Report",
     "User",

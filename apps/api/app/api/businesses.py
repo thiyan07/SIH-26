@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.db.models import Business
 from app.db.session import get_db
 from app.geo import find_nearby_with_distance
-from app.schemas import CompetitorQuery, NearbyBusinessQuery
+from app.schemas import CompetitorDiscoveryQuery, CompetitorQuery, NearbyBusinessQuery
 
 router = APIRouter(prefix="/businesses", tags=["businesses"])
 
@@ -59,3 +59,20 @@ def competitors(q: CompetitorQuery, db: Session = Depends(get_db)):
         "note": "Mapped competitors are not guaranteed to represent all real businesses.",
         "businesses": [_out(r, d) for r, d in rows],
     }
+
+
+@router.post("/discovery")
+def discovery(q: CompetitorDiscoveryQuery, db: Session = Depends(get_db)):
+    """P0 exact-location competitor discovery (live OSM/Overpass + geo cache).
+
+    Uses the map-marker latitude/longitude + radius + category to discover real,
+    provenance-bearing competitors and compute analytics. Refreshes when the
+    marker moves; caches by geographic bucket to avoid hammering Overpass.
+    """
+    from app.services.competitors import discover_competitors
+    result = discover_competitors(
+        db, latitude=q.latitude, longitude=q.longitude,
+        category_code=q.category_code,
+        radius_m=q.radius_m, radius_km=q.radius_km,
+    )
+    return result

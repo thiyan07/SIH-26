@@ -67,6 +67,15 @@ export interface LocationOut {
   reference_year?: number
 }
 
+export interface GeocodeResult {
+  name: string
+  display_name: string
+  latitude: number
+  longitude: number
+  provider: string
+  confidence?: string
+}
+
 export interface Category {
   code: string
   name: string

@@ -13,6 +13,7 @@ from sqlalchemy import select, text
 
 from app.db.models import (
     Base,
+    BusinessCategory,
     DataSource,
     GovernmentScheme,
 )
@@ -32,6 +33,51 @@ def init_schema():
         for tbl in Base.metadata.sorted_tables:
             if "completeness" in tbl.c:
                 s.execute(text(f"ALTER TABLE {tbl.name} ADD COLUMN IF NOT EXISTS completeness FLOAT"))
+        # P0 competitor pipeline tables on older clusters (fresh DBs get these
+        # via create_all automatically). Kept as raw CREATE TABLE IF NOT EXISTS
+        # so a pre-existing DB without the ORM tables picks them up additively.
+        s.execute(text(
+            "CREATE TABLE IF NOT EXISTS data_sync_runs ("
+            " id VARCHAR(36) PRIMARY KEY, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ,"
+            " source VARCHAR(80), scope_key VARCHAR(120), status VARCHAR(20),"
+            " started_at TIMESTAMPTZ, completed_at TIMESTAMPTZ,"
+            " records_fetched INTEGER, records_inserted INTEGER, records_updated INTEGER,"
+            " records_rejected INTEGER, errors INTEGER, error_detail TEXT, metadata_json JSONB"
+            ")"
+        ))
+        s.execute(text("CREATE INDEX IF NOT EXISTS ix_dsr_scope ON data_sync_runs (scope_key, started_at)"))
+        s.execute(text(
+            "CREATE TABLE IF NOT EXISTS competitor_cache ("
+            " id VARCHAR(36) PRIMARY KEY, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ,"
+            " scope_key VARCHAR(160), source VARCHAR(80), category_code VARCHAR(50),"
+            " lat_center FLOAT, lon_center FLOAT, radius_m INTEGER,"
+            " payload JSONB, queried_at TIMESTAMPTZ, mirror VARCHAR(200),"
+            " analyzed_nodes INTEGER, analyzed_ways INTEGER, response_ok BOOLEAN"
+            ")"
+        ))
+        s.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_cc_scope ON competitor_cache (scope_key)"))
+        # P0 competitor pipeline: absolute-requirement columns on `businesses`
+        # (mission §10). Additive so fresh DBs get them via create_all and older
+        # clusters pick them up without a destructive drop.
+        for col in (
+            "normalized_name", "phone", "website", "opening_hours", "brand",
+            "source_updated_at", "first_seen_at", "last_seen_at",
+            "confidence_score", "verification_status",
+        ):
+            if col in ("phone",):
+                s.execute(text(f"ALTER TABLE businesses ADD COLUMN IF NOT EXISTS {col} VARCHAR(80)"))
+            elif col in ("website",):
+                s.execute(text(f"ALTER TABLE businesses ADD COLUMN IF NOT EXISTS {col} VARCHAR(300)"))
+            elif col in ("opening_hours",):
+                s.execute(text(f"ALTER TABLE businesses ADD COLUMN IF NOT EXISTS {col} VARCHAR(200)"))
+            elif col in ("confidence_score",):
+                s.execute(text(f"ALTER TABLE businesses ADD COLUMN IF NOT EXISTS {col} DOUBLE PRECISION"))
+            elif col in ("normalized_name", "brand", "verification_status"):
+                s.execute(text(f"ALTER TABLE businesses ADD COLUMN IF NOT EXISTS {col} VARCHAR(200)"))
+            else:
+                s.execute(text(f"ALTER TABLE businesses ADD COLUMN IF NOT EXISTS {col} TIMESTAMPTZ"))
+        s.execute(text("CREATE INDEX IF NOT EXISTS ix_businesses_normalized_name "
+                       "ON businesses (normalized_name)"))
         # Business category profile columns (plan §14) on older clusters
         for col in _PROFILE_COLUMNS:
             s.execute(text(f"ALTER TABLE business_categories ADD COLUMN IF NOT EXISTS {col} JSONB"))
@@ -160,6 +206,25 @@ def init_schema():
         ))
         # Business categories (OSM tag mapping + §14 profiles)
         seed_category_profiles(s)
+        # Make the legacy rows visible to the catalog-seeding checks below
+        # (this session has autoflush=False).
+        s.flush()
+        # Fine-grained competitor categories from the configurable catalog
+        # (P0): ensure every code the discovery/ingest path can store in
+        # `businesses.category_code` exists in `business_categories` (FK
+        # target). e.g. pharmacy, bakery, hardware, salon, mobile_shop, ...
+        from app.catalog.business_categories import catalog as business_catalog
+
+        for code, entry in business_catalog().items():
+            if not s.execute(select(BusinessCategory).where(BusinessCategory.code == code)).scalars().first():
+                s.add(BusinessCategory(
+                    code=code, name=entry["label"], description=entry["label"],
+                    osm_tags={
+                        f"{f['key']}={v}": True
+                        for f in entry.get("osm", []) if f.get("key") and f.get("values")
+                        for v in f["values"]
+                    },
+                ))
         # Schemes
         for sc in DEFAULT_SCHEMES:
             if not s.execute(select(GovernmentScheme).where(GovernmentScheme.code == sc.code)).scalars().first():
@@ -190,6 +255,12 @@ def init_schema():
              "Mapped markets and transport stops are used to score market accessibility and demand proximity.",
              ["Only markets and transport stops are mapped today; schools/hospitals are not yet ingested.",
               "Points reflect OSM coverage, which can lag real-world openings/closures."]),
+            ("hdx_poi", "POI / places of interest (HDX, OSM HOT export)", "business", "businesses",
+             None, False, "OpenStreetMap-derived POIs via HOTOSM on HDX - © OpenStreetMap contributors (ODbL)",
+             "HDX India POI enriches place-level competitor/infrastructure coverage beyond the base OSM extract, "
+             "seeding real businesses (shops, restaurants, services) and amenities (hospitals, schools, fuel, banks).",
+             ["POI density reflects OSM coverage which can lag real-world openings/closures.",
+              "No 'no competitor' certainty; absence of a POI does not prove a business does not exist."]),
             ("schemes", "Scheme parameters (problem statement)", "finance", "government_schemes",
              None, True, "Demo assumptions based on supplied problem statement",
              "The applied parameters come from the supplied problem statement and drive the financial-plan rules.",
