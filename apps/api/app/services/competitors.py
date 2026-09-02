@@ -372,6 +372,107 @@ def _db_business_pois(db, *, latitude, longitude, radius_m, category_code,
     return pois
 
 
+def _poi_source_id(poi: dict) -> Optional[str]:
+    """Stable identity for a discovered POI -> ``Business.source_id``.
+
+    Overpass POIs carry ``source_record_id`` like ``node/835522733``; Geoapify
+    carries an opaque ``source_record_id``/``id``. We persist the bare element id
+    for OSM (matching the existing ``businesses.source_id`` convention of a bare
+    OSM element id) so ``/_db_business_pois`` re-derives ``business/<id>``
+    consistently on the DB-fallback path.
+    """
+    rid = poi.get("source_record_id") or poi.get("source_id")
+    if not rid:
+        return None
+    rid = str(rid)
+    if ":" in rid and not rid.startswith("node/") and not rid.startswith("way/"):
+        # Geoapify-style opaque id (e.g. "places.xyz") -> keep whole.
+        return rid
+    if rid.startswith("node/") or rid.startswith("way/"):
+        return rid.split("/", 1)[1]
+    return rid
+
+
+def _upsert_businesses(db, pois: list[dict], category_code: str) -> dict:
+    """Persist live-discovered competitors into the ``Business`` table, idempotently.
+
+    This is what lets the map's `/nearby` (which reads only ``Business``) serve
+    live-discovered competitors on *subsequent* loads with no repeat Overpass
+    call — exactly the "add live data to the DB so we don't fetch every time"
+    requirement.
+
+    Identity is the existing ``UniqueConstraint(source, source_id)``: on an
+    existing row we refresh freshness/provenance fields rather than duplicating;
+    on a new row we insert. We only import real OSM/geoapify competitors (never
+    demo, never ``unrelated``) and we never invent coordinates.
+    """
+    inserted = updated = skipped = 0
+    now = utcnow()
+    for poi in pois:
+        src = poi.get("source") or "osm"
+        src_id = _poi_source_id(poi)
+        name = (poi.get("name") or "").strip()
+        lat = poi.get("latitude")
+        lon = poi.get("longitude")
+        if not name or lat is None or lon is None or not src_id:
+            skipped += 1
+            continue
+
+        existing = db.execute(
+            select(Business).where(Business.source == src, Business.source_id == src_id)
+        ).scalars().first()
+
+        norm = (poi.get("normalized_name") or name).lower().strip()
+        if existing is None:
+            db.add(Business(
+                name=name,
+                normalized_name=norm,
+                category_code=category_code,
+                subcategory=poi.get("subcategory") or poi.get("category"),
+                latitude=float(lat),
+                longitude=float(lon),
+                address=poi.get("address"),
+                phone=poi.get("phone"),
+                website=poi.get("website"),
+                opening_hours=poi.get("opening_hours"),
+                brand=poi.get("brand"),
+                source=src,
+                source_type=src,
+                source_id=src_id,
+                retrieved_at=now,
+                source_updated_at=now,
+                first_seen_at=now,
+                last_seen_at=now,
+                confidence_score=poi.get("confidence_score"),
+                verification_status="PARTIALLY_VERIFIED",
+                dataset_name="live_overpass" if src == "osm" else "live_geoapify",
+                source_name=src,
+                confidence="medium",
+                tags={"matched": poi.get("matched_tags") or []},
+            ))
+            inserted += 1
+        else:
+            # Refreshing an already-ingested record: never overwrite a richer
+            # phone/website we already stored, but refresh freshness markers.
+            changes = False
+            if poi.get("phone") and not existing.phone:
+                existing.phone = poi.get("phone"); changes = True
+            if poi.get("website") and not existing.website:
+                existing.website = poi.get("website"); changes = True
+            if poi.get("opening_hours") and not existing.opening_hours:
+                existing.opening_hours = poi.get("opening_hours"); changes = True
+            if poi.get("address") and not existing.address:
+                existing.address = poi.get("address"); changes = True
+            if poi.get("brand") and not existing.brand:
+                existing.brand = poi.get("brand"); changes = True
+            existing.last_seen_at = now
+            existing.source_updated_at = now
+            existing.retrieved_at = now
+            updated += 1
+    db.flush()
+    return {"inserted": inserted, "updated": updated, "skipped": skipped}
+
+
 def _write_cache(db, sk: str, category: str, lat: float, lon: float, radius_m: int, result) -> CompetitorCache:
     row = db.execute(
         select(CompetitorCache).where(CompetitorCache.scope_key == sk)
@@ -499,16 +600,27 @@ def discover_competitors(
         pois = stale_cache.payload or []
         queried_at = stale_cache.queried_at
 
+    # Persist live-discovered competitors into the Business table (idempotent,
+    # dedupe by source+source_id). This is what lets /nearby — which reads only
+    # Business — include these competitors on later loads with no repeat live
+    # fetch ("add live data to the DB so we don't fetch every time"). Only
+    # genuinely live fetches write; cached/DB-fallback already live in Business.
+    ingest = {}
+    if status in ("FRESH", "FRESH_EMPTY") and pois:
+        ingest = _upsert_businesses(db, pois, category_code)
+
     audit_run = _start_sync(db, sk, src_meta["source"] or "osm")
     if status in ("FRESH", "FRESH_EMPTY") and src_meta["source"] == "geoapify":
         _finish_sync(db, audit_run, status="ok" if status == "FRESH" else "empty",
-                     fetched=len(pois), inserted=1 if status == "FRESH" else 0,
+                     fetched=len(pois), inserted=ingest.get("inserted", 0),
+                     updated=ingest.get("updated", 0),
                      detail="served from live Geoapify (secondary provider)")
     elif status in ("FRESH", "FRESH_EMPTY") and result:
         _write_cache(db, sk, category_code, lat, lon, radius_m_int, result)
         fetch_success = status == "FRESH" or result.pois
         _finish_sync(db, audit_run, status="ok" if fetch_success else "empty",
-                     fetched=len(result.pois), inserted=1 if result.pois else 0,
+                     fetched=len(result.pois), inserted=ingest.get("inserted", 0),
+                     updated=ingest.get("updated", 0),
                      errors=0 if fetch_success else 0)
     elif status == "CACHED":
         _finish_sync(db, audit_run, status="ok", fetched=len(pois), errors=0,

@@ -34,6 +34,7 @@ def _out(b, dist):
         "verification_status": b.verification_status,
         "source_url": b.source_url,
         "retrieved_at_date": b.retrieved_at.date().isoformat() if b.retrieved_at else None,
+        "metadata": b.metadata_json or {},
     }
 
 

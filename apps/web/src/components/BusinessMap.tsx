@@ -32,6 +32,22 @@ const layerOptions = [
   { key: 'msme', label: 'MSMEs' },
 ]
 
+// Business categories likely to represent direct commercial competition for a
+// new shop. Excludes pure infrastructure/landmarks (`other`: schools, bus
+// stops, colleges) and the large hospital cluster.
+export const COMPETITOR_CATEGORIES = new Set([
+  'textile',
+  'grocery',
+  'restaurant',
+  'food_processing',
+  'dairy',
+  'electronics',
+  'pharmacy',
+  'finance',
+  'clinic',
+  'dental_clinic',
+])
+
 export function BusinessMap({ center, businesses = [], competitors = [], markets = [], infrastructure = [], msmeClusters = [], showRadius = true, zoom = 12, height = '420px' }: BusinessMapProps) {
   const [layer, setLayer] = useState('all')
 
@@ -41,7 +57,17 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
   const showMarkets = layer === 'all' || layer === 'markets'
   const showInfrastructure = layer === 'all' || layer === 'infrastructure'
   const showMsme = layer === 'all' || layer === 'msme'
-  const comps = showCompetitors ? competitors : []
+  // `competitors` is passed explicitly when a venture is chosen (Market page).
+  // On the 'competitors' layer alone we also derive them from the nearby
+  // businesses so the Map page shows real pins instead of an empty set.
+  const comps =
+    layer === 'competitors'
+      ? competitors.length
+        ? competitors
+        : businesses.filter((b) => !!b.category_code && COMPETITOR_CATEGORIES.has(b.category_code))
+      : showCompetitors
+        ? competitors
+        : []
   const msmes = showMsme ? msmeClusters : []
   const allShown = showBusinesses
     ? businesses.filter((b) => {
@@ -91,6 +117,9 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
               label={c.name}
               popup={[
                 c.name,
+                c.metadata?.rating != null
+                  ? `★ ${c.metadata.rating}${c.metadata.review_count != null ? ` · ${c.metadata.review_count} reviews` : ''}`
+                  : null,
                 c.address?.trim() ? c.address : null,
                 c.category_code && c.category_code !== 'other' ? c.category_code : null,
                 c.phone ? `📞 ${c.phone}` : null,

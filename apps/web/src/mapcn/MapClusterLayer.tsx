@@ -20,6 +20,7 @@ function dotIcon(color: string): L.DivIcon {
 }
 
 interface PointProps {
+  id?: string
   name?: string
   category?: string
   subcategory?: string
@@ -34,6 +35,9 @@ interface PointProps {
   is_demo?: boolean
   confidence?: string
   verification_status?: string
+  rating?: number | null
+  review_count?: number | null
+  google_category?: string | null
 }
 
 /**
@@ -64,7 +68,7 @@ export function MapClusterLayer({ data, color = '#10b981', highlightColor = '#16
         const props = (f.properties || {}) as PointProps
         return (
           <Marker
-            key={props.name ?? i}
+            key={props.id ?? props.name ?? i}
             position={[lat, lng]}
             icon={dotIcon(highlightColor)}
             title={props.name || ''}
@@ -76,7 +80,12 @@ export function MapClusterLayer({ data, color = '#10b981', highlightColor = '#16
                   {props.is_demo && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Demo/test</span>}
                 </div>
                 {(props.category || props.subcategory) && (
-                  <div className="text-xs text-gray-500">{props.subcategory || props.category}{props.brand ? ` · ${props.brand}` : ''}</div>
+                  <div className="text-xs text-gray-500">{props.google_category || props.subcategory || props.category}{props.brand ? ` · ${props.brand}` : ''}</div>
+                )}
+                {props.rating != null && (
+                  <div className="text-xs font-medium text-amber-600">
+                    ★ {props.rating}{props.review_count != null ? ` (${props.review_count} reviews)` : ''}
+                  </div>
                 )}
                 {props.address && <div className="text-xs text-gray-600">{props.address}</div>}
                 {props.phone && <div className="text-xs text-gray-600">📞 {props.phone}</div>}

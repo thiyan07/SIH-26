@@ -1,5 +1,14 @@
 // Shared domain types used across the frontend (mirrors backend Pydantic schemas).
 
+// Structured extra detail kept on mapped business rows (e.g. Google Maps
+// rating / review count / native category). Extra unknown keys are tolerated.
+export interface BusinessMetadata {
+  rating?: number
+  review_count?: number
+  google_category?: string
+  opening_hours_state?: string
+}
+
 export interface Business {
   id: string
   name: string
@@ -20,6 +29,7 @@ export interface Business {
   verification_status?: string
   retrieved_at_date?: string
   is_demo?: boolean
+  metadata?: BusinessMetadata
 }
 
 export interface InfrastructurePoint {

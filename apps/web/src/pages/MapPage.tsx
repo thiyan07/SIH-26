@@ -2,13 +2,14 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
 import { Card } from '../components/ui'
-import { BusinessMap } from '../components/BusinessMap'
+import { BusinessMap, COMPETITOR_CATEGORIES } from '../components/BusinessMap'
 import { msmeClustersFromGeoJSON, pointsFromGeoJSON } from '../lib/geo'
 import type { Business, InfrastructurePoint, MapLayersResponse, MapPoint, MSMECluster } from '../types'
 
 export function MapPage() {
   const { result } = useAnalysis()
   const [businesses, setBusinesses] = useState<Business[]>([])
+  const [competitors, setCompetitors] = useState<Business[]>([])
   const [infrastructure, setInfrastructure] = useState<InfrastructurePoint[]>([])
   const [markets, setMarkets] = useState<MapPoint[]>([])
   const [msmeClusters, setMsmeClusters] = useState<MSMECluster[]>([])
@@ -25,11 +26,20 @@ export function MapPage() {
     setLoading(true)
     setError(null)
     try {
-      const [nearby, layers, msme] = await Promise.all([
+      const [nearby, competitorsResp, layers, msme] = await Promise.all([
         api.post<{ businesses: Business[] }>('/businesses/nearby', {
           latitude: center.latitude,
           longitude: center.longitude,
           radius_km: 10,
+        }),
+        // Wider sweep for the Competitors layer only: real grocery/retail and
+        // other direct competitors often sit 10-15 km out of town (e.g. Erode's
+        // supermarkets are 12-14 km from Perundurai). Business/MSME/infra stay
+        // at 10 km; this wider set only feeds the red competitor pins.
+        api.post<{ businesses: Business[] }>('/businesses/nearby', {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radius_km: 20,
         }),
         api.post<MapLayersResponse>('/geojson/layers', {
           latitude: center.latitude,
@@ -44,6 +54,11 @@ export function MapPage() {
         }),
       ])
       setBusinesses(nearby.businesses)
+      setCompetitors(
+        competitorsResp.businesses.filter(
+          (b) => !!b.category_code && COMPETITOR_CATEGORIES.has(b.category_code)
+        ),
+      )
       setCounts(layers.counts)
       setInfrastructure(pointsFromGeoJSON(layers.layers.infrastructure?.features) as InfrastructurePoint[])
       setMarkets(pointsFromGeoJSON(layers.layers.markets?.features))
@@ -83,7 +98,7 @@ export function MapPage() {
 
       <Card className="p-0 overflow-hidden">
         <div style={{ height: '68vh', width: '100%' }}>
-          <BusinessMap center={center} businesses={businesses} markets={markets} infrastructure={infrastructure} msmeClusters={msmeClusters} zoom={12} height="100%" />
+          <BusinessMap center={center} businesses={businesses} competitors={competitors} markets={markets} infrastructure={infrastructure} msmeClusters={msmeClusters} zoom={12} height="100%" />
         </div>
       </Card>
     </div>
