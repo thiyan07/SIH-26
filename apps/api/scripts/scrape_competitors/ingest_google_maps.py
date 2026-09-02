@@ -55,6 +55,14 @@ def _norm(s: Optional[str]) -> str:
     return (s or "").lower().strip()
 
 
+def _scrub(s: Optional[str]) -> Optional[str]:
+    """Drop Google Maps private-use glyphs (e.g. U+F54A renders as a heart)
+    that sneak into scraped name/address strings."""
+    if not s:
+        return s
+    return "".join(ch for ch in s if not (0xE000 <= ord(ch) <= 0xF8FF)).strip()
+
+
 def _existing_by_name_close(db, name: str, lat: float, lon: float) -> Optional[Business]:
     """Existing business (any source) with same normalized name within ~100 m."""
     rows = db.execute(
@@ -71,12 +79,14 @@ def _existing_by_name_close(db, name: str, lat: float, lon: float) -> Optional[B
 
 
 def ingest_one(row: dict, dry_run: bool) -> dict:
-    name = (row.get("name") or "").strip()
+    name = _scrub(row.get("name") or "") or ""
     lat = row.get("latitude")
     lon = row.get("longitude")
     src_id = row.get("source_record_id") or row.get("google_id") or row.get("cid_seed") or row.get("place_url")
     if not name or lat is None or lon is None or not src_id:
         return {"action": "skip", "reason": "no_name_or_coords", "name": name}
+    row["address"] = _scrub(row.get("address"))
+    row["google_category"] = _scrub(row.get("google_category"))
     norm = _norm(row.get("normalized_name") or name)
     category = row.get("category_code") or "other"
     rating = row.get("rating")

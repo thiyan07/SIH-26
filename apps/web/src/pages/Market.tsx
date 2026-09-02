@@ -117,6 +117,7 @@ export function Market() {
               competitors={bc?.businesses || []}
               markets={markets}
               infrastructure={infrastructure}
+              selectedCategory={result.profit_model?.category_code}
             />
             <p className="mt-2 text-xs text-gray-500">{layersNote || bc?.note || ''}</p>
             <div className="mt-3">

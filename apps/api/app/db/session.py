@@ -15,20 +15,6 @@ _SessionLocal = None
 
 
 def _make_engine(url: str):
-    if url.startswith("sqlite"):
-        from sqlalchemy import event
-        from sqlalchemy.pool import StaticPool
-
-        engine = create_engine(
-            url, connect_args={"check_same_thread": False}, poolclass=StaticPool
-        )
-
-        @event.listens_for(engine, "connect")
-        def _set_sqlite(dbapi_conn, _):
-            cursor = dbapi_conn.cursor()
-            cursor.execute("PRAGMA foreign_keys=ON")
-            cursor.close()
-        return engine
     return create_engine(url, pool_pre_ping=True)
 
 

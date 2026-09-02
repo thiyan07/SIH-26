@@ -4,6 +4,9 @@ import type { Business, InfrastructurePoint, MapPoint, MSMECluster } from '../ty
 export interface GeoCoordinate {
   latitude: number
   longitude: number
+  /** Approximate accuracy radius in metres as reported by the provider
+   *  (0 if the browser couldn't provide one, e.g. headless/IP-based fixes). */
+  accuracy?: number
 }
 
 export type GeolocationFailure =
@@ -31,6 +34,7 @@ export function getCurrentPosition(
         resolve({
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy ?? 0,
         })
       },
       (err) => {
@@ -42,6 +46,23 @@ export function getCurrentPosition(
       options ?? { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     )
   })
+}
+
+/** Accuracy radius (metres) below which a GPS fix is trusted enough to
+ *  re-centre a map. IP-based or coarse fixes (laptops without GPS) report
+ *  hundreds of km here, which would land the map in the wrong town. */
+export const MIN_TRUSTED_ACCURACY_M = 15_000
+
+/** True when a fix is accurate enough to act on (recentre map / select place). */
+export function isAccurateFix(c: GeoCoordinate | undefined | null): boolean {
+  if (!c) return false
+  if (typeof c.accuracy !== 'number' || Number.isNaN(c.accuracy)) return false
+  return c.accuracy >= 0 && c.accuracy <= MIN_TRUSTED_ACCURACY_M
+}
+
+export function accuracyKm(metres?: number): string {
+  if (typeof metres !== 'number' || Number.isNaN(metres)) return ''
+  return `${(metres / 1000).toFixed(metres >= 1000 ? 1 : 0)} km`
 }
 
 export function geolocationMessage(failure: GeolocationFailure): string {

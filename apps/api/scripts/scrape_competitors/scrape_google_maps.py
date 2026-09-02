@@ -47,20 +47,225 @@ except ImportError as e:  # pragma: no cover
 
 OUT_DIR = Path(__file__).resolve().parents[3] / "data" / "scrape" / "google_maps"
 
+
+def _scrub(s: str | None) -> str | None:
+    """Strip Google private-use glyphs (U+E000..U+F8FF) that render as random
+    emojis (e.g. U+F54A → ❤) and would contaminate DB fields."""
+    if not s:
+        return s
+    return "".join(ch for ch in s if not (0xE000 <= ord(ch) <= 0xF8FF)).strip()
+
+
 BASE_URL = "https://www.google.com/maps/search/"
 
-# Canonical business_categories.code -> Google Maps search queries.
-SEARCHES: list[dict] = [
-    {"category_code": "restaurant", "query": "restaurants in Perundurai, Erode"},
-    {"category_code": "restaurant", "query": "restaurants in Erode"},
-    {"category_code": "grocery", "query": "grocery stores in Perundurai, Erode"},
-    {"category_code": "grocery", "query": "supermarkets in Erode"},
-    {"category_code": "dairy", "query": "dairy shops in Erode"},
-    {"category_code": "textile", "query": "tailors in Erode"},
-    {"category_code": "textile", "query": "textile shops in Erode"},
-    {"category_code": "food_processing", "query": "food processing units in Erode"},
-    {"category_code": "dairy", "query": "poultry and dairy farms near Erode"},
+# ---------------------------------------------------------------------------
+# Erode District Full Coverage Scraper — City → Town → Block/Village tiers
+# ---------------------------------------------------------------------------
+# Coverage tiers:
+#   1. City (Erode): 30 categories × multiple queries = ~80 queries
+#   2. Towns (11):   Key categories per town = ~100 queries
+#   3. Blocks (14):  Essential categories per block = ~110 queries
+# Total: ~290 queries × 20-40 results ≈ 6,000-12,000 businesses
+
+# -- Tier 1: CITY (Erode city) — all categories, multiple query variants --
+_CITY_CATEGORIES: list[tuple[str, list[str]]] = [
+    ("restaurant", [
+        "restaurants in Erode city",
+        "best restaurants in Erode",
+        "south indian restaurants in Erode",
+        "non-veg restaurants in Erode",
+        "veg restaurants in Erode",
+    ]),
+    ("fast_food", [
+        "fast food in Erode",
+        "fast food shops in Erode city",
+        "biryani shops in Erode",
+    ]),
+    ("tea_shop", [
+        "tea shops in Erode",
+        "tea stalls in Erode city",
+        "coffee shops in Erode",
+    ]),
+    ("bakery", [
+        "bakeries in Erode",
+        "cake shops in Erode",
+        "bakery and sweets in Erode",
+    ]),
+    ("grocery", [
+        "supermarkets in Erode",
+        "grocery stores in Erode",
+        "kirana stores in Erode",
+        "departmental stores in Erode",
+    ]),
+    ("dairy", [
+        "dairy shops in Erode",
+        "milk booths in Erode",
+        "poultry farms in Erode",
+    ]),
+    ("textile", [
+        "textile shops in Erode",
+        "tailors in Erode",
+        "fabric stores in Erode",
+    ]),
+    ("clothing", [
+        "clothing stores in Erode",
+        "readymade shops in Erode",
+        "garment shops in Erode",
+    ]),
+    ("electronics", [
+        "electronics shops in Erode",
+        "TV appliance stores in Erode",
+    ]),
+    ("mobile_shop", [
+        "mobile phone shops in Erode",
+        "mobile stores in Erode",
+    ]),
+    ("pharmacy", [
+        "pharmacies in Erode",
+        "medical stores in Erode",
+    ]),
+    ("hardware", [
+        "hardware stores in Erode",
+        "building materials in Erode",
+        "cement dealers in Erode",
+    ]),
+    ("salon", [
+        "beauty parlours in Erode",
+        "hair salons in Erode",
+    ]),
+    ("food_processing", [
+        "rice mills in Erode",
+        "flour mills in Erode",
+        "oil mills in Erode",
+        "food processing units in Erode",
+    ]),
+    ("furniture", [
+        "furniture shops in Erode",
+        "furniture showrooms in Erode",
+    ]),
+    ("printing", [
+        "printing shops in Erode",
+        "photocopy shops in Erode",
+    ]),
+    ("stationery", [
+        "stationery shops in Erode",
+        "book stores in Erode",
+    ]),
+    ("fertilizer", [
+        "fertilizer shops in Erode",
+        "pesticide dealers in Erode",
+    ]),
+    ("seed_shop", ["seed shops in Erode"]),
+    ("agricultural_equipment", [
+        "agricultural equipment shops in Erode",
+        "farm equipment dealers in Erode",
+    ]),
+    ("tractor_dealer", ["tractor dealers in Erode"]),
+    ("animal_feed", ["animal feed shops in Erode"]),
+    ("mechanic", [
+        "bike mechanics in Erode",
+        "car repair shops in Erode",
+    ]),
+    ("tyre_shop", ["tyre shops in Erode"]),
+    ("auto_parts", ["auto spare parts shops in Erode"]),
+    ("optical_shop", ["optical shops in Erode"]),
+    ("sweet_shop", ["sweet shops in Erode"]),
+    ("meat_shop", ["meat shops in Erode", "chicken shops in Erode"]),
+    ("fruit_shop", ["fruit shops in Erode"]),
+    ("vegetable_shop", ["vegetable shops in Erode", "vegetable market in Erode"]),
+    ("hotel", ["hotels in Erode", "lodges in Erode"]),
+    ("laundry", ["laundry shops in Erode"]),
+    ("welding", ["welding shops in Erode"]),
+    ("home_appliances", ["home appliance shops in Erode"]),
+    ("computer_service", ["computer repair shops in Erode"]),
+    ("photography", ["photography studios in Erode"]),
+    ("veterinary", ["veterinary clinics in Erode"]),
 ]
+
+# -- Tier 2: TOWNS — key categories per major town --
+TOWNS: list[str] = [
+    "Perundurai", "Bhavani", "Sathyamangalam", "Gobichettipalayam",
+    "Anthiyur", "Nambiyur", "Modakkurichi", "Chennimalai",
+]
+
+TOWN_CATEGORIES: list[str] = [
+    "restaurant", "grocery", "pharmacy", "textile", "electronics",
+    "mobile_shop", "bakery", "tea_shop", "salon", "hardware",
+    "furniture", "fertilizer", "mechanic", "sweet_shop",
+]
+
+# -- Tier 3: BLOCKS / VILLAGE CLUSTERS — essential categories per block --
+BLOCKS: list[str] = [
+    "Ammapet", "Anthiyur", "Bhavani", "Bhavanisagar", "Chennimalai",
+    "Erode", "Gobichettipalayam", "Kodumudi", "Modakkurichi",
+    "Nambiyur", "Perundurai", "Sathyamangalam", "Talavadi",
+    "Thookanaickenpalayam",
+]
+
+BLOCK_CATEGORIES: list[str] = [
+    "grocery", "restaurant", "pharmacy", "textile", "fertilizer",
+]
+
+# -- Tier 4: KEY VILLAGES with known market clusters --
+KEY_VILLAGES: list[tuple[str, str]] = [
+    # (village, block) — picked for population / market significance
+    ("Boothapadi", "Ammapet"), ("Chennampatti", "Ammapet"),
+    ("Guruvareddiyur", "Ammapet"), ("Kesaramangalam", "Ammapet"),
+    ("Brammadesam", "Anthiyur"), ("Kuthampoondi", "Anthiyur"),
+    ("Kavandapadi", "Bhavani"), ("Periyapuliyur", "Bhavani"),
+    ("Thottipalayam", "Bhavani"), ("Mylambadi", "Bhavani"),
+    ("Desipalayam", "Bhavanisagar"), ("Nallur", "Bhavanisagar"),
+    ("Pungar", "Bhavanisagar"), ("Narasingapuram", "Chennimalai"),
+    ("Perundurai", "Perundurai"), ("Thindal", "Erode"),
+    ("Avalpoondurai", "Gobichettipalayam"),
+    ("Bannari", "Sathyamangalam"), ("Olagadam", "Kodumudi"),
+    ("Modakkurichi", "Modakkurichi"), ("Nambiyur", "Nambiyur"),
+    ("Talavadi", "Talavadi"),
+]
+
+VILLAGE_CATEGORIES: list[str] = ["grocery", "pharmacy"]
+
+
+def _build_searches() -> list[dict]:
+    """Build the full three-tier search list."""
+    searches: list[dict] = []
+
+    # Tier 1: City (Erode)
+    for cat, queries in _CITY_CATEGORIES:
+        for q in queries:
+            searches.append({"category_code": cat, "query": q, "tier": "city"})
+
+    # Tier 2: Towns
+    for town in TOWNS:
+        for cat in TOWN_CATEGORIES:
+            searches.append({
+                "category_code": cat,
+                "query": f"{cat.replace('_', ' ')} in {town}, Erode",
+                "tier": "town",
+            })
+
+    # Tier 3: Blocks (village clusters)
+    for block in BLOCKS:
+        for cat in BLOCK_CATEGORIES:
+            searches.append({
+                "category_code": cat,
+                "query": f"{cat.replace('_', ' ')} in {block}, Erode district",
+                "tier": "block",
+            })
+
+    # Tier 4: Key villages
+    for village, block in KEY_VILLAGES:
+        for cat in VILLAGE_CATEGORIES:
+            searches.append({
+                "category_code": cat,
+                "query": f"{cat.replace('_', ' ')} in {village}, {block}, Erode",
+                "tier": "village",
+            })
+
+    return searches
+
+
+SEARCHES: list[dict] = _build_searches()
 
 # In-page JS that walks the search-results feed and pulls every listing card.
 _EXTRACT_JS = r"""
@@ -148,7 +353,7 @@ def _parse_card(card: dict, category_code: str, queried_at: str) -> dict | None:
     category shown, etc.). We skip rating/price/open rows and only ever emit
     plausible category + address tokens.
     """
-    name = (card.get("name") or "").strip()
+    name = _scrub((card.get("name") or "").strip()) or ""
     if not name:
         return None
     text = card.get("raw_text") or ""
@@ -181,14 +386,14 @@ def _parse_card(card: dict, category_code: str, queried_at: str) -> dict | None:
             if _RATINGISH.fullmatch(first) or _PLUS_CODE.fullmatch(first) or "₹" in first:
                 continue  # rating/price-only row ("4.1(59) · ₹200-400")
             if category is None and len(first) > 1:
-                category = first
+                category = _scrub(first)
                 if len(parts) > 1:
                     rest = " · ".join(parts[1:]).strip()
                     if not _PLUS_CODE.fullmatch(rest):
-                        address = rest
+                        address = _scrub(rest)
                 break
         elif address is None and _looks_like_address(ln):
-            address = ln
+            address = _scrub(ln)
 
     if category is None:
         for ln in lines:
@@ -198,7 +403,7 @@ def _parse_card(card: dict, category_code: str, queried_at: str) -> dict | None:
                 continue
             if _PLUS_CODE.fullmatch(ln) or "₹" in ln or _looks_like_address(ln):
                 continue
-            category = ln
+            category = _scrub(ln)
             break
 
     open_state = None
@@ -324,36 +529,81 @@ def main(argv=None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
     ap = argparse.ArgumentParser(description="Google Maps competitor scraper (JSONL)")
     ap.add_argument("--only", default=None, help="category_code filter (e.g. restaurant)")
+    ap.add_argument("--tier", default=None, choices=["city", "town", "block", "village"],
+                    help="limit to a specific coverage tier")
     ap.add_argument("--details", action="store_true", help="click through for phone/website")
     ap.add_argument("--headful", action="store_true", help="run with a visible browser")
     ap.add_argument("--max-results", type=int, default=60)
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
-    searches = SEARCHES if not args.only else [s for s in SEARCHES if s["category_code"] == args.only]
+    searches = SEARCHES
+    if args.only:
+        searches = [s for s in searches if s["category_code"] == args.only]
+    if args.tier:
+        searches = [s for s in searches if s.get("tier") == args.tier]
     if not searches:
-        ap.error(f"unknown --only category: {args.only}")
+        ap.error(f"No searches matched filters: --only={args.only} --tier={args.tier}")
 
-    all_pois = {s["category_code"]: [] for s in searches}
+    # Deduplicate by (category_code, query) to avoid re-scraping
+    seen: set[tuple[str, str]] = set()
+    unique: list[dict] = []
+    for s in searches:
+        key = (s["category_code"], s["query"])
+        if key not in seen:
+            seen.add(key)
+            unique.append(s)
+    searches = unique
+
+    log.info("=== Erode District Full Coverage Scrape ===")
+    tier_counts: dict[str, int] = {}
+    for s in searches:
+        t = s.get("tier", "unknown")
+        tier_counts[t] = tier_counts.get(t, 0) + 1
+    for t in ["city", "town", "block", "village"]:
+        if t in tier_counts:
+            log.info("  Tier %-6s: %d searches", t, tier_counts[t])
+    log.info("  Total:      %d searches", len(searches))
+
+    all_pois: dict[str, list] = {s["category_code"]: [] for s in searches}
     with sync_playwright() as pw:
         browser = pw.chromium.launch(channel="chrome", headless=not args.headful)
         try:
             for i, s in enumerate(searches):
-                log.info("[%d/%d] scraping %s | %s", i + 1, len(searches), s["category_code"], s["query"])
-                pois = scrape_search(
-                    browser, s["query"], s["category_code"],
-                    details=args.details, max_results=args.max_results, headful=args.headful,
-                )
+                tier = s.get("tier", "?")
+                log.info("[%d/%d] [%s] %s | %s", i + 1, len(searches), tier, s["category_code"], s["query"])
+                try:
+                    pois = scrape_search(
+                        browser, s["query"], s["category_code"],
+                        details=args.details, max_results=args.max_results, headful=args.headful,
+                    )
+                except Exception as exc:
+                    log.warning("search failed: %s", exc)
+                    pois = []
                 if pois:
                     fname = _write_jsonl(pois, s["category_code"], s["query"])
                     all_pois[s["category_code"]].extend(pois)
-                    log.info("wrote %d rows -> %s", len(pois), fname)
-                time.sleep(2.0)
+                    log.info("  -> %d POIs written to %s", len(pois), fname.name)
+                time.sleep(1.5)
         finally:
             browser.close()
 
-    out = sum(len(v) for v in all_pois.values())
-    log.info("scrape complete: %d POIs across %d searches", out, len(searches))
+    # Summary
+    total = sum(len(v) for v in all_pois.values())
+    by_cat = sorted(((k, len(v)) for k, v in all_pois.items()), key=lambda x: -x[1])
+    log.info("=== SCRAPE COMPLETE ===")
+    log.info("Total POIs: %d", total)
+    for cat, n in by_cat:
+        log.info("  %-25s %d", cat, n)
+
+    # Merge all category JSONLs into a single file for easy ingest
+    merged_path = OUT_DIR / f"erode_district_{dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%S')}.jsonl"
+    with merged_path.open("w", encoding="utf-8") as fh:
+        for cat_pois in all_pois.values():
+            for p in cat_pois:
+                fh.write(json.dumps(p, ensure_ascii=False) + "\n")
+    log.info("Merged file: %s (%d lines)", merged_path, total)
+
     return 0
 
 

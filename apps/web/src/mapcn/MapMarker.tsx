@@ -7,6 +7,8 @@ export interface MarkerProps {
   color?: string
   label?: string
   popup?: string
+  /** When true, `popup` is rendered as raw HTML inside the Leaflet popup. */
+  html?: boolean
   onClick?: () => void
 }
 
@@ -22,9 +24,10 @@ function pinIcon(color: string): L.DivIcon {
 
 /**
  * MapCN <MapMarker> — a Leaflet DOM marker for a point with optional label
- * tooltip and plain-text popup.
+ * tooltip and popup. When `html` is true the `popup` string is rendered as
+ * raw HTML; otherwise it is treated as plain text.
  */
-export function MapMarker({ latitude, longitude, color = '#16a34a', label, popup, onClick }: MarkerProps) {
+export function MapMarker({ latitude, longitude, color = '#16a34a', label, popup, html = false, onClick }: MarkerProps) {
   const icon = pinIcon(color)
   return (
     <Marker
@@ -38,7 +41,11 @@ export function MapMarker({ latitude, longitude, color = '#16a34a', label, popup
           {label}
         </Tooltip>
       )}
-      {popup && <Popup offset={[0, -16]}>{popup}</Popup>}
+      {popup && html ? (
+        <Popup offset={[0, -16]}><div dangerouslySetInnerHTML={{ __html: popup }} /></Popup>
+      ) : popup ? (
+        <Popup offset={[0, -16]}>{popup}</Popup>
+      ) : null}
     </Marker>
   )
 }

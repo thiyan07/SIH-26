@@ -29,6 +29,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase
 
+# PostgreSQL JSONB for structured/nested payload columns.
+JSONB = JSONB  # type: ignore[assignment,misc]
+
 
 def gen_uuid() -> str:
     return str(uuid.uuid4())
@@ -50,7 +53,9 @@ class ProvenanceMixin:
     """Shared provenance fields (spec section 3/9)."""
 
     source_name = Column(String(200), nullable=True)
-    source_url = Column(String(500), nullable=True)
+    # source_url is TEXT (not VARCHAR) because provider place URLs (e.g. Google
+    # Maps) routinely exceed a few hundred characters.
+    source_url = Column(Text, nullable=True)
     dataset_name = Column(String(200), nullable=True)
     source_type = Column(String(50), nullable=True)  # government|osm|vendor|proxy|demo
     reference_date = Column(Date, nullable=True)

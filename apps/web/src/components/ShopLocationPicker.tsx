@@ -3,7 +3,7 @@ import type { Map as LeafletMap } from 'leaflet'
 import { Marker, useMapEvents } from 'react-leaflet'
 import { Map } from '../mapcn'
 import { api } from '../lib/api'
-import { geolocationMessage, getCurrentPosition } from '../lib/geo'
+import { geolocationMessage, getCurrentPosition, accuracyKm, isAccurateFix } from '../lib/geo'
 import type { GeocodeResult } from '../types'
 
 export interface ShopLocationPickerProps {
@@ -97,6 +97,16 @@ export function ShopLocationPicker({
     setGpsState('locating')
     getCurrentPosition()
       .then((c) => {
+        if (!isAccurateFix(c)) {
+          setGpsState('idle')
+          setGpsError(
+            `Your device location is only accurate to about ${
+              accuracyKm(c.accuracy) || 'a very large distance'
+            } — too coarse to pin your spot. ` +
+              'On a real phone/laptop this is accurate to a few metres. Please search or place the pin on the map instead.',
+          )
+          return
+        }
         setGpsState('detected')
         if (selectedPlace !== null) setSelectedPlace(null)
         move(c.latitude, c.longitude)

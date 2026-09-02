@@ -94,25 +94,29 @@ def msme_clusters(q: MSMEClustersQuery, db: Session = Depends(get_db)):
     Return one cluster per pincode centroid within ``radius_km`` with real unit
     counts and, when requested, the per-unit list for a drill-down layer.
     """
-    sql = text("""
+    # Portable haversine (matches geo.py's expression used everywhere else).
+    # Avoids PostGIS dependency so the same SQL runs anywhere (geography emulated
+    # in SQL), not just on a PostGIS-enabled cluster.
+    hav = (
+        "6371.0088 * 2 * asin(sqrt("
+        "power(sin(radians((:lat - u.latitude))/2), 2)"
+        " + cos(radians(:lat))*cos(radians(u.latitude))"
+        "*power(sin(radians((:lon - u.longitude))/2), 2)"
+        "))"
+    )
+    sql = text(f"""
         SELECT u.pincode,
                u.latitude  AS lat,
                u.longitude AS lon,
                count(*)                          AS total,
                count(DISTINCT u.nic_code)        AS activity_codes,
-               (6371 * acos(least(1,
-                 cos(radians(:lat))*cos(radians(u.latitude))
-                 *cos(radians(u.longitude)-radians(:lon))
-                 + sin(radians(:lat))*sin(radians(u.latitude))))) AS km
+               {hav}                             AS km
         FROM udyam_units u
         WHERE u.latitude IS NOT NULL
           AND u.longitude IS NOT NULL
           AND u.pincode IS NOT NULL
         GROUP BY u.pincode, u.latitude, u.longitude
-        HAVING (6371 * acos(least(1,
-                 cos(radians(:lat))*cos(radians(u.latitude))
-                 *cos(radians(u.longitude)-radians(:lon))
-                 + sin(radians(:lat))*sin(radians(u.latitude))))) <= :radius
+        HAVING {hav} <= :radius
         ORDER BY km
         LIMIT :maxclusters
     """)
