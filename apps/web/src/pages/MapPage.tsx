@@ -3,15 +3,17 @@ import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
 import { Card } from '../components/ui'
 import { BusinessMap } from '../components/BusinessMap'
-import { pointsFromGeoJSON } from '../lib/geo'
-import type { Business, InfrastructurePoint, MapLayersResponse, MapPoint } from '../types'
+import { msmeClustersFromGeoJSON, pointsFromGeoJSON } from '../lib/geo'
+import type { Business, InfrastructurePoint, MapLayersResponse, MapPoint, MSMECluster } from '../types'
 
 export function MapPage() {
   const { result } = useAnalysis()
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [infrastructure, setInfrastructure] = useState<InfrastructurePoint[]>([])
   const [markets, setMarkets] = useState<MapPoint[]>([])
+  const [msmeClusters, setMsmeClusters] = useState<MSMECluster[]>([])
   const [counts, setCounts] = useState<MapLayersResponse['counts'] | null>(null)
+  const [msmeCount, setMsmeCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,7 +25,7 @@ export function MapPage() {
     setLoading(true)
     setError(null)
     try {
-      const [nearby, layers] = await Promise.all([
+      const [nearby, layers, msme] = await Promise.all([
         api.post<{ businesses: Business[] }>('/businesses/nearby', {
           latitude: center.latitude,
           longitude: center.longitude,
@@ -34,11 +36,19 @@ export function MapPage() {
           longitude: center.longitude,
           radius_km: 10,
         }),
+        api.post<{ features: any[]; metadata: { count: number } }>('/businesses/msme-clusters', {
+          latitude: center.latitude,
+          longitude: center.longitude,
+          radius_km: 10,
+          include_units: true,
+        }),
       ])
       setBusinesses(nearby.businesses)
       setCounts(layers.counts)
       setInfrastructure(pointsFromGeoJSON(layers.layers.infrastructure?.features) as InfrastructurePoint[])
       setMarkets(pointsFromGeoJSON(layers.layers.markets?.features))
+      setMsmeClusters(msmeClustersFromGeoJSON(msme.features))
+      setMsmeCount(msme.metadata.count)
     } catch (e: any) {
       setError(e.message || 'Could not load businesses')
     } finally {
@@ -59,7 +69,8 @@ export function MapPage() {
           <p className="text-sm text-gray-500">
             {result ? `${result.location.village || result.location.block}, ${result.location.district}` : 'Demo workspace (Erode)'} ·{' '}
             {counts
-              ? `${counts.businesses} businesses · ${counts.markets} markets · ${counts.infrastructure} infra points within 10 km`
+              ? `${counts.businesses} businesses · ${counts.markets} markets · ${counts.infrastructure} infra points` +
+                `${msmeCount != null ? ` · ${msmeCount} MSME pincode clusters` : ''} within 10 km`
               : `${businesses.length} mapped within 10 km`}
           </p>
         </div>
@@ -72,7 +83,7 @@ export function MapPage() {
 
       <Card className="p-0 overflow-hidden">
         <div style={{ height: '68vh', width: '100%' }}>
-          <BusinessMap center={center} businesses={businesses} markets={markets} infrastructure={infrastructure} zoom={12} height="100%" />
+          <BusinessMap center={center} businesses={businesses} markets={markets} infrastructure={infrastructure} msmeClusters={msmeClusters} zoom={12} height="100%" />
         </div>
       </Card>
     </div>

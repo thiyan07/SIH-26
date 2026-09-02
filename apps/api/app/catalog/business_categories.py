@@ -139,6 +139,18 @@ _add("animal_feed", "Animal feed store",
      [("shop", ["feed", "animal_feed", "pet"]), ("shop", _AGRICULTURAL)],
      radius_km=5.0, relationships=[("animal_feed", "direct"), ("fertilizer", "indirect")])
 
+_add("tractor_dealer", "Tractor / farm machinery dealer",
+     [("shop", ["tractor", "agricultural_machinery", "machinery", "agrarian"])],
+     radius_km=10.0, relationships=[("tractor_dealer", "direct"),
+                                    ("agricultural_equipment", "direct"),
+                                    ("mechanic", "indirect")])
+
+_add("irrigation_supplies", "Irrigation / pumpset supplies",
+     [("shop", ["irrigation", "pump"]), ("craft", ["pump_repair"])],
+     radius_km=8.0, relationships=[("irrigation_supplies", "direct"),
+                                   ("tractor_dealer", "indirect"),
+                                   ("agricultural_equipment", "direct")])
+
 # ----- AUTOMOTIVE -----------------------------------------------------------
 _add("mechanic", "Automobile / bike mechanic",
      [("shop", ["car_repair", "motorcycle_repair"]), ("craft", ["motorcycle_repair"])],
@@ -175,6 +187,48 @@ _add("computer_service", "Computer / mobile repair",
      radius_km=3.0, relationships=[("computer_service", "direct"),
                                    ("electronics", "indirect"), ("mobile_shop", "indirect")])
 
+_add("laundry", "Laundry / Dry cleaning",
+     [("shop", ["laundry", "dry_cleaning"])], radius_km=3.0,
+     relationships=[("laundry", "direct"), ("hotel", "indirect")])
+
+_add("photography", "Photography / Studio",
+     [("shop", ["photo", "photography"])], radius_km=3.0,
+     relationships=[("photography", "direct"), ("printing", "indirect")])
+
+_add("internet_centre", "Internet / Cyber cafe",
+     [("amenity", ["internet_cafe"]), ("shop", ["internet"])], radius_km=3.0,
+     relationships=[("internet_centre", "direct"), ("printing", "direct"),
+                    ("computer_service", "indirect")])
+
+_add("travel_agency", "Travel agency",
+     [("office", ["travel_agent"]), ("amenity", ["travel_agency"])], radius_km=5.0,
+     relationships=[("travel_agency", "direct"), ("hotel", "indirect")])
+
+_add("finance", "Finance / Insurance office",
+     [("office", ["insurance", "financial", "accountant"]),
+      ("amenity", ["bank", "money_transfer"])], radius_km=5.0,
+     relationships=[("finance", "direct")])
+
+_add("welding", "Welding / Fabrication shop",
+     [("craft", ["welder", "metal_construction", "blacksmith"]),
+      ("shop", ["welding"])], radius_km=5.0,
+     relationships=[("welding", "direct"), ("hardware", "indirect"),
+                    ("agriculture", "indirect")])
+
+_add("home_appliances", "Home appliances shop",
+     [("shop", ["household", "appliance", "vacuum"])], radius_km=5.0,
+     relationships=[("home_appliances", "direct"), ("electronics", "direct")])
+
+_add("battery_shop", "Battery shop",
+     [("shop", ["battery"])], radius_km=5.0,
+     relationships=[("battery_shop", "direct"), ("mechanic", "indirect"),
+                    ("tyre_shop", "indirect")])
+
+_add("auto_parts", "Auto spare parts / accessories",
+     [("shop", ["car_parts", "motorcycle_parts", "auto_parts"])], radius_km=8.0,
+     relationships=[("auto_parts", "direct"), ("mechanic", "indirect"),
+                    ("tyre_shop", "direct")])
+
 # ----- HEALTH ---------------------------------------------------------------
 _add("pharmacy", "Pharmacy / Medical store",
      [("amenity", ["pharmacy"]), ("shop", ["chemist", "medical_supply"])],
@@ -182,14 +236,64 @@ _add("pharmacy", "Pharmacy / Medical store",
                                    ("diagnostic", "indirect")])
 
 _add("clinic", "Clinic",
-     [("amenity", ["clinic", "doctors", "hospital"])], radius_km=3.0,
+     [("amenity", ["clinic", "doctors"]),
+      ("healthcare", ["centre", "health_centre", "clinic"])], radius_km=3.0,
      relationships=[("clinic", "direct"), ("pharmacy", "indirect"),
                     ("diagnostic", "indirect")])
+
+_add("hospital", "Hospital",
+     [("amenity", ["hospital"])], radius_km=10.0,
+     relationships=[("hospital", "direct"), ("clinic", "direct"),
+                    ("pharmacy", "indirect"), ("diagnostic", "indirect")])
 
 _add("diagnostic", "Diagnostic lab",
      [("healthcare", ["laboratory"]), ("amenity", ["laboratory"])], radius_km=3.0,
      relationships=[("diagnostic", "direct"), ("clinic", "indirect"),
                     ("pharmacy", "indirect")])
+
+_add("dental_clinic", "Dental clinic",
+     [("healthcare", ["dentist"]), ("amenity", ["dentist"])], radius_km=3.0,
+     relationships=[("dental_clinic", "direct"), ("clinic", "indirect"),
+                    ("pharmacy", "indirect")])
+
+_add("optical_shop", "Optical / Spectacles shop",
+     [("shop", ["optician"])], radius_km=3.0,
+     relationships=[("optical_shop", "direct"), ("clinic", "indirect")])
+
+_add("veterinary", "Veterinary clinic",
+     [("amenity", ["veterinary"]), ("healthcare", ["veterinary"])], radius_km=5.0,
+     relationships=[("veterinary", "direct"), ("animal_feed", "direct")])
+
+# ----- GROCERY EXPANDED -------------------------------------------------------
+_add("fruit_shop", "Fruit shop",
+     [("shop", ["fruit", "greengrocer"])], radius_km=2.0,
+     relationships=[("fruit_shop", "direct"), ("grocery", "direct"),
+                    ("vegetable_shop", "direct")])
+
+_add("vegetable_shop", "Vegetable shop",
+     [("shop", ["greengrocer", "vegetables"])], radius_km=2.0,
+     relationships=[("vegetable_shop", "direct"), ("grocery", "direct"),
+                    ("fruit_shop", "direct")])
+
+_add("sweet_shop", "Sweet / Confectionery shop",
+     [("shop", ["confectionery", "sweet"])], radius_km=3.0,
+     relationships=[("sweet_shop", "direct"), ("bakery", "direct"),
+                    ("restaurant", "indirect")])
+
+_add("hotel", "Hotel / Lodge",
+     [("tourism", ["hotel", "motel", "hostel", "guest_house"]),
+      ("building", ["hotel"])], radius_km=5.0,
+     relationships=[("hotel", "direct"), ("restaurant", "indirect")])
+
+_add("fast_food", "Fast food / Tiffin centre",
+     [("amenity", ["fast_food", "food_court"]),
+      ("shop", ["fast_food"])], radius_km=2.0,
+     relationships=[("fast_food", "direct"), ("restaurant", "direct"),
+                    ("tea_shop", "direct")])
+
+_add("fish_shop", "Fish / Seafood shop",
+     [("shop", ["seafood", "fish"])], radius_km=2.0,
+     relationships=[("fish_shop", "direct"), ("grocery", "indirect")])
 
 # ----- CONSTRUCTION ----------------------------------------------------------
 _add("hardware", "Hardware / Building materials",
@@ -198,8 +302,18 @@ _add("hardware", "Hardware / Building materials",
                                    ("cement", "indirect")])
 
 _add("building_materials", "Cement / Sand / Building materials",
-     [("shop", ["building_materials", "trade", "cement"])], radius_km=8.0,
+     [("shop", ["building_materials", "trade", "cement", "tiles", "sanitaryware"])], radius_km=8.0,
      relationships=[("building_materials", "direct"), ("hardware", "indirect")])
+
+_add("steel_products", "Steel / Iron products",
+     [("shop", ["steel", "iron", "metal"])], radius_km=8.0,
+     relationships=[("steel_products", "direct"), ("building_materials", "direct"),
+                    ("hardware", "indirect")])
+
+_add("plywood", "Plywood / Timber shop",
+     [("shop", ["plywood", "timber", "wood"])], radius_km=5.0,
+     relationships=[("plywood", "direct"), ("hardware", "direct"),
+                    ("building_materials", "indirect")])
 
 # ----- LEGACY GramBiz categories (compose with existing engines) ------------
 _add("textile", "Textile / Tailoring",

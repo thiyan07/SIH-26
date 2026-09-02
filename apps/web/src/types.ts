@@ -8,10 +8,16 @@ export interface Business {
   latitude: number
   longitude: number
   address?: string
+  phone?: string
+  website?: string
+  opening_hours?: string
+  brand?: string
   distance_km?: number
   source_name?: string
   source_type?: string
   confidence?: string
+  confidence_score?: number
+  verification_status?: string
   retrieved_at_date?: string
   is_demo?: boolean
 }
@@ -39,6 +45,28 @@ export interface MapPoint {
   source_name?: string
   confidence?: string
   is_demo?: boolean
+}
+
+export interface MSMECluster {
+  pincode: string
+  total: number
+  activity_codes: number
+  latitude: number
+  longitude: number
+  distance_km?: number
+  geo_resolution?: string
+  units?: Array<{ name: string; address?: string; nic_code?: string }>
+}
+
+export interface MSMEClusterFeatureCollection {
+  type: 'FeatureCollection'
+  features: Array<{
+    type: 'Feature'
+    properties: MSMECluster & {
+      geo_resolution?: string
+    }
+    geometry: { type: 'Point'; coordinates: [number, number] }
+  }>
 }
 
 export interface MapLayersResponse {

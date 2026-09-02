@@ -50,19 +50,66 @@ SOURCE_NAME = "UDYAM MSME registration (Ministry of MSME, via data.gov.in)"
 DATASET_NAME = "List of MSME Registered Units under UDYAM"
 
 # Column aliases observed on the OGD resource (hardened against source churn:
-# we accept several spellings and only require the natural key + pincode).
+# the public resource anonymises unit records, so the canonical export ships
+# uppercase keys: EnterpriseName, CommunicationAddress, Pincode, State,
+# District, RegistrationDate, Activities (NIC-2008 list JSON), LG_*_Code.
+# ``udyam_number`` was present in older exports but is omitted in newer ones;
+# a deterministic source_key is derived there).
 FIELD_ALIASES = {
-    "udyam_number": ["udyam_registration_number", "udyamno", "udyam_number", "udyam_reg_no", "reg_no"],
-    "enterprise_name": ["enterprise_name", "enterprise", "name", "unit_name"],
-    "category": ["category", "enterprise_type", "type_of_enterprise", "msme_class"],
-    "sector": ["sector", "sector_name"],
-    "nic_code": ["nic_code", "nic", "activity_code", "nic_2008", "nic5"],
-    "state": ["state", "state_name"],
-    "district": ["district", "district_name"],
-    "pincode": ["pincode", "pin_code", "pin"],
-    "address": ["address", "unit_address", "official_address"],
-    "registration_date": ["registration_date", "reg_date", "date_of_registration", "udayam_registration_date", "dated"],
+    "udyam_number": ["udyam_registration_number", "udyamno", "udyam_number", "udyam_reg_no", "reg_no", "UdyamRegistrationNumber"],
+    "enterprise_name": ["enterprise_name", "enterprise", "name", "unit_name", "EnterpriseName", "ENTERPRISE_NAME"],
+    "category": ["category", "enterprise_type", "type_of_enterprise", "msme_class", "Category", "category_name"],
+    "sector": ["sector", "sector_name", "Sector"],
+    "nic_code": ["nic_code", "nic", "activity_code", "nic_2008", "nic5", "NIC5DigitId", "NIC5DigitCode"],
+    "state": ["state", "state_name", "State", "STATE"],
+    "district": ["district", "district_name", "District", "DISTRICT"],
+    "pincode": ["pincode", "pin_code", "pin", "Pincode", "PINCode", "PINCode_pin", "PIN_CODE", "Pincode_pin"],
+    "address": ["address", "unit_address", "official_address", "CommunicationAddress", "PlantLocation", "communication_address"],
+    "registration_date": ["registration_date", "reg_date", "date_of_registration", "udayam_registration_date", "dated", "RegistrationDate", "registration_date_dt"],
 }
+
+# NIC-2008 activity codes are embedded in the ``Activities`` JSON list of the
+# anonymised export: [{"NIC5DigitId": "96010", "Description": "..."}, ...].
+ACTIVITIES_ALIASES = ["Activities", "activities", "Activity", "NIC"]
+NIC_CODE_ALIASES = ["NIC5DigitId", "nic5_digit_id", "nic5digitid", "NIC5DigitCode", "code"]
+NIC_DESCR_ALIASES = ["Description", "description", "activity_desc", "nic_description"]
+PINIFY = lambda v: None if v in (None, "") else str(v).split(".")[0].strip().zfill(6) if str(v).split(".")[0].strip().isdigit() else str(v).strip()
+
+
+def _extract_nic(rec: dict) -> tuple[str | None, str | None]:
+    """Return (nic_code, nic_description) from the Activities/NIC JSON list."""
+    act = None
+    for k in ACTIVITIES_ALIASES:
+        v = rec.get(k)
+        if v:
+            act = v
+            break
+    if act is None:
+        return None, None
+    if isinstance(act, str):
+        act = act.strip()
+        try:
+            parsed = json.loads(act) if act.startswith("[") else json.loads(act)
+        except ValueError:
+            return act[:20], None
+    if not isinstance(parsed, list):
+        return None, None
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+        code = None
+        for k in NIC_CODE_ALIASES:
+            if item.get(k):
+                code = str(item[k]).strip()
+                break
+        desc = None
+        for k in NIC_DESCR_ALIASES:
+            if item.get(k):
+                desc = str(item[k]).strip()
+                break
+        if code:
+            return code, desc
+    return None, None
 
 
 def _pick(rec: dict, names: list[str]):
@@ -112,13 +159,17 @@ class PincodeResolver:
 
 
 def _fetch(api_key: str, resource: str, state: str, limit: int = 1000,
-           offset: int = 0) -> dict:
+           offset: int = 0, district: str | None = None,
+           pincodes: list[str] | None = None) -> dict:
     query = urllib.parse.urlencode({
         "api-key": api_key,
         "format": "json",
         "limit": limit,
         **({"offset": offset} if offset > 0 else {}),
-        **({"filters[state]": state} if state else {}),
+        # The public resource capitalises its field names exactly.
+        **({"filters[State]": state} if state else {}),
+        **({"filters[District]": district} if district else {}),
+        **({"filters[Pincode]": PINIFY(pincodes[0])} if pincodes else {}),
     })
     req = urllib.request.Request(
         f"{API_BASE.format(resource=resource)}?{query}",
@@ -133,20 +184,38 @@ def _normalized_rows(raw: list[dict]) -> list[dict]:
         if not isinstance(rec, dict):
             continue
         udyam_no = str(_pick(rec, FIELD_ALIASES["udyam_number"]) or "").strip()
-        pincode = str(_pick(rec, FIELD_ALIASES["pincode"]) or "").strip()
+        pincode = PINIFY(_pick(rec, FIELD_ALIASES["pincode"]))
+        state = _clean(_pick(rec, FIELD_ALIASES["state"]))
+        district = _clean(_pick(rec, FIELD_ALIASES["district"]))
+        ename = _clean(_pick(rec, FIELD_ALIASES["enterprise_name"]))
+        # Skip rows that carry no identifying content at all (junk).
+        if not udyam_no and not ename:
+            continue
+        nic_code, nic_desc = _extract_nic(rec)
+        # Natural key may be absent on anonymised exports: build a deterministic
+        # source_key from (state, district, pincode, name, date) per the model.
         if not udyam_no:
-            continue  # natural key required; skip junk rows
+            reg_dt = _coerce_date(_pick(rec, FIELD_ALIASES["registration_date"]))
+            reg_key = reg_dt.isoformat() if reg_dt else ""
+            udyam_no = None
+            source_key = "|".join(filter(None, [
+                str(state or "").upper(), str(district or "").upper(),
+                str(pincode or ""), str(ename or "").upper(), reg_key]))
+            source_key = source_key or "unknown"
+        else:
+            source_key = udyam_no
         reg_date = _coerce_date(_pick(rec, FIELD_ALIASES["registration_date"]) or rec.get("registration_date"))
         coords = PincodeResolver.resolve(pincode)
         rows.append({
             "udyam_number": udyam_no,
-            "source_key": udyam_no,
-            "enterprise_name": _clean(_pick(rec, FIELD_ALIASES["enterprise_name"])),
+            "source_key": source_key,
+            "enterprise_name": ename,
             "category": _clean(_pick(rec, FIELD_ALIASES["category"])),
             "sector": _clean(_pick(rec, FIELD_ALIASES["sector"])),
-            "nic_code": _clean(_pick(rec, FIELD_ALIASES["nic_code"])),
-            "state": _clean(_pick(rec, FIELD_ALIASES["state"])),
-            "district": _clean(_pick(rec, FIELD_ALIASES["district"])),
+            "nic_code": _clean(nic_code) or _clean(_pick(rec, FIELD_ALIASES["nic_code"])),
+            "nic_description": nic_desc,
+            "state": state,
+            "district": district,
             "pincode": pincode,
             "address": _clean(_pick(rec, FIELD_ALIASES["address"])),
             "registration_date": reg_date,
@@ -180,7 +249,7 @@ def _store(session, rows: list[dict], url: str) -> int:
     stored = 0
     for r in rows:
         existing = session.query(UdyamUnit).filter(
-            UdyamUnit.udyam_number == r["udyam_number"]).first()
+            UdyamUnit.source_key == r["source_key"]).first()
         if existing:
             if existing.is_demo:
                 continue
@@ -224,7 +293,9 @@ def _store(session, rows: list[dict], url: str) -> int:
                 is_estimate=False,
                 is_demo=False,
                 metadata_json={"pincode_located": bool(r["latitude"]),
-                               "geo_resolution": "pincode"},
+                               "geo_resolution": "pincode",
+                               "deterministic_key": r["source_key"] != r["udyam_number"],
+                               "nic_description": r.get("nic_description")},
             ))
         stored += 1
     if stored:

@@ -22,10 +22,18 @@ function dotIcon(color: string): L.DivIcon {
 interface PointProps {
   name?: string
   category?: string
+  subcategory?: string
+  address?: string
+  phone?: string
+  website?: string
+  opening_hours?: string
+  brand?: string
   distance_km?: number | null
   source?: string
+  source_type?: string
   is_demo?: boolean
   confidence?: string
+  verification_status?: string
 }
 
 /**
@@ -62,14 +70,23 @@ export function MapClusterLayer({ data, color = '#10b981', highlightColor = '#16
             title={props.name || ''}
           >
             <Popup>
-              <div className="p-1">
+              <div className="p-1 min-w-[180px]">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-gray-900">{props.name || 'Business'}</span>
                   {props.is_demo && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">Demo/test</span>}
                 </div>
-                {props.category && <div className="text-xs text-gray-500">{props.category}</div>}
+                {(props.category || props.subcategory) && (
+                  <div className="text-xs text-gray-500">{props.subcategory || props.category}{props.brand ? ` · ${props.brand}` : ''}</div>
+                )}
+                {props.address && <div className="text-xs text-gray-600">{props.address}</div>}
+                {props.phone && <div className="text-xs text-gray-600">📞 {props.phone}</div>}
+                {props.opening_hours && <div className="text-xs text-gray-600">🕒 {props.opening_hours}</div>}
+                {props.website && (
+                  <a className="text-xs text-blue-600 underline" href={props.website} target="_blank" rel="noreferrer">{props.website}</a>
+                )}
                 {props.distance_km != null && <div className="text-xs">{Number(props.distance_km).toFixed(2)} km away</div>}
                 {props.source && <div className="mt-1 text-[11px] text-gray-400">Source: {props.source}</div>}
+                {props.verification_status && <div className="text-[11px] text-gray-400">Verification: {props.verification_status}</div>}
                 {props.confidence && <div className="text-[11px] text-gray-400">Confidence: {props.confidence}</div>}
               </div>
             </Popup>

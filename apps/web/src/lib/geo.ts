@@ -1,5 +1,5 @@
 import type { FeatureCollection, Point } from 'geojson'
-import type { Business, InfrastructurePoint, MapPoint } from '../types'
+import type { Business, InfrastructurePoint, MapPoint, MSMECluster } from '../types'
 
 export interface GeoCoordinate {
   latitude: number
@@ -68,8 +68,17 @@ export function businessesToGeoJSON(businesses: Business[]): FeatureCollection<P
         id: b.id,
         name: b.name,
         category: b.category_code,
+        subcategory: b.subcategory,
+        address: b.address,
+        phone: b.phone,
+        website: b.website,
+        opening_hours: b.opening_hours,
+        brand: b.brand,
         distance_km: b.distance_km,
         source: b.source_name,
+        source_type: b.source_type,
+        confidence: b.confidence,
+        verification_status: b.verification_status,
         is_demo: b.is_demo,
       },
       geometry: { type: 'Point', coordinates: [b.longitude, b.latitude] },
@@ -126,5 +135,39 @@ export function pointsFromGeoJSON(features: any[]): MapPoint[] {
       distance_km: f.properties?.distance_km,
       source_name: f.properties?.source_name,
       confidence: f.properties?.confidence,
+    }))
+}
+
+/** Encode pincode-cluster MSME points as a GeoJSON feature layer, sized by count. */
+export function msmeClustersToGeoJSON(clusters: MSMECluster[]): FeatureCollection<Point> {
+  return {
+    type: 'FeatureCollection',
+    features: (clusters || []).map((c) => ({
+      type: 'Feature',
+      properties: {
+        pincode: c.pincode,
+        total: c.total,
+        activity_codes: c.activity_codes,
+        distance_km: c.distance_km,
+        geo_resolution: c.geo_resolution || 'pincode',
+      },
+      geometry: { type: 'Point', coordinates: [c.longitude, c.latitude] },
+    })),
+  }
+}
+
+/** Decode MSME pincode-cluster GeoJSON features into plain cluster points. */
+export function msmeClustersFromGeoJSON(features: any[]): MSMECluster[] {
+  return (features || [])
+    .filter((f) => f.geometry?.type === 'Point')
+    .map((f) => ({
+      pincode: f.properties?.pincode,
+      total: f.properties?.total,
+      activity_codes: f.properties?.activity_codes,
+      latitude: f.geometry.coordinates[1],
+      longitude: f.geometry.coordinates[0],
+      distance_km: f.properties?.distance_km,
+      geo_resolution: f.properties?.geo_resolution,
+      units: f.properties?.units ?? [],
     }))
 }

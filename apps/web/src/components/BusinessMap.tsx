@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Business, InfrastructurePoint, MapPoint } from '../types'
+import type { Business, InfrastructurePoint, MapPoint, MSMECluster } from '../types'
 import { businessesToGeoJSON, infrastructureToGeoJSON, pointsToGeoJSON } from '../lib/geo'
 import {
   Map,
@@ -16,6 +16,7 @@ export interface BusinessMapProps {
   competitors?: Business[]
   markets?: MapPoint[]
   infrastructure?: InfrastructurePoint[]
+  msmeClusters?: MSMECluster[]
   showRadius?: boolean
   zoom?: number
   height?: string
@@ -28,9 +29,10 @@ const layerOptions = [
   { key: 'restaurants', label: 'Restaurants' },
   { key: 'retail', label: 'Retail' },
   { key: 'infrastructure', label: 'Infrastructure' },
+  { key: 'msme', label: 'MSMEs' },
 ]
 
-export function BusinessMap({ center, businesses = [], competitors = [], markets = [], infrastructure = [], showRadius = true, zoom = 12, height = '420px' }: BusinessMapProps) {
+export function BusinessMap({ center, businesses = [], competitors = [], markets = [], infrastructure = [], msmeClusters = [], showRadius = true, zoom = 12, height = '420px' }: BusinessMapProps) {
   const [layer, setLayer] = useState('all')
 
   // Layer toggles select which data the map shows (plan §26).
@@ -38,7 +40,9 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
   const showCompetitors = layer === 'all' || layer === 'competitors'
   const showMarkets = layer === 'all' || layer === 'markets'
   const showInfrastructure = layer === 'all' || layer === 'infrastructure'
+  const showMsme = layer === 'all' || layer === 'msme'
   const comps = showCompetitors ? competitors : []
+  const msmes = showMsme ? msmeClusters : []
   const allShown = showBusinesses
     ? businesses.filter((b) => {
         if (layer === 'restaurants') return b.category_code === 'restaurant'
@@ -77,7 +81,7 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
           )}
           {showInfrastructure && infrastructure.length > 0 && (
             <MapGeoJSON id="infrastructure" data={infrastructureToGeoJSON(infrastructure)} circleColor="#7c3aed" circleRadius={5} />
-          )}
+)}
           {comps.map((c) => (
             <MapMarker
               key={c.id}
@@ -85,7 +89,35 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
               longitude={c.longitude}
               color="#dc2626"
               label={c.name}
-              popup={`${c.category_code || ''} · ${c.distance_km != null ? c.distance_km + ' km' : ''}`}
+              popup={[
+                c.name,
+                c.address?.trim() ? c.address : null,
+                c.category_code && c.category_code !== 'other' ? c.category_code : null,
+                c.phone ? `📞 ${c.phone}` : null,
+                c.distance_km != null ? `${c.distance_km} km away` : null,
+                c.source_name ? `Source: ${c.source_name}` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+                || c.name}
+            />
+          ))}
+          {msmes.map((m) => (
+            <MapMarker
+              key={m.pincode}
+              latitude={m.latitude}
+              longitude={m.longitude}
+              color="#6366f1"
+              label={`MSME pincode ${m.pincode} · ${m.total}`}
+              popup={[
+                `Pincode ${m.pincode} · ${m.total} registered MSME units`,
+                `${m.activity_codes} activity types`,
+                m.distance_km != null ? `${m.distance_km} km away` : null,
+                m.units && m.units.length ? `e.g. ${m.units.slice(0, 6).map((u) => u.name).join(', ')}${m.units.length > 6 ? ', …' : ''}` : null,
+                'Pincode centroid (units resolve to pincode, not street)',
+              ]
+                .filter(Boolean)
+                .join('\n')}
             />
           ))}
         </Map>

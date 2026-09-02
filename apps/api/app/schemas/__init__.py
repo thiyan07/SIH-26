@@ -82,6 +82,21 @@ class CompetitorDiscoveryQuery(BaseModel):
     radius_m: Optional[int] = Field(default=None, gt=0, le=20000)
 
 
+class MSMEClustersQuery(BaseModel):
+    """Fetch pincode-centroid clusters of registered UDYAM MSME units near a point.
+
+    MSME units resolve at pincode granularity (the official export carries no
+    street coordinates), so each returned cluster is one pincode centroid with
+    unit + activity counts. ``include_units`` opts into the per-pincode unit
+    list (business names + street addresses) for a drill-down layer.
+    """
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
+    radius_km: float = Field(default=10, gt=0, le=50)
+    include_units: bool = False
+    max_clusters: int = Field(default=50, ge=1, le=200)
+
+
 class AnalysisRequest(BaseModel):
     state: str
     district: str
