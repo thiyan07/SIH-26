@@ -1,13 +1,14 @@
 """Business / competitor endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import distinct, func, select, text
 from sqlalchemy.orm import Session
 
 from app.db.models import Business, UdyamUnit
 from app.db.session import get_db
 from app.geo import find_nearby_with_distance
+from app.limiter import limiter
 from app.schemas import CompetitorDiscoveryQuery, CompetitorQuery, MSMEClustersQuery, NearbyBusinessQuery
 
 router = APIRouter(prefix="/businesses", tags=["businesses"])
@@ -39,7 +40,8 @@ def _out(b, dist):
 
 
 @router.post("/nearby")
-def nearby_businesses(q: NearbyBusinessQuery, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def nearby_businesses(request: Request, q: NearbyBusinessQuery, db: Session = Depends(get_db)):
     filters = {"category_code": q.category_code} if q.category_code else None
     rows = find_nearby_with_distance(db, Business, q.latitude, q.longitude, q.radius_km, filters, 300)
     return {
@@ -51,7 +53,8 @@ def nearby_businesses(q: NearbyBusinessQuery, db: Session = Depends(get_db)):
 
 
 @router.post("/competitors")
-def competitors(q: CompetitorQuery, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def competitors(request: Request, q: CompetitorQuery, db: Session = Depends(get_db)):
     rows = find_nearby_with_distance(db, Business, q.latitude, q.longitude, q.radius_km,
                                      {"category_code": q.category_code}, 300)
     distances = [d for _, d in rows]
@@ -70,7 +73,8 @@ def competitors(q: CompetitorQuery, db: Session = Depends(get_db)):
 
 
 @router.post("/discovery")
-def discovery(q: CompetitorDiscoveryQuery, db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+def discovery(request: Request, q: CompetitorDiscoveryQuery, db: Session = Depends(get_db)):
     """P0 exact-location competitor discovery (live OSM/Overpass + geo cache).
 
     Uses the map-marker latitude/longitude + radius + category to discover real,
@@ -87,7 +91,8 @@ def discovery(q: CompetitorDiscoveryQuery, db: Session = Depends(get_db)):
 
 
 @router.post("/msme-clusters")
-def msme_clusters(q: MSMEClustersQuery, db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def msme_clusters(request: Request, q: MSMEClustersQuery, db: Session = Depends(get_db)):
     """Registered-MSME pincode clusters (GeoJSON) near a point.
 
     UDYAM units are pincode-resolved (no street coords in the official export).

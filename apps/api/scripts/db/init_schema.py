@@ -225,6 +225,36 @@ def init_schema():
                         for v in f["values"]
                     },
                 ))
+        # Government scheme eligibility columns (SIH26091)
+        for col in (
+            ("implementing_agency", "VARCHAR(200)"),
+            ("scheme_url", "TEXT"),
+            ("target_beneficiary_categories", "JSONB"),
+            ("eligible_business_types", "JSONB"),
+            ("eligible_states", "JSONB"),
+            ("eligible_districts", "JSONB"),
+            ("min_age", "INTEGER"),
+            ("max_age", "INTEGER"),
+            ("min_annual_income", "NUMERIC(16,2)"),
+            ("max_annual_income", "NUMERIC(16,2)"),
+            ("requires_existing_business", "BOOLEAN"),
+            ("requires_domicile", "BOOLEAN"),
+            ("category_eligibility_rules", "JSONB"),
+            ("required_documents", "JSONB"),
+            ("application_authority", "VARCHAR(200)"),
+            ("application_process", "TEXT"),
+            ("validity_start_date", "DATE"),
+            ("validity_end_date", "DATE"),
+            ("confidence_level", "VARCHAR(20)"),
+            ("beneficiary_contribution_pct", "NUMERIC(6,2)"),
+            ("subsidy_pct", "NUMERIC(6,2)"),
+            ("interest_subsidy_pct", "DOUBLE PRECISION"),
+            ("source_date", "DATE"),
+        ):
+            # source_url should be TEXT (model uses Text), migrate any legacy VARCHAR
+            s.execute(text("ALTER TABLE government_schemes ALTER COLUMN source_url TYPE TEXT"))
+            s.execute(text(f"ALTER TABLE government_schemes ADD COLUMN IF NOT EXISTS {col[0]} {col[1]}"))
+
         # Schemes
         for sc in DEFAULT_SCHEMES:
             if not s.execute(select(GovernmentScheme).where(GovernmentScheme.code == sc.code)).scalars().first():
@@ -235,7 +265,7 @@ def init_schema():
                     tenure_years=sc.tenure_years, moratorium_months=sc.moratorium_months,
                     margin_pct=sc.margin_pct, moratorium_mode=sc.moratorium_mode,
                     source_url=sc.source_document, scheme_type=sc.code,
-                    description=sc.note,
+                    description=sc.note, confidence_level="demo",
                 ))
         # Data sources (plan §27: each includes why_used + known_limitations)
         defaults = [

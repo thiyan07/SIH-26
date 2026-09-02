@@ -1,18 +1,18 @@
 import { NavLink, Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useAnalysis } from '../lib/analysisStore'
-import type { Language } from '../lib/i18n'
+import { tr, type Language } from '../lib/i18n'
 
 const NAV = [
-  { to: '/analyze', label: 'Analyze' },
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/market', label: 'Market' },
-  { to: '/map', label: 'Map' },
-  { to: '/finance', label: 'Finance' },
-  { to: '/simulator', label: 'Simulator' },
-  { to: '/report', label: 'Report' },
-  { to: '/schemes', label: 'Schemes' },
-  { to: '/data-sources', label: 'Data' },
+  { to: '/analyze', label: 'navAnalyze' as const },
+  { to: '/dashboard', label: 'navDashboard' as const },
+  { to: '/market', label: 'navMarket' as const },
+  { to: '/map', label: 'navMap' as const },
+  { to: '/finance', label: 'navFinance' as const },
+  { to: '/simulator', label: 'navSimulator' as const },
+  { to: '/report', label: 'navReport' as const },
+  { to: '/schemes', label: 'navSchemes' as const },
+  { to: '/data-sources', label: 'navData' as const },
 ]
 
 export function Layout({ children, hideNav }: { children: ReactNode; hideNav?: boolean }) {
@@ -26,7 +26,7 @@ export function Layout({ children, hideNav }: { children: ReactNode; hideNav?: b
               <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">G</span>
               <div className="leading-tight">
                 <div className="text-sm font-bold text-gray-900">GramBiz AI</div>
-                <div className="hidden text-[10px] text-gray-500 sm:block">Hyper-Local Business Intelligence</div>
+                <div className="hidden text-[10px] text-gray-500 sm:block">{tr('subtitle', lang)}</div>
               </div>
             </Link>
             <div className="flex items-center gap-1 overflow-x-auto">
@@ -40,7 +40,7 @@ export function Layout({ children, hideNav }: { children: ReactNode; hideNav?: b
                     }`
                   }
                 >
-                  {n.label}
+                  {tr(n.label, lang)}
                 </NavLink>
               ))}
             </div>
@@ -59,7 +59,7 @@ export function Layout({ children, hideNav }: { children: ReactNode; hideNav?: b
       <main className={hideNav ? '' : 'mx-auto max-w-7xl px-4 py-6'}>{children}</main>
       {!hideNav && (
         <footer className="mt-8 border-t border-gray-200 bg-white py-4 text-center text-xs text-gray-400">
-          © OpenStreetMap contributors · GramBiz AI demo — scores and loan guidance are estimates, not guarantees.
+          {tr('footer', lang)}
         </footer>
       )}
     </div>

@@ -212,3 +212,84 @@ export interface AnalysisResult {
   recommendation: Recommendation
   data_sources: any[]
 }
+
+// ── SIH26091 Multilingual NLP Advisory ──
+// Mirrors the backend /advisory/* endpoints (app/api/advisory.py).
+
+export interface AdvisoryParseOutput {
+  raw_text?: string
+  detected_language?: string
+  language_name?: string
+  location?: {
+    state?: string | null
+    district?: string | null
+    block?: string | null
+    village?: string | null
+  }
+  business_type?: string | null
+  category_name?: string | null
+  scale?: string | null
+  project_cost?: number | null
+  capital_available?: number | null
+  annual_income?: number | null
+  age?: number | null
+  beneficiary_category?: string | null
+  confidence?: Record<string, number>
+  amounts?: Record<string, number>
+  keywords?: string[]
+  entities?: string[]
+}
+
+export interface AdvisorySchemeMatch {
+  scheme_code: string
+  scheme_name: string
+  match_score: number
+  status: string
+  matching_reasons: string[]
+  mismatch_reasons: string[]
+  missing_information: string[]
+  scheme_details?: Record<string, any>
+}
+
+export interface AdvisoryLoanStructure {
+  scheme_code?: string | null
+  scheme_name?: string | null
+  total_project_cost: number
+  beneficiary_contribution?: number
+  beneficiary_contribution_pct?: number
+  loan_amount: number
+  max_loan_allowed?: number | null
+  subsidy_amount?: number
+  subsidy_pct?: number | null
+  interest_rate?: number
+  tenure_years?: number
+  moratorium_months?: number
+  monthly_emi_during_moratorium?: number
+  monthly_emi_after_moratorium?: number
+  total_repayment?: number
+  total_interest?: number
+  repayment_health?: any
+  notes?: string[]
+}
+
+export interface AdvisoryFinancialStructure {
+  beneficiary?: Record<string, any>
+  cost_breakdown?: any
+  loan_structure?: AdvisoryLoanStructure
+  recommended_scheme?: string | null
+  alternatives?: any[]
+  disclaimer?: string
+}
+
+export interface AdvisoryReport {
+  parsed_input?: AdvisoryParseOutput
+  beneficiary_profile?: any
+  scheme_eligibility?: AdvisorySchemeMatch[]
+  financial_structure?: AdvisoryFinancialStructure
+  profit_model?: any
+  risks?: any
+  action_plan?: any
+  key_documents?: any
+  summary?: string
+  disclaimer?: string
+}

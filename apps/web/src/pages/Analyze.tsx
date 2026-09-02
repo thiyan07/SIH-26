@@ -4,7 +4,8 @@ import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
 import { Button, Card, CardHeader } from '../components/ui'
 import { ShopLocationPicker } from '../components/ShopLocationPicker'
-import type { AnalysisResult, Category, LocationOut } from '../types'
+import { tr, type Language } from '../lib/i18n'
+import type { AnalysisResult, Category, LocationOut, AdvisoryParseOutput, AdvisoryReport } from '../types'
 
 interface DiscoveryResult {
   data_status: string
@@ -60,6 +61,15 @@ export function Analyze() {
   const [liveComp, setLiveComp] = useState<DiscoveryResult | null>(null)
   const [liveCompLoading, setLiveCompLoading] = useState(false)
   const [liveCompError, setLiveCompError] = useState<string | null>(null)
+
+  // SIH26091 multilingual NLP advisory (free-text → structured form + full report)
+  const [advisoryText, setAdvisoryText] = useState('')
+  const [advisoryLang, setAdvisoryLang] = useState<Language>('en')
+  const [advisoryParsing, setAdvisoryParsing] = useState(false)
+  const [advisoryReport, setAdvisoryReport] = useState<AdvisoryReport | null>(null)
+  const [advisoryLoading, setAdvisoryLoading] = useState(false)
+  const [advisoryError, setAdvisoryError] = useState<string | null>(null)
+  const [advisoryNote, setAdvisoryNote] = useState<string | null>(null)
 
   useEffect(() => {
     api.get<{ categories: Category[] }>('/financial/categories')
@@ -161,6 +171,59 @@ export function Analyze() {
     if (draftProposed) setConfirmedProposed({ lat: draftProposed.lat, lng: draftProposed.lng })
   }
 
+  // Parse free text (English/Tamil/Hindi) via the NLP engine and pre-fill the
+  // structured feasibility form from the extracted fields (SIH26091 FR: NLP).
+  const parseAndPrefill = async () => {
+    if (!advisoryText.trim()) return
+    setAdvisoryParsing(true)
+    setAdvisoryError(null)
+    setAdvisoryNote(null)
+    try {
+      const parsed = await api.post<AdvisoryParseOutput>('/advisory/parse', {
+        free_text: advisoryText,
+        language: advisoryLang,
+      })
+      const next = { ...form }
+      if (parsed.business_type) next.category_code = parsed.business_type
+      if (parsed.scale) next.preferred_scale = parsed.scale
+      if (parsed.project_cost) next.capital_available = parsed.project_cost
+      if (parsed.location?.state) next.state = parsed.location.state
+      if (parsed.location?.district) next.district = parsed.location.district
+      if (parsed.location?.block) next.block = parsed.location.block
+      if (parsed.location?.village) next.village = parsed.location.village
+      setLocalForm(next)
+      setForm(next)
+      setAdvisoryNote(
+        `Parsed as "${parsed.business_type || '—'}" in ${parsed.detected_language || 'en'} (confidence ${Math.round(
+          (parsed.confidence?.overall ?? 0) * 100,
+        )}%). Structured fields below were pre-filled — review before generating.`,
+      )
+    } catch (e: any) {
+      setAdvisoryError(e.message || 'Could not parse the text.')
+    } finally {
+      setAdvisoryParsing(false)
+    }
+  }
+
+  // Run the full multilingual advisory pipeline and render the report inline.
+  const runFullAdvisory = async () => {
+    if (!advisoryText.trim()) return
+    setAdvisoryLoading(true)
+    setAdvisoryError(null)
+    setAdvisoryReport(null)
+    try {
+      const report = await api.post<AdvisoryReport>('/advisory/report', {
+        free_text: advisoryText,
+        language: advisoryLang,
+      })
+      setAdvisoryReport(report)
+    } catch (e: any) {
+      setAdvisoryError(e.message || 'Could not generate the advisory report.')
+    } finally {
+      setAdvisoryLoading(false)
+    }
+  }
+
   // Exact pin placement is mandatory before a real analysis: any new pin
   // placement (drag, map click, GPS, search result) invalidates a previous
   // confirmation, so generate stays blocked until the exact spot is confirmed.
@@ -211,6 +274,54 @@ export function Analyze() {
           {result ? 'Rebuild the analysis with new inputs, or' : 'Fill in your details and'} view the {result ? 'updated' : ''} result on the Dashboard.
         </p>
       </div>
+
+      {/* SIH26091: Multilingual NLP advisory — describe the business in plain words */}
+      <Card>
+        <CardHeader
+          title={tr('advisoryTitle', advisoryLang)}
+          subtitle={tr('advisorySubtitle', advisoryLang)}
+        />
+        <div className="space-y-3">
+          <textarea
+            value={advisoryText}
+            onChange={(e) => setAdvisoryText(e.target.value)}
+            rows={3}
+            placeholder={tr('advisoryPlaceholder', advisoryLang)}
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={advisoryLang}
+              onChange={(e) => setAdvisoryLang(e.target.value as Language)}
+              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-700"
+            >
+              <option value="en">English</option>
+              <option value="ta">தமிழ்</option>
+              <option value="hi">हिंदी</option>
+            </select>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={parseAndPrefill}
+              disabled={advisoryParsing || !advisoryText.trim()}
+            >
+              {advisoryParsing ? tr('parsing', advisoryLang) : tr('parsePrefill', advisoryLang)}
+            </Button>
+            <Button
+              type="button"
+              onClick={runFullAdvisory}
+              disabled={advisoryLoading || !advisoryText.trim()}
+            >
+              {advisoryLoading ? tr('generating', advisoryLang) : tr('fullAdvisory', advisoryLang)}
+            </Button>
+            {advisoryNote && <span className="text-xs text-emerald-700">{advisoryNote}</span>}
+          </div>
+          {advisoryError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm text-red-700">{advisoryError}</div>
+          )}
+          {advisoryReport && <AdvisoryReportView report={advisoryReport} lang={advisoryLang} />}
+        </div>
+      </Card>
 
       <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
         <strong>Quick start:</strong> not sure what to enter yet?{' '}
@@ -455,6 +566,96 @@ export function Analyze() {
       </form>
     </div>
   )
+}
+
+function AdvisoryReportView({ report, lang }: { report: AdvisoryReport; lang: Language }) {
+  const fs = report.financial_structure
+  const ls = fs?.loan_structure
+  const summary = report.summary
+  const schemes = report.scheme_eligibility ?? []
+  return (
+    <div className="mt-3 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
+      <h3 className="text-sm font-bold text-gray-900">{tr('fullReportTitle', lang)}</h3>
+
+      {summary && <p className="rounded-lg bg-white p-3 text-sm text-gray-700">{summary}</p>}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        {schemes.length > 0 && (
+          <div className="rounded-lg bg-white p-3">
+            <div className="mb-1 text-xs font-semibold uppercase text-gray-500">{tr('bestSchemes', lang)}</div>
+            <ul className="space-y-1">
+              {schemes.slice(0, 4).map((s) => (
+                <li key={s.scheme_code} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-800">{s.scheme_name}</span>
+                  <span className="rounded px-1.5 py-0.5 text-[10px] font-medium text-white bg-brand-600">
+                    {Math.round(s.match_score)}% · {s.status.slice(0, 3)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {ls && (
+          <div className="rounded-lg bg-white p-3">
+            <div className="mb-1 text-xs font-semibold uppercase text-gray-500">{tr('loanStructure', lang)}</div>
+            <dl className="space-y-1 text-sm">
+              <Row k="Recommended scheme" v={fs?.recommended_scheme ?? ls.scheme_name ?? '—'} />
+              <Row k="Loan amount" v={inr(ls.loan_amount)} />
+              <Row k="Interest rate" v={ls.interest_rate != null ? `${ls.interest_rate}%` : '—'} />
+              <Row k="Tenure" v={ls.tenure_years != null ? `${ls.tenure_years} yrs` : '—'} />
+              <Row k="EMI during moratorium" v={inr(ls.monthly_emi_during_moratorium)} />
+              <Row k="EMI after moratorium" v={inr(ls.monthly_emi_after_moratorium)} />
+              <Row k="Total interest" v={inr(ls.total_interest)} />
+            </dl>
+            {ls.repayment_health?.label && (
+              <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
+                Repayment health: {ls.repayment_health.label} {ls.repayment_health.disclaimer ? '· estimate' : ''}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {report.risks?.high?.length > 0 && (
+        <div className="rounded-lg bg-white p-3">
+          <div className="mb-1 text-xs font-semibold uppercase text-gray-500">{tr('keyRisks', lang)}</div>
+          <ul className="list-inside list-disc space-y-0.5 text-sm text-gray-700">
+            {report.risks.high.slice(0, 3).map((r: any, i: number) => (
+              <li key={i}>{r.risk || r}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {report.key_documents?.length > 0 && (
+        <div className="rounded-lg bg-white p-3">
+          <div className="mb-1 text-xs font-semibold uppercase text-gray-500">{tr('documentsNeeded', lang)}</div>
+          <ul className="list-inside list-disc space-y-0.5 text-sm text-gray-700">
+            {report.key_documents.slice(0, 8).map((d: any, i: number) => (
+              <li key={i}>{typeof d === 'string' ? d : d.document || d.name || JSON.stringify(d)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {report.disclaimer && <p className="text-[11px] text-gray-400">{report.disclaimer}</p>}
+    </div>
+  )
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <dt className="text-gray-500">{k}</dt>
+      <dd className="font-medium text-gray-900">{v}</dd>
+    </div>
+  )
+}
+
+function inr(n?: number | null): string {
+  if (n == null || Number.isNaN(n)) return '—'
+  return '₹' + Math.round(n).toLocaleString('en-IN')
 }
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {

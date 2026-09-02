@@ -359,17 +359,43 @@ class GovernmentScheme(PG, ProvenanceMixin, Base):
     code = Column(String(50), unique=True, nullable=False)
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    max_project_cost = Column(Numeric(16, 2), nullable=True)
-    max_loan_amount = Column(Numeric(16, 2), nullable=True)
-    min_project_cost = Column(Numeric(16, 2), nullable=True)
-    interest_rate = Column(Float, nullable=True)
-    tenure_years = Column(Float, nullable=True)
-    moratorium_months = Column(Integer, nullable=True)
-    margin_pct = Column(Float, nullable=True)  # e.g. 10.0 for 10%
-    moratorium_mode = Column(String(40), default="interest_only_during_moratorium")
-    scheme_type = Column(String(40), nullable=True)
+    implementing_agency = Column(String(200), nullable=True)
+    scheme_url = Column(Text, nullable=True)
+    scheme_type = Column(String(40), nullable=True)  # subsidy|loan|grant|insurance
     document_id = Column(String(36), nullable=True)
     is_active = Column(Boolean, default=True)
+    # Financial parameters
+    min_project_cost = Column(Numeric(16, 2), nullable=True)
+    max_project_cost = Column(Numeric(16, 2), nullable=True)
+    max_loan_amount = Column(Numeric(16, 2), nullable=True)
+    interest_rate = Column(Float, nullable=True)
+    interest_subsidy_pct = Column(Float, nullable=True)
+    tenure_years = Column(Float, nullable=True)
+    moratorium_months = Column(Integer, nullable=True)
+    margin_pct = Column(Float, nullable=True)
+    beneficiary_contribution_pct = Column(Float, nullable=True)
+    subsidy_pct = Column(Float, nullable=True)
+    moratorium_mode = Column(String(40), default="interest_only_during_moratorium")
+    # Eligibility fields
+    target_beneficiary_categories = Column(JSONB, nullable=True)  # ["sc_st", "obc", "general", "women", "minority", "ews", "all"]
+    eligible_business_types = Column(JSONB, nullable=True)  # ["dairy", "poultry", "grocery", ...] or null for all
+    eligible_states = Column(JSONB, nullable=True)  # ["Tamil Nadu", ...] or null for all India
+    eligible_districts = Column(JSONB, nullable=True)  # ["Erode", ...] or null for all
+    min_age = Column(Integer, nullable=True)
+    max_age = Column(Integer, nullable=True)
+    min_annual_income = Column(Numeric(16, 2), nullable=True)
+    max_annual_income = Column(Numeric(16, 2), nullable=True)
+    requires_existing_business = Column(Boolean, nullable=True)  # True = must have existing business
+    requires_domicile = Column(Boolean, nullable=True)
+    category_eligibility_rules = Column(JSONB, nullable=True)  # freeform eligibility conditions
+    required_documents = Column(JSONB, nullable=True)  # list of document names
+    application_authority = Column(String(200), nullable=True)  # KVIC / District Industries Centre / Bank
+    application_process = Column(Text, nullable=True)
+    validity_start_date = Column(Date, nullable=True)
+    validity_end_date = Column(Date, nullable=True)
+    source_url = Column(Text, nullable=True)
+    source_date = Column(Date, nullable=True)
+    confidence_level = Column(String(20), nullable=True)  # verified|approximate|demo
 
 
 class SchemeDocument(PG, ProvenanceMixin, Base):
