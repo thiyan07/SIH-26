@@ -50,12 +50,23 @@ export function StatCard({ label, value, sub, badge }: { label: string; value: R
   )
 }
 
-export function ScoreBar({ label, value, color = 'green' }: { label: string; value: number; color?: string }) {
+export function ScoreBar({ label, value, color = 'green', hint }: { label: string; value: number; color?: string; hint?: string }) {
   const barColor = color === 'green' ? 'bg-brand-500' : color === 'amber' ? 'bg-amber-500' : 'bg-red-500'
   return (
     <div className="mb-3">
       <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="text-gray-700">{label}</span>
+        <span className="flex items-center text-gray-700">
+          {label}
+          {hint && (
+            <span
+              title={hint}
+              aria-label={hint}
+              className="ml-1 cursor-help rounded-full bg-gray-200 px-1.5 text-[10px] font-bold leading-4 text-gray-600 hover:bg-gray-300"
+            >
+              i
+            </span>
+          )}
+        </span>
         <span className="font-semibold text-gray-900">{value}/100</span>
       </div>
       <div className="h-2 w-full rounded bg-gray-100">

@@ -25,11 +25,11 @@ export function Dashboard() {
   const wi = result.weather_intelligence
   const prs = result.product_recommendations
   const bars = [
-    { label: tr('demand', lang), value: score.demand_score },
-    { label: tr('competition', lang), value: score.competition_score },
-    { label: tr('accessibility', lang), value: score.accessibility_score },
-    { label: tr('financialFit', lang), value: score.financial_fit_score },
-    { label: tr('risk', lang), value: score.risk_score },
+    { label: tr('demand', lang), value: score.demand_score, hint: tr('demandHint', lang) },
+    { label: tr('competition', lang), value: score.competition_score, hint: tr('competitionHint', lang) },
+    { label: tr('accessibility', lang), value: score.accessibility_score, hint: tr('accessibilityHint', lang) },
+    { label: tr('financialFit', lang), value: score.financial_fit_score, hint: tr('financialFitHint', lang) },
+    { label: tr('risk', lang), value: score.risk_score, hint: tr('riskHint', lang) },
   ]
   return (
     <div className="space-y-6">
@@ -53,7 +53,7 @@ export function Dashboard() {
             <ScoreDonut value={score.overall_score} size={150} />
             <div className="flex-1">
               {bars.map((b) => (
-                <ScoreBar key={b.label} label={b.label} value={b.value} color={b.value >= 50 ? 'green' : b.value >= 35 ? 'amber' : 'red'} />
+                <ScoreBar key={b.label} label={b.label} value={b.value} color={b.value >= 50 ? 'green' : b.value >= 35 ? 'amber' : 'red'} hint={b.hint} />
               ))}
             </div>
           </div>
@@ -64,6 +64,12 @@ export function Dashboard() {
         </Card>
 
         <div className="grid grid-cols-3 gap-4">
+          <StatCard
+            label={tr('overallOpportunity', lang)}
+            value={`${score.overall_score}`}
+            sub={recommendationLabel(recommendation.label, lang)}
+            badge={<Badge color={RECO_COLOR[recommendation.label] || 'gray'}>{tr('confidence', lang).toLowerCase()}</Badge>}
+          />
           <StatCard
             label={tr('competitors5km', lang)}
             value={bc?.mapped_competitors_5km ?? '-'}
@@ -89,24 +95,6 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader title={tr('weatherClimate', lang)} subtitle={weatherSummary(result, lang)} />
-          <WeatherPanel weather={result.weather} lang={lang} />
-          {wi && (
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              {wi.relevant ? (
-                <div className="flex items-center gap-2 text-xs text-gray-600">
-                  <span>{tr('categoryClimateSensitivity', lang)}</span>
-                  <Badge color={sensitivityColor(wi.sensitivity)}>{wi.sensitivity || '—'}</Badge>
-                </div>
-              ) : (
-                <p className="text-[11px] italic text-gray-400">{tr('weatherFlagsNotSurfaced', lang)}</p>
-              )}
-              {wi.reason && <p className="mt-1 text-[11px] italic text-gray-400">{wi.reason}</p>}
-            </div>
-          )}
-        </Card>
-
         <Card>
           <CardHeader title={tr('profitPaymentModel', lang)} subtitle={me ? tr('estimatedCashflowChain', lang) : pm?.label} />
           {me ? (
@@ -234,6 +222,22 @@ export function Dashboard() {
           )}
         </Card>
       </div>
+
+      {wi?.relevant ? (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader title={tr('weatherClimate', lang)} subtitle={weatherSummary(result, lang)} />
+            <WeatherPanel weather={result.weather} lang={lang} />
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <div className="flex items-center gap-2 text-xs text-gray-600">
+                <span>{tr('categoryClimateSensitivity', lang)}</span>
+                <Badge color={sensitivityColor(wi.sensitivity)}>{wi.sensitivity || '—'}</Badge>
+              </div>
+              {wi.reason && <p className="mt-1 text-[11px] italic text-gray-400">{wi.reason}</p>}
+            </div>
+          </Card>
+        </div>
+      ) : null}
     </div>
   )
 }

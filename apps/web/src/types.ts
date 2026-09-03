@@ -91,6 +91,68 @@ export interface MapLayersResponse {
   note?: string
 }
 
+// ── SIH26092 Category-aware Market Intelligence ──
+export interface MarketIntelligencePrice {
+  item: string
+  unit?: string | null
+  min?: number | null
+  max?: number | null
+  modal?: number | null
+  market?: string | null
+  mandi?: string | null
+  reference_date?: string | null
+  days_old?: number | null
+  freshness?: string
+  relevance?: string
+  is_estimate?: boolean
+  is_demo?: boolean
+  source?: Record<string, unknown>
+}
+
+export interface MarketIntelligenceSource {
+  source_name: string
+  dataset_name?: string | null
+  source_type?: string | null
+  sample_date?: string | null
+  items: number
+  is_estimate?: boolean
+  is_demo?: boolean
+}
+
+export interface MarketIntelligenceResponse {
+  category_code: string
+  state: string
+  district: string
+  radius_km: number
+  max_age_days?: number | null
+  as_of: string
+  available: boolean
+  availability_note?: string
+  commodity_scope?: {
+    has_specific_commodities: boolean
+    relevant_commodities?: string[]
+    note?: string
+  }
+  prices: MarketIntelligencePrice[]
+  coverage: number
+  fresh_share: number
+  confidence: { score: number; label: string }
+  source_hierarchy: MarketIntelligenceSource[]
+  demand_context?: {
+    population_baseline?: number | null
+    households?: number | null
+    demand_score?: number | null
+    commercial_demand_signals?: Record<string, { count: number; radius_km: number }>
+    market_accessibility?: {
+      nearest_market_km?: number | null
+      markets_within_20km?: number
+    }
+    confidence?: number
+    available_population?: boolean
+  } | null
+  notes?: string[]
+}
+
 export interface LocationOut {
   id: string
   state: string
@@ -219,6 +281,7 @@ export interface AnalysisResult {
   seasonal_intelligence?: any
   product_recommendations?: any
   weather_intelligence?: any
+  loan_explainer?: any
 }
 
 // ── SIH26091 Multilingual NLP Advisory ──

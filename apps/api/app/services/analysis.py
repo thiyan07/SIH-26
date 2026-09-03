@@ -42,6 +42,7 @@ from app.engines.prices import derive_price_evidence, price_score_from_evidence
 from app.engines.profit import simulate_model
 from app.engines.repayment import build_schedule as build_repay_schedule
 from app.engines.repayment import repayment_health
+from app.engines.loan_explainer import build_loan_explainer
 from app.engines.score import (
     ConfidenceFactors,
     compute_opportunity,
@@ -402,6 +403,7 @@ def run_analysis(db: Session, req) -> dict:
     # Only relevant when there is an actual loan; a self-funded project
     # (own capital >= project cost) has no debt service.
     monthly_debt_service = None
+    schedule = None
     if scheme is not None and fin.loan_amount > 0:
         schedule = build_repay_schedule(
             principal=fin.loan_amount,
@@ -645,6 +647,26 @@ def run_analysis(db: Session, req) -> dict:
             "label": result.recommendation,
             "reason": result.recommendation_reason,
         },
+        "loan_explainer": build_loan_explainer(
+            {
+                "project_cost": round(fin.project_cost, 2),
+                "own_contribution": round(fin.own_contribution, 2),
+                "required_financing": round(fin.required_financing, 2),
+                "shortfall": round(fin.shortfall, 2),
+                "shortfall_reason": fin.shortfall_reason,
+                "loan_amount": round(fin.loan_amount, 2),
+                "max_loan": scheme.max_loan_amount if scheme else None,
+                "interest_rate": scheme.interest_rate if scheme else None,
+                "tenure_years": scheme.tenure_years if scheme else None,
+                "moratorium_months": scheme.moratorium_months if scheme else None,
+                "moratorium_mode": scheme.moratorium_mode if scheme else None,
+                "scheme_code": scheme.code if scheme else None,
+                "scheme_name": scheme.name if scheme else None,
+                "notes": fin.notes,
+            },
+            schedule,
+            monthly_economics_to_dict(economics),
+        ),
         "data_sources": _collect_data_sources(competition, population, weather, price_evidence, soil, infrastructure, loc_features),
     }
 

@@ -7,10 +7,33 @@ from sqlalchemy.orm import Session
 
 from app.db.models import InfrastructurePoint, MarketPrice
 from app.db.session import get_db
+from app.engines.market_intelligence import category_market_intelligence
 from app.geo import find_nearby_with_distance
-from app.schemas import MarketSummaryQuery
+from app.schemas import MarketIntelligenceQuery, MarketSummaryQuery
 
 router = APIRouter(prefix="/market", tags=["market"])
+
+
+@router.post("/intelligence")
+def market_intelligence(q: MarketIntelligenceQuery, db: Session = Depends(get_db)):
+    """Category-aware market intelligence (SIH26092).
+
+    Filters stored, real MarketPrice rows to the category's relevant
+    commodities in the district within the freshness window, returns
+    relevance/freshness/confidence scoring + a source hierarchy, and (when
+    coordinates are given) category-scoped demand signals + accessibility.
+    Never invents prices.
+    """
+    return category_market_intelligence(
+        db,
+        category_code=q.category_code,
+        state=q.state,
+        district=q.district,
+        latitude=q.latitude,
+        longitude=q.longitude,
+        radius_km=q.radius_km,
+        max_age_days=q.max_age_days,
+    )
 
 
 @router.post("/summary")

@@ -74,6 +74,29 @@ def financial_calculate(req: FinancialCalculateRequest, db: Session = Depends(ge
     economics = monthly_economics(req.category_code, monthly_revenue=econ_revenue, emi=econ_emi)
     econ_dict = monthly_economics_to_dict(economics)
 
+    # Simple Loan Explainer: deterministic translation of the engine's numbers.
+    from app.engines.loan_explainer import build_loan_explainer
+    loan_explainer = build_loan_explainer(
+        {
+            "project_cost": round(plan.project_cost, 2),
+            "own_contribution": round(plan.own_contribution, 2),
+            "required_financing": round(plan.required_financing, 2),
+            "shortfall": round(plan.shortfall, 2),
+            "shortfall_reason": plan.shortfall_reason,
+            "loan_amount": round(plan.loan_amount, 2),
+            "max_loan": scheme.max_loan_amount if scheme else None,
+            "interest_rate": scheme.interest_rate if scheme else None,
+            "tenure_years": scheme.tenure_years if scheme else None,
+            "moratorium_months": scheme.moratorium_months if scheme else None,
+            "moratorium_mode": scheme.moratorium_mode if scheme else None,
+            "scheme_code": scheme.code if scheme else None,
+            "scheme_name": scheme.name if scheme else None,
+            "notes": plan.notes,
+        },
+        schedule,
+        econ_dict,
+    )
+
     return {
         "capital_available": req.capital_available,
         "project_cost": round(plan.project_cost, 2),
@@ -112,6 +135,7 @@ def financial_calculate(req: FinancialCalculateRequest, db: Session = Depends(ge
         },
         "monthly_economics": econ_dict,
         "repayment_health": health,
+        "loan_explainer": loan_explainer,
         "disclaimer": "Scheme parameters are demo assumptions based on the problem statement; verify with the agency.",
     }
 

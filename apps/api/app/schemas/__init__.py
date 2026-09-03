@@ -169,6 +169,23 @@ class MarketSummaryQuery(BaseModel):
     category_code: Optional[str] = None
 
 
+class MarketIntelligenceQuery(BaseModel):
+    """Category-aware market intelligence (SIH26092).
+
+    Drives the Market page: returns relevant-commodity prices, confidence,
+    source hierarchy and demand context filtered to the business category +
+    location + freshness window. Coordinates are optional (best-effort);
+    district/state are always required.
+    """
+    category_code: str
+    state: str
+    district: str
+    latitude: Optional[float] = Field(default=None, ge=-90, le=90)
+    longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+    radius_km: float = Field(default=10, gt=0, le=100)
+    max_age_days: Optional[int] = Field(default=90, ge=1, le=3650)
+
+
 _LAYER_OPTIONS = {"businesses", "infrastructure", "markets"}
 
 

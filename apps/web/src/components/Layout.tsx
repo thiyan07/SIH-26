@@ -13,6 +13,7 @@ const NAV = [
   { to: '/report', label: 'navReport' as const },
   { to: '/schemes', label: 'navSchemes' as const },
   { to: '/data-sources', label: 'navData' as const },
+  { to: '/loan-explainer', label: 'navLoanExplainer' as const },
 ]
 
 export function Layout({ children, hideNav }: { children: ReactNode; hideNav?: boolean }) {
