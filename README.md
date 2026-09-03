@@ -35,7 +35,7 @@ grambiz-ai/
 │   │   │   ├── db/           # SQLAlchemy models + session
 │   │   │   └── geo.py        # portable haversine distance (non-PostGIS fallback)
 │   │   ├── scripts/          # schema init, OSM/seed/government ingestion
-│   │   └── tests/            # 45 tests (financial, ai, geospatial, e2e)
+│   │   └── tests/            # 294 tests (financial, ai, geospatial, e2e, NLP)
 │   └── web/                  # React + TS + Vite + Tailwind + MapCN + Recharts
 │       └── src/mapcn/        # MapCN: local MapLibre wrapper
 └── docs/                     # architecture, data-sources, scoring-methodology, assumptions

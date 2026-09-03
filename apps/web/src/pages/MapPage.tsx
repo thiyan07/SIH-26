@@ -5,9 +5,10 @@ import { Card } from '../components/ui'
 import { BusinessMap } from '../components/BusinessMap'
 import { geolocationMessage, getCurrentPosition, isAccurateFix, accuracyKm, msmeClustersFromGeoJSON, pointsFromGeoJSON } from '../lib/geo'
 import type { Business, InfrastructurePoint, MapLayersResponse, MapPoint, MSMECluster } from '../types'
+import { tr, interpolate } from '../lib/i18n'
 
 export function MapPage() {
-  const { result, form } = useAnalysis()
+  const { result, form, lang } = useAnalysis()
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [competitors, setCompetitors] = useState<Business[]>([])
   const [infrastructure, setInfrastructure] = useState<InfrastructurePoint[]>([])
@@ -48,13 +49,7 @@ export function MapPage() {
     getCurrentPosition()
       .then((c) => {
         if (!isAccurateFix(c)) {
-          setGpsState('idle')
-          setGpsError(
-            `Your device location is only accurate to about ${
-              accuracyKm(c.accuracy) || 'a very large distance'
-            }, which is too coarse to centre the map on your area. ` +
-              'On a real phone/laptop this is accurate to a few metres. For now, pick the area from the Analyze page instead.',
-          )
+          setGpsError(interpolate(tr('gpsTooCoarse', lang), { acc: accuracyKm(c.accuracy) || tr('veryLargeDistance', lang) }))
           return
         }
         setGpsState('detected')
@@ -65,7 +60,7 @@ export function MapPage() {
         setGpsError(
           typeof fail === 'object' && fail !== null && 'code' in fail
             ? geolocationMessage(fail as Parameters<typeof geolocationMessage>[0])
-            : 'Unable to determine your location. Please choose the location manually.',
+            : tr('unableToLocate', lang),
         )
       })
   }
@@ -108,7 +103,7 @@ export function MapPage() {
       setMsmeClusters(msmeClustersFromGeoJSON(msme.features))
       setMsmeCount(msme.metadata.count)
     } catch (e: any) {
-      setError(e.message || 'Could not load businesses')
+      setError(e.message || tr('couldNotLoad', lang))
     } finally {
       setLoading(false)
     }
@@ -123,20 +118,23 @@ export function MapPage() {
 
   const locationLabel = result
     ? `${result.location.village || result.location.block}, ${result.location.district}`
-    : 'Selected area'
+    : tr('selectedArea', lang)
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Live Business Map</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{tr('liveBusinessMap', lang)}</h1>
           <p className="text-sm text-gray-500">
             {locationLabel} ·{' '}
-            {selectedCategory ? `Category: ${selectedCategory} · ` : ''}
+            {selectedCategory ? `${tr('categoryPrefix', lang)} ${selectedCategory} · ` : ''}
             {counts
-              ? `${counts.businesses} businesses · ${counts.markets} markets · ${counts.infrastructure} infra points` +
-                `${msmeCount != null ? ` · ${msmeCount} MSME pincode clusters` : ''} within 10 km`
-              : `${businesses.length} mapped within 10 km`}
+              ? `${interpolate(tr('businessesMarketsInfra', lang), {
+                  b: counts.businesses,
+                  m: counts.markets,
+                  i: counts.infrastructure,
+                })}${msmeCount != null ? ` · ${interpolate(tr('msmeClusters', lang), { n: msmeCount })}` : ''} ${tr('within10km', lang)}`
+              : interpolate(tr('mappedWithin10', lang), { n: businesses.length })}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -145,10 +143,10 @@ export function MapPage() {
             disabled={gpsState === 'locating'}
             className="rounded-lg border border-brand-600 px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:opacity-60"
           >
-            {gpsState === 'locating' ? 'Locating…' : gpsState === 'detected' ? 'GPS: current location' : 'Use my location'}
+            {gpsState === 'locating' ? tr('locating', lang) : gpsState === 'detected' ? tr('gpsCurrentLocation', lang) : tr('useMyLocation', lang)}
           </button>
           <button onClick={load} disabled={loading} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
-            {loading ? 'Loading…' : 'Refresh'}
+            {loading ? tr('loading', lang) : tr('refresh', lang)}
           </button>
         </div>
       </div>

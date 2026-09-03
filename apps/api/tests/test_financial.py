@@ -1,4 +1,11 @@
-"""Financial engine tests (section 40)."""
+"""Financial engine tests (cost-driven financing redesign).
+
+The project cost is driven by the beneficiary's actual business requirement
+(cost template / explicit figure), NOT by ``Available Capital x 10``. The loan
+is ``min(required_financing, scheme cap)`` where
+``required_financing = max(0, project_cost - own_capital)``. The 90% figure is
+a ceiling, never a forced loan.
+"""
 from __future__ import annotations
 
 import pytest
@@ -12,65 +19,116 @@ from app.engines.finance import (
 )
 from app.engines.repayment import build_schedule, repayment_health
 
+# ---------- Core cost-driven semantics ----------
 
-def test_lakh_to_lakh_project():
-    """₹1 lakh capital -> ₹10 lakh project -> ₹9 lakh loan."""
-    plan = derive_financial_plan(100_000)
-    assert plan.project_cost == pytest.approx(1_000_000, rel=1e-6)
-    assert plan.loan_amount == pytest.approx(900_000, rel=1e-6)
-    assert plan.scheme_decision == "scheme:term_loan"
+def test_project_cost_driven_by_cost_not_capital():
+    """Project cost is used verbatim; the loan is only what capital can't cover."""
+    # A ₹1,00,000 project with ₹1,00,000 own capital -> NO loan needed.
+    plan = derive_financial_plan(100_000, capital_available=100_000)
+    assert plan.project_cost == pytest.approx(100_000, rel=1e-6)
+    assert plan.own_contribution == pytest.approx(100_000, rel=1e-6)
+    assert plan.required_financing == pytest.approx(0, rel=1e-6)
+    assert plan.loan_amount == pytest.approx(0, rel=1e-6)
+    assert plan.scheme is not None  # still routed to a scheme; loan is just 0
 
+
+def test_no_forced_90_percent_loan():
+    """₹1,00,000 project with ₹90,000 capital -> loan ₹10,000, NOT ₹90,000."""
+    plan = derive_financial_plan(100_000, capital_available=90_000)
+    assert plan.project_cost == pytest.approx(100_000, rel=1e-6)
+    assert plan.required_financing == pytest.approx(10_000, rel=1e-6)
+    assert plan.loan_amount == pytest.approx(10_000, rel=1e-6)
+
+
+def test_loan_never_negative_when_capital_exceeds_cost():
+    plan = derive_financial_plan(80_000, capital_available=120_000)
+    assert plan.required_financing == 0
+    assert plan.loan_amount == 0
+    assert plan.own_contribution == pytest.approx(80_000, rel=1e-6)
+
+
+# ---------- Scheme routing boundaries ----------
 
 def test_micro_finance_boundary():
-    # project cost <= 1.40 lakh -> micro finance
-    capital = 10_000  # -> 1.0 lakh project
-    plan = derive_financial_plan(capital)
+    # project cost = ₹1.40 lakh exactly -> micro finance
+    plan = derive_financial_plan(140_000, capital_available=0)
     assert plan.scheme.code == "micro_finance"
-    # loan = 0.9*1.0l = 90k, under 1.25l cap
-    assert plan.loan_amount == pytest.approx(90_000, rel=1e-6)
-    # At the exact boundary: capital=14,000 -> project 1.40 lakh
-    plan2 = derive_financial_plan(14_000)
-    assert plan2.scheme.code == "micro_finance"
-    assert plan2.project_cost == pytest.approx(140_000, rel=1e-6)
+    assert plan.scheme_decision == "scheme:micro_finance"
+    # no capital -> required financing = full cost, capped at ₹1.25 lakh
+    assert plan.loan_amount == pytest.approx(125_000, rel=1e-6)
 
 
 def test_term_loan_boundary():
-    # capital=14,001 -> project 1.4001 lakh > 1.40 -> term loan
-    plan = derive_financial_plan(14_001)
+    # project cost just above ₹1.40 lakh -> term loan
+    plan = derive_financial_plan(140_001, capital_available=0)
     assert plan.scheme.code == "term_loan"
+    assert plan.scheme_decision == "scheme:term_loan"
 
 
 def test_micro_finance_max_loan_cap():
-    # capital=13,889 -> project 1.3889l -> loan 1.25l roughly, cap at 1.25l
-    plan = derive_financial_plan(13_889)
+    # micro project cost at cap: full financing need -> 1.25 lakh cap
+    plan = derive_financial_plan(125_000, capital_available=0)
     assert plan.scheme.code == "micro_finance"
     assert plan.loan_amount <= MICRO_FINANCE.max_loan_amount + 0.01
+    assert plan.max_loan_allowed == pytest.approx(125_000, rel=1e-6)
 
 
 def test_term_loan_max_loan_cap():
-    # Large capital within term range but force loan above 45l cap
-    plan = derive_financial_plan(500_000)  # project 50l -> loan 45l exactly at cap
+    # term project with financing need above 45 lakh -> capped at 45 lakh
+    plan = derive_financial_plan(5_000_000, capital_available=0)
     assert plan.scheme.code == "term_loan"
     assert plan.loan_amount <= TERM_LOAN.max_loan_amount + 0.01
+    assert plan.loan_amount == pytest.approx(4_500_000, rel=1e-6)
 
 
 def test_above_maximum_project_cost():
-    # capital=600_000 -> project 60l > 50l -> no supported scheme
-    plan = derive_financial_plan(600_000)
+    # project cost > ₹50 lakh -> no supported scheme (SCHEME_UNAVAILABLE)
+    plan = derive_financial_plan(5_000_001, capital_available=0)
     assert plan.scheme is None
     assert plan.scheme_decision == "no_supported_scheme"
     assert plan.beyond_maximum is True
+    assert plan.loan_amount == 0
 
 
-def test_zero_capital_invalid():
+def test_cost_zero_allowed_with_no_capital():
+    """A zero-cost plan with no capital yields no financing and no note crash."""
+    plan = derive_financial_plan(0, capital_available=0)
+    assert plan.project_cost == 0
+    assert plan.required_financing == 0
+    assert plan.loan_amount == 0
+
+
+def test_negative_project_cost_invalid():
     with pytest.raises(FinancialEngineError):
-        derive_financial_plan(0)
+        derive_financial_plan(-1)
 
 
 def test_negative_capital_invalid():
     with pytest.raises(FinancialEngineError):
-        derive_financial_plan(-100)
+        derive_financial_plan(100_000, capital_available=-50_000)
 
+
+# ---------- Contribution shortfall ----------
+
+def test_shortfall_when_own_capital_below_floor():
+    """Project ₹1,00,000, own capital ₹5,000 -> financing ₹95,000, but the
+    scheme expects ≥10% (₹10,000) own contribution; shortfall surfaced."""
+    plan = derive_financial_plan(100_000, capital_available=5_000)
+    assert plan.scheme.code == "micro_finance"
+    assert plan.required_financing == pytest.approx(95_000, rel=1e-6)
+    if plan.scheme.max_loan_amount is not None:
+        assert plan.loan_amount == pytest.approx(min(95_000, plan.scheme.max_loan_amount), rel=1e-6)
+    assert plan.shortfall > 0
+    assert plan.shortfall_reason is not None
+
+
+def test_no_shortfall_when_own_capital_meets_floor():
+    plan = derive_financial_plan(100_000, capital_available=10_000)
+    assert plan.shortfall == 0
+    assert plan.shortfall_reason is None
+
+
+# ---------- EMI / repayment (unchanged) ----------
 
 def test_emi_basic():
     # 1,00,000 at 10% over 12 months -> 8791.59 (approx)
@@ -94,76 +152,3 @@ def test_repayment_health_labels():
 
 def test_scheme_defaults_are_demo():
     assert MICRO_FINANCE.source_document == "Problem Statement 26091 (assumed demo config)"
-
-
-# ---------- Exact boundary/edge cases (plan §31) ----------
-
-def test_capital_one():
-    """₹1 capital -> ₹10 project -> ₹9 loan (micro finance)."""
-    plan = derive_financial_plan(1)
-    assert plan.project_cost == pytest.approx(10, rel=1e-6)
-    assert plan.loan_amount == pytest.approx(9, rel=1e-6)
-    assert plan.scheme.code == "micro_finance"
-
-
-def test_capital_50000():
-    """₹50,000 capital -> ₹5 lakh project -> ₹4.5 lakh loan (micro finance, under 1.25l? no)."""
-    # 50,000/0.10 = 5,00,000 project; this is > 1.40 lakh -> term loan
-    plan = derive_financial_plan(50_000)
-    assert plan.project_cost == pytest.approx(500_000, rel=1e-6)
-    assert plan.scheme.code == "term_loan"
-
-
-def test_capital_1_lakh_and_1_25_lakh():
-    # ₹1,00,000 capital
-    p1 = derive_financial_plan(100_000)
-    assert p1.project_cost == pytest.approx(1_000_000, rel=1e-6)
-    assert p1.scheme.code == "term_loan"
-    # ₹1,25,000 capital
-    p2 = derive_financial_plan(125_000)
-    assert p2.project_cost == pytest.approx(1_250_000, rel=1e-6)
-    assert p2.scheme.code == "term_loan"
-
-
-def test_capital_1_40_lakh_exact():
-    """₹1.40 lakh(capital) -> ₹14 lakh project (term loan)."""
-    plan = derive_financial_plan(140_000)
-    assert plan.project_cost == pytest.approx(1_400_000, rel=1e-6)
-    assert plan.scheme.code == "term_loan"
-
-
-def test_project_cost_boundary_140k_plus_1():
-    """Project cost boundary around ₹1.40 lakh (capital 14,000/14,001).
-    The loan-avoiding micro/term boundary is on project cost <= 1.40 lakh."""
-    plan = derive_financial_plan(14_000)   # project = 1.40 lakh exactly -> micro
-    assert plan.project_cost == pytest.approx(140_000, rel=1e-6)
-    assert plan.scheme.code == "micro_finance"
-    plan2 = derive_financial_plan(14_001)  # project = 1.4001 lakh -> term
-    assert plan2.scheme.code == "term_loan"
-
-
-def test_capital_5_lakh():
-    """₹5,00,000 capital -> ₹50 lakh project (term loan at max)."""
-    plan = derive_financial_plan(500_000)
-    assert plan.project_cost == pytest.approx(5_000_000, rel=1e-6)
-    assert plan.scheme.code == "term_loan"
-    # loan 45 lakh = max loan cap
-    assert plan.loan_amount == pytest.approx(TERM_LOAN.max_loan_amount, rel=1e-6)
-
-
-def test_project_cost_50_lakh_plus_1_no_scheme():
-    """Project cost just over ₹50 lakh -> no supported scheme."""
-    # capital 500_001 -> project 50.0001 lakh > 50 lakh
-    plan = derive_financial_plan(500_001)
-    assert plan.scheme is None
-    assert plan.scheme_decision == "no_supported_scheme"
-    assert plan.beyond_maximum is True
-
-
-def test_negative_and_zero_invalid_reinforced():
-    with pytest.raises(FinancialEngineError):
-        derive_financial_plan(0)
-    with pytest.raises(FinancialEngineError):
-        derive_financial_plan(-1)
-    with pytest.raises(FinancialEngineError):
-        derive_financial_plan(-50_000)

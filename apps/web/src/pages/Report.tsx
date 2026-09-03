@@ -4,7 +4,7 @@ import { api } from '../lib/api'
 import { Button, Card, CardHeader, Badge, Disclaimer } from '../components/ui'
 import { ScoreDonut } from '../components/ScoreDonut'
 import { formatINR } from './Dashboard'
-import { recommendationLabel } from '../lib/i18n'
+import { recommendationLabel, tr, type Language } from '../lib/i18n'
 
 export function Report() {
   const { result, lang } = useAnalysis()
@@ -24,7 +24,7 @@ export function Report() {
       })
       setAiText(res.content)
     } catch {
-      setAiText('AI narrative unavailable in this environment — deterministic report shown below.')
+      setAiText(tr('aiUnavailable', lang))
     } finally {
       setLoadingAi(false)
     }
@@ -36,7 +36,7 @@ export function Report() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang])
 
-  if (!result) return <Empty />
+  if (!result) return <Empty lang={lang} />
 
   const s = result.opportunity_score
   const fp = result.financial_plan
@@ -48,30 +48,30 @@ export function Report() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Business Feasibility Report</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{tr('feasibilityReport', lang)}</h1>
           <p className="text-sm text-gray-500">
-            {result.location.village || result.location.block} · {result.location.district}, {result.location.state} — generated {new Date().toLocaleDateString()}
+            {result.location.village || result.location.block} · {result.location.district}, {result.location.state} — {tr('generatedPrefix', lang)} {new Date().toLocaleDateString()}
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => window.print()} variant="outline">Print / Save PDF</Button>
-          <Button onClick={loadReport} disabled={loadingAi}>{loadingAi ? 'Generating…' : 'Regenerate narrative'}</Button>
+          <Button onClick={() => window.print()} variant="outline">{tr('printSave', lang)}</Button>
+          <Button onClick={loadReport} disabled={loadingAi}>{loadingAi ? tr('generating', lang) : tr('regenerateNarrative', lang)}</Button>
         </div>
       </div>
 
       <div id="report-print" className="space-y-6 print:space-y-4">
         <Card>
-          <CardHeader title="Executive Summary" />
+          <CardHeader title={tr('executiveSummary', lang)} />
           <div className="flex flex-wrap items-center gap-6">
             <ScoreDonut value={s.overall_score} size={120} />
             <div className="min-w-[220px] flex-1">
               <div className="text-sm text-gray-600">
-                Overall opportunity <strong className="text-gray-900">{s.overall_score}/100</strong> · Confidence{' '}
+                {tr('overallOpportunity', lang)} <strong className="text-gray-900">{s.overall_score}/100</strong> · {tr('confidence', lang)}{' '}
                 <strong>{s.confidence_label}</strong>
               </div>
               <div className="mt-2">
                 <Badge color={rec.label === 'GO' ? 'green' : rec.label === 'MODIFY' ? 'amber' : 'red'}>
-                  Recommendation: {recommendationLabel(rec.label, lang)}
+                  {tr('recommendation', lang)} {recommendationLabel(rec.label, lang)}
                 </Badge>
               </div>
               <p className="mt-2 text-sm text-gray-600">{rec.reason}</p>
@@ -81,73 +81,74 @@ export function Report() {
 
         {aiText && (
           <Card>
-            <CardHeader title="AI Narrative" subtitle="Generated explanation — all numbers come from the deterministic engines" />
+            <CardHeader title={tr('aiNarrative', lang)} subtitle={tr('aiNarrativeSub', lang)} />
             <pre className="whitespace-pre-wrap text-sm text-gray-700">{aiText}</pre>
           </Card>
         )}
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card>
-            <CardHeader title="Market Summary" subtitle="Mapped data (© OSM) may be incomplete" />
+            <CardHeader title={tr('marketSummary', lang)} subtitle={tr('marketSummarySub', lang)} />
             <Rows rows={[
-              ['Competitors within 5 km', bc?.mapped_competitors_5km ?? '—'],
-              ['Competitors within 10 km', bc?.mapped_competitors_10km ?? '—'],
-              ['Nearest competitor', bc?.nearest_competitor_km != null ? `${bc.nearest_competitor_km} km (${bc.nearest_competitor || ''})` : '—'],
-              ['Data completeness', bc?.data_completeness || '—'],
+              [tr('competitorsWithin5', lang), bc?.mapped_competitors_5km ?? '—'],
+              [tr('additional5to10', lang), bc?.mapped_competitors_5km != null && bc?.mapped_competitors_10km != null ? bc.mapped_competitors_10km - bc.mapped_competitors_5km : '—'],
+              [tr('competitorsWithin10', lang), bc?.mapped_competitors_10km ?? '—'],
+              [tr('nearestCompetitorRow', lang), bc?.nearest_competitor_km != null ? `${bc.nearest_competitor_km} ${tr('km', lang)} (${bc.nearest_competitor || ''})` : '—'],
+              [tr('dataCompleteness', lang), bc?.data_completeness || '—'],
             ]} />
             {bc?.note && <p className="mt-2 text-xs italic text-gray-400">{bc.note}</p>}
           </Card>
 
           <Card>
-            <CardHeader title="Market Reach" subtitle="Local demand & accessibility (plan §13)" />
-            {renderMarketReach(result.market)}
+            <CardHeader title={tr('marketReach', lang)} subtitle={tr('marketReachSub', lang)} />
+            {renderMarketReach(result.market, lang)}
           </Card>
 
           <Card>
-            <CardHeader title="Data Confidence" subtitle="Quality of underlying evidence" />
-            {renderDataConfidence(result.data_confidence, s)}
+            <CardHeader title={tr('dataConfidenceTitle', lang)} subtitle={tr('dataConfidenceSub', lang)} />
+            {renderDataConfidence(result.data_confidence, s, lang)}
           </Card>
 
           <Card>
-            <CardHeader title="Financial Plan" subtitle={fp.scheme_name || 'Concept loan'} />
+            <CardHeader title={tr('financialPlan', lang)} subtitle={fp.scheme_name || tr('conceptLoan', lang)} />
             <Rows rows={[
-              ['Available capital', `₹${formatINR(fp.capital_available)}`],
-              ['Project cost', `₹${formatINR(fp.project_cost)}`],
-              ['Loan amount', `₹${formatINR(fp.loan_amount)}`],
-              ['Interest / tenure', `${fp.interest_rate ?? '—'}% · ${fp.tenure_years ?? '—'} yr`],
-              ['Monthly EMI (est.)', `₹${formatINR(result.repayment?.monthly_emi ?? fp.emi)}`],
-              ['Repayment health', result.repayment?.health_label || '—'],
-              ['Scheme routed', fp.scheme_name || '—'],
+              [tr('availableCapital', lang), `₹${formatINR(fp.capital_available)}`],
+              [tr('projectCost', lang), `₹${formatINR(fp.project_cost)}`],
+              [tr('loanAmount', lang), `₹${formatINR(fp.loan_amount)}`],
+              [tr('interestTenure', lang), `${fp.interest_rate ?? '—'}% · ${fp.tenure_years ?? '—'} ${tr('years', lang)}`],
+              [tr('monthlyEMI', lang), `₹${formatINR(result.repayment?.monthly_emi ?? fp.emi)}`],
+              [tr('repayHealth', lang), result.repayment?.health_label || '—'],
+              [tr('schemeRouted', lang), fp.scheme_name || '—'],
             ]} />
           </Card>
         </div>
 
         <Card>
-          <CardHeader title="Profit Model" subtitle={pm?.label || ''} />
+          <CardHeader title={tr('profitModel', lang)} subtitle={pm?.label || ''} />
           {pm?.is_estimate && (
             <p className="mb-2 rounded-lg bg-amber-50 p-2 text-xs text-amber-700">
-              Estimated operating model — figures are modelled, not actual accounts.
+              {tr('estimatedOperatingModel', lang)}
             </p>
           )}
           <div className="grid grid-cols-3 gap-4 text-center">
-            <Cell label="Monthly revenue" value={`₹${formatINR(pm?.outputs?.monthly_revenue)}`} />
-            <Cell label="Monthly cost" value={`₹${formatINR(pm?.outputs?.monthly_cost)}`} />
-            <Cell label="Operating profit" value={`₹${formatINR(pm?.outputs?.operating_profit)}`} />
+            <Cell label={tr('monthlyRevenue', lang)} value={`₹${formatINR(pm?.outputs?.monthly_revenue)}`} />
+            <Cell label={tr('monthlyCost', lang)} value={`₹${formatINR(pm?.outputs?.monthly_cost)}`} />
+            <Cell label={tr('operatingProfit', lang)} value={`₹${formatINR(pm?.outputs?.operating_profit)}`} />
           </div>
         </Card>
 
         <Card>
-          <CardHeader title="Data Provenance" subtitle="What was used and where it came from" />
+          <CardHeader title={tr('dataProvenance', lang)} subtitle={tr('dataProvenanceSub', lang)} />
           <ul className="space-y-2 text-sm text-gray-600">
             {(result.data_sources || []).map((d, i) => (
               <li key={i} className="rounded-lg bg-gray-50 px-3 py-2">
-                <strong className="text-gray-800">{d.name || d.source || 'Source'}</strong>{' '}
+                <strong className="text-gray-800">{d.name || d.source || tr('source', lang)}</strong>{' '}
                 <span className="text-gray-400">·</span> {d.reference || ''}{' '}
-                {d.confidence ? <span className="text-gray-400">· confidence {d.confidence}</span> : null}
+                {d.confidence ? <span className="text-gray-400">· {tr('confidence', lang)} {d.confidence}</span> : null}
               </li>
             ))}
           </ul>
-          <Disclaimer>Business feasibility and loan estimates are informational and not a guarantee of approval or profit.</Disclaimer>
+          <Disclaimer>{tr('reportDisclaimer', lang)}</Disclaimer>
         </Card>
       </div>
     </div>
@@ -176,34 +177,34 @@ function Cell({ label, value }: { label: string; value: string }) {
   )
 }
 
-function Empty() {
+function Empty({ lang }: { lang: Language }) {
   return (
     <div className="py-20 text-center text-gray-500">
-      <p>Run an analysis to generate a report.</p>
-      <a href="/analyze" className="mt-2 inline-block text-brand-600">Analyze now →</a>
+      <p>{tr('runAnalysisReport', lang)}</p>
+      <a href="/analyze" className="mt-2 inline-block text-brand-600">{tr('analyzeNow', lang)}</a>
     </div>
   )
 }
 
-function renderMarketReach(market: any) {
+function renderMarketReach(market: any, lang: Language) {
   const mr = market?.market_reach
   if (!mr) {
-    return <p className="text-sm text-gray-500">Market reach data not computed for this analysis.</p>
+    return <p className="text-sm text-gray-500">{tr('marketReachNotComputed', lang)}</p>
   }
   const signals = mr.commercial_demand_signals || {}
   const acc = mr.market_accessibility || {}
   const signalRows: [string, React.ReactNode][] = Object.entries(signals).map(([k, v]: any) => [
-    `Mapped ${k} (${v?.radius_km ?? '?'} km)`,
+    `${tr('mappedPrefix', lang)} ${k} (${v?.radius_km ?? '?'} ${tr('km', lang)})`,
     v?.count ?? '—',
   ])
   return (
     <div className="text-sm">
       <Rows rows={[
-        ['Population baseline', mr.population_baseline != null ? `${mr.population_baseline.toLocaleString('en-IN')} (Census ${mr.population_year ?? '2011'})` : 'Unavailable — historical only'],
-        ['Households', mr.households != null ? mr.households.toLocaleString('en-IN') : '—'],
-        ['Nearest market', acc.nearest_market_km != null ? `${acc.nearest_market_km} km` : '—'],
-        ['Nearest transport', acc.nearest_transport_km != null ? `${acc.nearest_transport_km} km` : '—'],
-        ['Markets within 20 km', acc.markets_within_20km ?? '—'],
+        [tr('populationBaseline', lang), mr.population_baseline != null ? `${mr.population_baseline.toLocaleString('en-IN')} (${tr('census', lang)} ${mr.population_year ?? '2011'})` : tr('unavailableHistorical', lang)],
+        [tr('households', lang), mr.households != null ? mr.households.toLocaleString('en-IN') : '—'],
+        [tr('nearestMarketRow', lang), acc.nearest_market_km != null ? `${acc.nearest_market_km} ${tr('km', lang)}` : '—'],
+        [tr('nearestTransport', lang), acc.nearest_transport_km != null ? `${acc.nearest_transport_km} ${tr('km', lang)}` : '—'],
+        [tr('marketsWithin20', lang), acc.markets_within_20km ?? '—'],
         ...signalRows,
       ]} />
       {(mr.notes || []).map((n: string, i: number) => (
@@ -213,16 +214,16 @@ function renderMarketReach(market: any) {
   )
 }
 
-function renderDataConfidence(dc: any, s: any) {
+function renderDataConfidence(dc: any, s: any, lang: Language) {
   const reasons: string[] = dc?.reasons ?? []
   const confReasons: string[] = s?.confidence_factors?.reasons ?? []
   return (
     <div className="text-sm">
       <Rows rows={[
-        ['Data confidence', dc?.data_confidence_score != null ? `${dc.data_confidence_score}/100 (${dc.confidence_label || ''})` : '—'],
-        ['Evidence confidence', s?.confidence_label ?? '—'],
-        ['Coverage', dc?.coverage ?? '—'],
-        ['Completeness', dc?.completeness != null ? `${Math.round(dc.completeness * 100)}%` : '—'],
+        [tr('dataConfidenceScore', lang), dc?.data_confidence_score != null ? `${dc.data_confidence_score}/100 (${dc.confidence_label || ''})` : '—'],
+        [tr('evidenceConfidence', lang), s?.confidence_label ?? '—'],
+        [tr('coverage', lang), dc?.coverage ?? '—'],
+        [tr('completeness', lang), dc?.completeness != null ? `${Math.round(dc.completeness * 100)}%` : '—'],
       ]} />
       <div className="mt-2 space-y-1">
         {[...reasons, ...confReasons].map((r, i) => (

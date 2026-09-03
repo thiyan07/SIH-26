@@ -15,11 +15,11 @@ export function Landing() {
       </header>
       <main className="mx-auto flex w-full max-w-4xl flex-col items-center px-6 text-center">
         <h1 className="mt-10 text-4xl font-extrabold leading-tight text-gray-900 sm:text-5xl">
-          Know Your Market Before You{' '}
-          <span className="text-brand-600">Take the Loan.</span>
+          {tr('landingHero1', lang)}{' '}
+          <span className="text-brand-600">{tr('landingHero2', lang)}</span>
         </h1>
         <p className="mt-5 max-w-2xl text-lg text-gray-600">
-          AI-powered hyper-local business feasibility and financial planning for rural entrepreneurs.
+          {tr('landingTagline', lang)}
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           <Link
@@ -37,21 +37,19 @@ export function Landing() {
         </div>
         <div className="mt-10 w-full max-w-3xl rounded-2xl border border-gray-200 bg-white p-6 text-left shadow-sm">
           <p className="text-sm text-gray-500">
-            <strong className="text-gray-700">How it works</strong> — Tell us where you live, your available capital, and
-            the business you want to start. GramBiz AI:
+            <strong className="text-gray-700">{tr('howItWorks', lang)}</strong> — {tr('howItWorksIntro', lang)}
           </p>
           <ol className="mt-3 space-y-1.5 text-sm text-gray-600">
-            <li>1. Maps your village and finds nearby businesses (© OpenStreetMap).</li>
-            <li>2. Computes local demand, competition and accessibility indicators.</li>
-            <li>3. Calculates a transparent opportunity score with confidence level.</li>
-            <li>4. Words a financial plan: project cost, loan, scheme routing, EMI.</li>
-            <li>5. Simulates profit and repayment health with what-if scenarios.</li>
-            <li>6. Generates a GO / MODIFY / AVOID recommendation grounded in evidence.</li>
+            <li>1. {tr('howStep1', lang)}</li>
+            <li>2. {tr('howStep2', lang)}</li>
+            <li>3. {tr('howStep3', lang)}</li>
+            <li>4. {tr('howStep4', lang)}</li>
+            <li>5. {tr('howStep5', lang)}</li>
+            <li>6. {tr('howStep6', lang)}</li>
           </ol>
         </div>
         <p className="mt-8 max-w-2xl text-xs text-gray-400">
-          Business opportunity scores are analytical estimates based on available data and are not guarantees of business
-          success. Loan and scheme guidance is informational and must be verified with the relevant agency.
+          {tr('landingDisclaimer', lang)}
         </p>
       </main>
     </div>

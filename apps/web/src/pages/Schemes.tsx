@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
 import { Badge, Disclaimer } from '../components/ui'
+import { tr, interpolate, type Language } from '../lib/i18n'
 import { formatINR } from './Dashboard'
 
 interface Scheme {
@@ -20,7 +21,7 @@ interface Scheme {
 }
 
 export function Schemes() {
-  const { result } = useAnalysis()
+  const { result, lang } = useAnalysis()
   const [schemes, setSchemes] = useState<Scheme[]>([])
   const [note, setNote] = useState('')
   const projectCost = result?.financial_plan?.project_cost
@@ -35,19 +36,19 @@ export function Schemes() {
       .catch(() => setSchemes([]))
   }, [])
 
-  const routed = schemes.length > 0 && projectCost != null ? route(projectCost, schemes) : null
+  const routed = schemes.length > 0 && projectCost != null ? route(projectCost, schemes, lang) : null
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Government Schemes</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{tr('govtSchemes', lang)}</h1>
         <p className="text-sm text-gray-500">{note}</p>
       </div>
 
       {projectCost != null && routed && (
         <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
-          <strong>For your project cost ₹{formatINR(projectCost)}:</strong> routed to{' '}
-          <strong>{routed.scheme?.name || 'no supported scheme'}</strong> — {routed.reason}
+          <strong>{interpolate(tr('forProjectCost', lang), { cost: `₹${formatINR(projectCost)}` })}</strong> {tr('routedTo', lang)}{' '}
+          <strong>{routed.scheme?.name || tr('noSupportedScheme', lang)}</strong> — {routed.reason}
         </div>
       )}
 
@@ -55,13 +56,13 @@ export function Schemes() {
         <table className="w-full rounded-xl border border-gray-200 bg-white text-sm shadow-sm">
           <thead>
             <tr className="border-b text-left text-xs text-gray-500">
-              <th className="px-4 py-3">Scheme</th>
-              <th className="px-4 py-3">Project range</th>
-              <th className="px-4 py-3">Max loan</th>
-              <th className="px-4 py-3">Rate</th>
-              <th className="px-4 py-3">Tenure</th>
-              <th className="px-4 py-3">Moratorium</th>
-              <th className="px-4 py-3">Covers you?</th>
+              <th className="px-4 py-3">{tr('schemeHeader', lang)}</th>
+              <th className="px-4 py-3">{tr('projectRange', lang)}</th>
+              <th className="px-4 py-3">{tr('maxLoan', lang)}</th>
+              <th className="px-4 py-3">{tr('rate', lang)}</th>
+              <th className="px-4 py-3">{tr('tenure', lang)}</th>
+              <th className="px-4 py-3">{tr('moratorium', lang)}</th>
+              <th className="px-4 py-3">{tr('coversYou', lang)}</th>
             </tr>
           </thead>
           <tbody>
@@ -80,11 +81,11 @@ export function Schemes() {
                   </td>
                   <td className="px-4 py-3">{s.max_loan_amount != null ? `₹${formatINR(s.max_loan_amount)}` : '—'}</td>
                   <td className="px-4 py-3">{s.interest_rate != null ? `${s.interest_rate}%` : '—'}</td>
-                  <td className="px-4 py-3">{s.tenure_years != null ? `${s.tenure_years} yr` : '—'}</td>
-                  <td className="px-4 py-3">{s.moratorium_months != null ? `${s.moratorium_months} mo (${s.moratorium_mode || ''})` : '—'}</td>
+                  <td className="px-4 py-3">{s.tenure_years != null ? `${s.tenure_years} ${tr('yr', lang)}` : '—'}</td>
+                  <td className="px-4 py-3">{s.moratorium_months != null ? `${s.moratorium_months} ${tr('mo', lang)} (${s.moratorium_mode || ''})` : '—'}</td>
                   <td className="px-4 py-3">
                     {projectCost != null ? (
-                      covers ? <Badge color="green">Yes</Badge> : <Badge color="gray">No</Badge>
+                      covers ? <Badge color="green">{tr('yes', lang)}</Badge> : <Badge color="gray">{tr('no', lang)}</Badge>
                     ) : (
                       <span className="text-gray-400">—</span>
                     )}
@@ -96,18 +97,18 @@ export function Schemes() {
         </table>
       </div>
 
-      <Disclaimer>Scheme parameters shown are demo assumptions based on the problem statement and must be verified with the relevant government agency before use.</Disclaimer>
+      <Disclaimer>{tr('schemesDisclaimer', lang)}</Disclaimer>
     </div>
   )
 }
 
-function route(projectCost: number, schemes: Scheme[]) {
+function route(projectCost: number, schemes: Scheme[], lang: Language) {
   for (const s of schemes) {
     const lo = s.min_project_cost ?? -Infinity
     const hi = s.max_project_cost ?? Infinity
     if (projectCost >= lo && projectCost <= hi) {
-      return { scheme: s, reason: `Project cost ₹${projectCost.toLocaleString('en-IN')} lies within the ${s.name} range.` }
+      return { scheme: s, reason: interpolate(tr('projectCostRange', lang), { cost: projectCost.toLocaleString('en-IN'), name: s.name }) }
     }
   }
-  return { scheme: null as Scheme | null, reason: 'No supported scheme covers this project cost.' }
+  return { scheme: null as Scheme | null, reason: tr('noSchemeCovers', lang) }
 }

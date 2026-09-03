@@ -138,8 +138,12 @@ export interface OpportunityScore {
 export interface FinancialPlan {
   capital_available: number
   project_cost: number
+  own_contribution: number
+  required_financing: number
+  shortfall: number
+  shortfall_reason?: string
   loan_amount: number
-  margin_pct: number
+  scale?: string
   scheme_code?: string
   scheme_name?: string
   scheme_decision?: string
@@ -211,6 +215,10 @@ export interface AnalysisResult {
   profit_model: ProfitModel
   recommendation: Recommendation
   data_sources: any[]
+  monthly_economics?: any
+  seasonal_intelligence?: any
+  product_recommendations?: any
+  weather_intelligence?: any
 }
 
 // ── SIH26091 Multilingual NLP Advisory ──
@@ -270,6 +278,10 @@ export interface AdvisoryLoanStructure {
   total_interest?: number
   repayment_health?: any
   notes?: string[]
+  is_assumed?: boolean
+  assumed_fields?: string[]
+  scheme_source?: string | null
+  alternatives?: any[]
 }
 
 export interface AdvisoryFinancialStructure {

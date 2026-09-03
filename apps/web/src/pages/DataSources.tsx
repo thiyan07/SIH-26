@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { Card, Badge, Disclaimer } from '../components/ui'
+import { useAnalysis } from '../lib/analysisStore'
+import { tr, interpolate, dict, type Language } from '../lib/i18n'
 
 interface Source {
   key: string
@@ -46,15 +48,15 @@ interface Provider {
   note?: string
 }
 
-const CATEGORY_LABEL: Record<string, string> = {
-  demographic: 'Demographics',
-  competition: 'Competition',
-  infrastructure: 'Infrastructure',
-  weather: 'Weather',
-  market_prices: 'Market Prices',
-  social: 'Social',
-  financial: 'Financial',
-  other: 'Other',
+const CATEGORY_KEY: Record<string, keyof typeof import('../lib/i18n')['dict']> = {
+  demographic: 'categoryDemo',
+  competition: 'categoryCompetition',
+  infrastructure: 'categoryInfrastructure',
+  weather: 'categoryWeather',
+  market_prices: 'categoryMarketPrices',
+  social: 'categorySocial',
+  financial: 'categoryFinancial',
+  other: 'categoryOther',
 }
 
 const FRESHNESS_COLOR: Record<string, string> = {
@@ -74,10 +76,15 @@ const STATUS_COLOR: Record<string, string> = {
   disabled: 'gray',
 }
 
-const PROVIDER_STATE_LABEL: Record<string, { label: string; color: string }> = {
-  ready: { label: 'Ready', color: 'green' },
-  config_missing: { label: 'Key required', color: 'amber' },
-  no_rows: { label: 'No rows stored', color: 'gray' },
+const PROVIDER_STATE: Record<string, { key: keyof typeof import('../lib/i18n')['dict']; color: string }> = {
+  ready: { key: 'providerReady', color: 'green' },
+  config_missing: { key: 'providerKeyRequired', color: 'amber' },
+  no_rows: { key: 'providerNoRows', color: 'gray' },
+}
+
+function categoryLabel(cat: string, lang: Language): string {
+  const k = CATEGORY_KEY[cat]
+  return k ? tr(k, lang) : cat
 }
 
 export function DataSources() {
@@ -86,6 +93,7 @@ export function DataSources() {
   const [providers, setProviders] = useState<Provider[]>([])
   const [note, setNote] = useState('')
   const [filter, setFilter] = useState('all')
+  const lang = useLanguage()
 
   useEffect(() => {
     api
@@ -112,29 +120,29 @@ export function DataSources() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Data Sources & Provenance</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{tr('dataSourcesTitle', lang)}</h1>
         <p className="text-sm text-gray-500">{note}</p>
       </div>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold text-gray-700">Live provider health (Phase 17)</h2>
+        <h2 className="mb-2 text-sm font-semibold text-gray-700">{tr('liveProviderHealth', lang)}</h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {providers.map((p) => {
-            const st = PROVIDER_STATE_LABEL[p.state]
+            const st = PROVIDER_STATE[p.state]
             return (
               <div key={p.key} className="rounded-lg border border-gray-200 bg-white p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-medium text-gray-900">{p.name}</div>
-                  <Badge color={st.color}>{st.label}</Badge>
+                  <Badge color={st.color}>{tr(st.key, lang)}</Badge>
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-1 text-[11px] text-gray-500">
-                  <Badge color="gray">{p.rows_in_db} rows</Badge>
+                  <Badge color="gray">{p.rows_in_db} {tr('rowsBadge', lang)}</Badge>
                   {p.refresh_cadence && <Badge color="gray">{p.refresh_cadence}</Badge>}
-                  {p.is_historical && <Badge color="blue">Historical</Badge>}
+                  {p.is_historical && <Badge color="blue">{tr('historical', lang)}</Badge>}
                 </div>
                 {p.missing_keys && p.missing_keys.length > 0 && (
                   <p className="mt-1 text-[11px] text-amber-700">
-                    Set {p.missing_keys.join(', ')} in .env to enable.
+                    {interpolate(tr('setMissingEnv', lang), { keys: p.missing_keys.join(', ') })}
                   </p>
                 )}
                 {p.note && <p className="mt-1 text-[11px] text-gray-400">{p.note}</p>}
@@ -145,9 +153,9 @@ export function DataSources() {
       </section>
 
       <div className="flex flex-wrap gap-2">
-        <FilterBtn active={filter === 'all'} onClick={() => setFilter('all')} label="All" />
+        <FilterBtn active={filter === 'all'} onClick={() => setFilter('all')} label={tr('all', lang)} />
         {cats.map((c) => (
-          <FilterBtn key={c} active={filter === c} onClick={() => setFilter(c)} label={CATEGORY_LABEL[c] || c} />
+          <FilterBtn key={c} active={filter === c} onClick={() => setFilter(c)} label={categoryLabel(c, lang)} />
         ))}
       </div>
 
@@ -158,36 +166,36 @@ export function DataSources() {
             <Card key={s.key} className="flex flex-col">
               <div className="mb-2 flex items-start justify-between gap-2">
                 <div className="font-semibold text-gray-900">{s.display_name}</div>
-                {s.is_demo ? <Badge color="amber">Demo</Badge> : <Badge color="green">Live</Badge>}
+                {s.is_demo ? <Badge color="amber">{tr('demo', lang)}</Badge> : <Badge color="green">{tr('live', lang)}</Badge>}
               </div>
               <div className="mb-3 flex flex-wrap gap-1 text-[11px]">
-                <Badge color="blue">{CATEGORY_LABEL[s.category] || s.category}</Badge>
-                {s.is_estimate && <Badge color="gray">Estimate</Badge>}
+                <Badge color="blue">{categoryLabel(s.category, lang)}</Badge>
+                {s.is_estimate && <Badge color="gray">{tr('estimate', lang)}</Badge>}
                 {st && (
                   <>
-                    <Badge color={FRESHNESS_COLOR[st.freshness] || 'gray'}>{st.freshness}</Badge>
-                    <Badge color={STATUS_COLOR[st.status] || 'gray'}>{st.status}</Badge>
+                    <Badge color={FRESHNESS_COLOR[st.freshness] || 'gray'}>{tr(freshnessKey(st.freshness), lang)}</Badge>
+                    <Badge color={STATUS_COLOR[st.status] || 'gray'}>{tr(statusKey(st.status), lang)}</Badge>
                   </>
                 )}
               </div>
               <dl className="flex-1 space-y-1 text-xs text-gray-600">
-                <Row k="Publisher" v={s.publisher} />
-                <Row k="Dataset" v={s.dataset_name} />
-                <Row k="Level" v={s.geographic_level} />
-                <Row k="Reference" v={s.reference_year ? String(s.reference_year) : s.reference_date?.slice(0, 10)} />
-                <Row k="Updated" v={st?.last_updated?.slice(0, 10) || s.retrieved_at?.slice(0, 10)} />
-                <Row k="Confidence" v={s.confidence} />
-                <Row k="Records" v={s.record_count != null ? String(s.record_count) : undefined} />
+                <Row k={tr('publisher', lang)} v={s.publisher} />
+                <Row k={tr('dataset', lang)} v={s.dataset_name} />
+                <Row k={tr('level', lang)} v={s.geographic_level} />
+                <Row k={tr('reference', lang)} v={s.reference_year ? String(s.reference_year) : s.reference_date?.slice(0, 10)} />
+                <Row k={tr('updated', lang)} v={st?.last_updated?.slice(0, 10) || s.retrieved_at?.slice(0, 10)} />
+                <Row k={tr('confidence', lang)} v={s.confidence} />
+                <Row k={tr('records', lang)} v={s.record_count != null ? String(s.record_count) : undefined} />
               </dl>
               {s.freshness_note && <p className="mt-2 text-[11px] italic text-gray-400">{s.freshness_note}</p>}
               {s.why_used && (
                 <p className="mt-2 text-xs text-gray-600">
-                  <span className="font-medium text-gray-500">Why we use this:</span> {s.why_used}
+                  <span className="font-medium text-gray-500">{tr('whyWeUseThis', lang)}</span> {s.why_used}
                 </p>
               )}
               {s.known_limitations && s.known_limitations.length > 0 && (
                 <div className="mt-2 text-[11px] text-amber-700">
-                  <div className="font-medium text-gray-500">Known limitations</div>
+                  <div className="font-medium text-gray-500">{tr('knownLimitations', lang)}</div>
                   <ul className="mt-1 list-disc pl-4">
                     {s.known_limitations.map((l, i) => (
                       <li key={i}>{l}</li>
@@ -197,7 +205,7 @@ export function DataSources() {
               )}
               {s.source_url && (
                 <a href={s.source_url} target="_blank" rel="noreferrer" className="mt-2 text-xs font-medium text-brand-600 hover:underline">
-                  View source ↗
+                  {tr('viewSource', lang)}
                 </a>
               )}
             </Card>
@@ -205,9 +213,37 @@ export function DataSources() {
         })}
       </div>
 
-      <Disclaimer>Historical baselines (e.g. Census 2011) are labelled as references and never presented as current data.</Disclaimer>
+      <Disclaimer>{tr('dataSourcesDisclaimer', lang)}</Disclaimer>
     </div>
   )
+}
+
+function freshnessKey(f: string): keyof typeof dict {
+  const map: Record<string, keyof typeof dict> = {
+    fresh: 'freshnessFresh',
+    recent: 'freshnessRecent',
+    aging: 'freshnessAging',
+    old: 'freshnessOld',
+    unknown: 'freshnessOld',
+  }
+  return map[f] || 'freshnessOld'
+}
+
+function statusKey(s: string): keyof typeof dict {
+  const map: Record<string, keyof typeof dict> = {
+    operational: 'statusOperational',
+    no_rows: 'statusNoRows',
+    unavailable: 'statusUnavailable',
+    historical: 'statusHistorical',
+    demo: 'statusDemo',
+    disabled: 'statusDisabled',
+  }
+  return map[s] || ('statusUnknown' as keyof typeof dict)
+}
+
+function useLanguage(): Language {
+  const { lang } = useAnalysis()
+  return lang
 }
 
 function FilterBtn({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {

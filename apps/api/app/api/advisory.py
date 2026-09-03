@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.ai.extractor import parse_multilingual_free_text
 from app.db.session import get_db
 from app.engines.cost_templates import get_cost_template, list_categories, get_total_template_cost
 from app.engines.nlp_parser import parse_free_text, to_dict as nlp_to_dict
@@ -80,8 +81,12 @@ class AdvisoryReportRequest(BaseModel):
 @router.post("/parse")
 @limiter.limit("60/minute")
 def parse_nlp(request: Request, req: NlpParseRequest):
-    """Parse free text in English/Tamil/Hindi into structured beneficiary data."""
-    parsed = parse_free_text(req.free_text, lang_override=req.language)
+    """Parse free text in English/Tamil/Hindi into structured beneficiary data.
+
+    Uses the AI-powered multilingual extractor when an LLM is configured, with
+    an automatic fallback to the deterministic regex parser otherwise.
+    """
+    parsed = parse_multilingual_free_text(req.free_text, lang_override=req.language)
     return nlp_to_dict(parsed)
 
 

@@ -25,11 +25,47 @@ ERODE_BLOCKS = [
     "modakkurichi", "kadathur", "tally", "palladam",
 ]
 
+# Local-script aliases mapping to canonical block names (for ta/hi input).
+ERODE_BLOCK_ALIASES = {
+    "ஈரோடு": "Erode",
+    "கோபிச்செட்டிப்பாளையம்": "Gobichettipalayam",
+    "பவானி": "Bhavani",
+    "பெருந்துறை": "Perundurai",
+    "சத்தியமங்கலம்": "Sathyamangalam",
+    "சத்தி": "Sathyamangalam",
+    "நம்பியூர்": "Nambiyur",
+    "ஆந்தியூர்": "Anthiyur",
+    "மொடக்குறிச்சி": "Modakkurichi",
+    "கடத்தூர்": "Kadathur",
+    "தாளி": "Tally",
+    "पल्लडम": "Palladam",
+    "गोबिचेट्टीपाळयम": "Gobichettipalayam",
+    "भवानी": "Bhavani",
+    "पेरुंदुरै": "Perundurai",
+    "सत्यमंगलम": "Sathyamangalam",
+    "नांबियूर": "Nambiyur",
+}
+
 ERODE_VILLAGES = [
     "surampatti", "lakkapuram", "nanjanad", "kasipalayam",
     "veerachola", "kavindapadi", "nallampalli", "arachalur",
     "chennimalai", "uloor", "pudur", "ponnur",
 ]
+
+ERODE_VILLAGE_ALIASES = {
+    "சுரம்பட்டி": "Surampatti",
+    "லக்கபுரம்": "Lakkapuram",
+    "நஞ்சநாடு": "Nanjanad",
+    "காசிப்பாளையம்": "Kasipalayam",
+    "வீராசோலா": "Veerachola",
+    "கவிந்தபாடி": "Kavindapadi",
+    "நல்லம்பள்ளி": "Nallampalli",
+    "அரச்சலூர்": "Arachalur",
+    "சென்னிமலை": "Chennimalai",
+    "ஊலூர்": "Uloor",
+    "पुडुर": "Pudur",
+    "पोन्नुर": "Ponnur",
+}
 
 BUSINESS_KEYWORDS_EN = {
     "dairy": ["dairy", "milk", "cow", "buffalo", "milking", "curd", "paneer", "ghee"],
@@ -44,14 +80,14 @@ BUSINESS_KEYWORDS_EN = {
 }
 
 BUSINESS_KEYWORDS_TA = {
-    "dairy": ["பால்", "ஆடு", "எருமை", "தயிர்", "வெண்ணெய்", "பால் பண்ணை"],
-    "poultry": ["கோழி", "முட்டை", "கோழிப் பண்ணை", "கலப்பு கோழி"],
-    "grocery": ["கடை", "மளிகை", "சில்லறை", "பொருள் கடை"],
-    "textile": ["துணி", "தையல்", "ஆடை", "நெசவு"],
-    "food_processing": ["உணவு பதப்படுத்தல்", "அரைக்கும் ஆலை", "மசாலா"],
-    "restaurant": ["உணவகம்", "ஹோட்டல்", "தேநீர் கடை", "சாப்பாட்டுக் கடை"],
+    "dairy": ["பால்", "ஆடு", "எருமை", "தயிர்", "வெண்ணெய்", "பால் பண்ணை", "டெய்ரி", "பண்ணை"],
+    "poultry": ["கோழி", "முட்டை", "கோழிப் பண்ணை", "கலப்பு கோழி", "பவுல்ட்ரி"],
+    "grocery": ["கடை", "மளிகை", "சில்லறை", "பொருள் கடை", "கிராசரி"],
+    "textile": ["துணி", "தையல்", "ஆடை", "நெசவு", "டெயிலரிங்", "டெயிலர்", "டெக்ஸ்டைல்"],
+    "food_processing": ["உணவு பதப்படுத்தல்", "அரைக்கும் ஆலை", "மசாலா", "பேக்கேஜிங்"],
+    "restaurant": ["உணவகம்", "ஹோட்டல்", "தேநீர் கடை", "சாப்பாட்டுக் கடை", "ரெஸ்டாரண்ட்"],
     "agriculture": ["விவசாயம்", "பயிர்", "நெல்", "மஞ்சள்", "காய்கறி"],
-    "manufacturing": ["உற்பத்தி", "ஆலை", "தொழிற்சாலை", "இயந்திரம்"],
+    "manufacturing": ["உற்பத்தி", "ஆலை", "தொழிற்சாலை", "இயந்திரம்", "உற்பத்தி தொழில்"],
     "handicrafts": ["கைவினை", "மட்பாண்டம்", "நெசவு", "பொம்மலாட்டம்"],
 }
 
@@ -90,7 +126,8 @@ AGE_KEYWORDS = {
 
 COST_KEYWORDS = {
     "en": [r"(?:cost|budget|price|project)\s*(?:of|is|:)?\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)?",
-           r"₹\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)", r"([\d,]+(?:\.\d+)?)\s*lakh"],
+           r"₹\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)", r"([\d,]+(?:\.\d+)?)\s*lakh",
+           r"(?:cost|budget|price)\s*(?:of|is|:)?\s*(?:₹\s*)?([a-z]+(?:\s+[a-z]+)?)\s*(?:lakh|lac)"],
     "ta": [r"செலவு\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:லட்சம்|இலட்சம்)?",
            r"முதலீடு\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:லட்சம்|இலட்சம்)?",
            r"([\d,]+(?:\.\d+)?)\s*லட்சம்", r"([\d,]+(?:\.\d+)?)\s*இலட்சம்",
@@ -133,7 +170,6 @@ CATEGORY_KEYWORDS = {
 
 def detect_language(text: str) -> str:
     """Basic language detection based on character ranges and keywords."""
-    text_lower = text.lower()
     # Check for Tamil script (Unicode range \u0B80-\u0BFF)
     tamil_chars = len(re.findall(r'[\u0B80-\u0BFF]', text))
     # Check for Devanagari (Hindi) - Unicode range \u0900-\u097F)
@@ -180,20 +216,37 @@ def extract_location(text: str) -> dict:
         result["state"] = "Tamil Nadu"
 
     # District
-    if "erode" in text_lower or "ஈரோடு" in text_lower or "ईरोड" in text_lower:
+    district_hit = (
+        "erode" in text_lower
+        or "ईरोड" in text_lower
+        or any(a in text for a in ("ஈரோடு", "ஈரோட்", "ஈரோட்டில்", "ஈரோட்டில", "ஈரோடில்"))
+    )
+    if district_hit:
         result["district"] = "Erode"
 
-    # Block
-    for block in ERODE_BLOCKS:
-        if block in text_lower:
-            result["block"] = block.title()
-            break
+    # Block (Latin names or local-script aliases)
+    if not result["block"]:
+        for block in ERODE_BLOCKS:
+            if block in text_lower:
+                result["block"] = block.title()
+                break
+    if not result["block"]:
+        for alias, canonical in ERODE_BLOCK_ALIASES.items():
+            if alias in text:
+                result["block"] = canonical
+                break
 
-    # Village
-    for village in ERODE_VILLAGES:
-        if village in text_lower:
-            result["village"] = village.title()
-            break
+    # Village (Latin names or local-script aliases)
+    if not result["village"]:
+        for village in ERODE_VILLAGES:
+            if village in text_lower:
+                result["village"] = village.title()
+                break
+    if not result["village"]:
+        for alias, canonical in ERODE_VILLAGE_ALIASES.items():
+            if alias in text:
+                result["village"] = canonical
+                break
 
     return result
 
@@ -248,6 +301,24 @@ def _apply_lakh_multiplier(val: float, text_lower: str, start: int, end: int) ->
     return val
 
 
+EN_NUMBER_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+    "twelve": 12, "fifteen": 15, "twenty": 20, "twenty five": 25,
+    "thirty": 30, "forty": 40, "fifty": 50, "hundred": 100,
+}
+
+def _match_number_or_word(text_lower: str, m: re.Match) -> Optional[float]:
+    """Return numeric value from a matched group, handling English number words."""
+    grp = m.group(1).strip().replace(",", "")
+    if grp.replace(".", "").isdigit():
+        try:
+            return float(grp)
+        except ValueError:
+            return None
+    return EN_NUMBER_WORDS.get(grp.lower())
+
+
 def extract_cost(text: str) -> Optional[float]:
     """Extract project cost / budget from text."""
     text_lower = text.lower()
@@ -255,7 +326,7 @@ def extract_cost(text: str) -> Optional[float]:
         for pattern in patterns:
             match = re.search(pattern, text_lower)
             if match:
-                val = _parse_number(match.group(1))
+                val = _match_number_or_word(text_lower, match)
                 if val is not None:
                     val = _apply_lakh_multiplier(val, text_lower, match.start(), match.end())
                     return val

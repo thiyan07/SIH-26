@@ -43,6 +43,8 @@ SECONDARY_RADIUS_KM = 10.0
 @dataclass
 class CompetitionResult:
     mapped_competitors: int
+    mapped_competitors_5km: int
+    mapped_competitors_10km: int
     density: float
     nearest_competitor_km: Optional[float]
     competition_level: str
@@ -96,15 +98,30 @@ def analyze(
     radius_km: float = PRIMARY_RADIUS_KM,
     data_completeness: str = "medium",
 ) -> CompetitionResult:
-    """Count mapped competitors within radius and nearest distance."""
+    """Count mapped competitors within 5km and 10km radii and nearest distance.
+
+    The engine always queries the wider 10km scope once and derives the 5km
+    count from the same result set (distance <= 5km). This guarantees the two
+    counts are consistent with each other and that
+    ``mapped_competitors_10km >= mapped_competitors_5km`` by construction —
+    the previous implementation only queried the 5km radius and never emitted a
+    10km figure, which the dashboard then read as undefined/missing.
+
+    ``radius_km`` is kept as the documented primary (5km) radius for the
+    level/density/score semantics; the 10km figure is always reported alongside.
+    """
+    query_radius = max(float(radius_km), float(SECONDARY_RADIUS_KM))
     rows = find_nearby_with_distance(
         db, __import__("app.db.models", fromlist=["Business"]).Business,
-        latitude, longitude, radius_km, {"category_code": category_code}, limit=300,
+        latitude, longitude, query_radius, {"category_code": category_code}, limit=500,
     )
-    count = len(rows)
     distances = [d for _, d in rows]
     nearest = min(distances) if distances else None
     nearest_row = min(rows, key=lambda r: r[1])[0] if rows else None
+
+    # 5km count derived from the 10km set (always <= 10km count).
+    count_5km = sum(1 for d in distances if d <= PRIMARY_RADIUS_KM)
+    count_10km = len(rows)
 
     # Also collect nearby demo/proxy businesses (seeded, never real) so under-
     # covered localities like Nallampatti still surface businesses in the UI.
@@ -113,7 +130,7 @@ def analyze(
     # are never mistaken for verified evidence.
     demo_rows = find_nearby_with_distance(
         db, __import__("app.db.models", fromlist=["Business"]).Business,
-        latitude, longitude, radius_km, {"category_code": category_code},
+        latitude, longitude, PRIMARY_RADIUS_KM, {"category_code": category_code},
         limit=50, real_only=False,
     )
     demo_businesses = [
@@ -129,11 +146,13 @@ def analyze(
     ]
 
     return CompetitionResult(
-        mapped_competitors=count,
-        density=_density(count, radius_km),
+        mapped_competitors=count_5km,
+        mapped_competitors_5km=count_5km,
+        mapped_competitors_10km=count_10km,
+        density=_density(count_5km, PRIMARY_RADIUS_KM),
         nearest_competitor_km=round(nearest, 2) if nearest is not None else None,
-        competition_level=_level(count),
-        confidence=_confidence(count, data_completeness),
+        competition_level=_level(count_5km),
+        confidence=_confidence(count_5km, data_completeness),
         coverage=data_completeness,
         data_completeness=data_completeness,
         nearest_competitor=nearest_row.name if nearest_row else None,
@@ -155,12 +174,13 @@ def to_dict(r: CompetitionResult, *, as_mapped: bool = True) -> dict:
     """Serialize, always using the cautious "mapped" wording (plan §6)."""
     return {
         "mapped_competitors": r.mapped_competitors,
-        "mapped_competitors_5km": r.mapped_competitors,
+        "mapped_competitors_5km": r.mapped_competitors_5km,
+        "mapped_competitors_10km": r.mapped_competitors_10km,
         "density": r.density,
         "nearest_competitor_km": r.nearest_competitor_km,
         "nearest_competitor": r.nearest_competitor,
         "competition_level": r.competition_level,
-        "competition_score": _comp_score(r.mapped_competitors, r.coverage),
+        "competition_score": _comp_score(r.mapped_competitors_5km, r.coverage),
         "confidence": r.confidence,
         "data_completeness": r.data_completeness,
         "coverage": r.coverage,

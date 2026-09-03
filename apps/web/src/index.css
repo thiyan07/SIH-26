@@ -7,8 +7,15 @@ body,
 #root {
   height: 100%;
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Latin first (Inter), then Tamil & Devanagari fallbacks so Tamil/Hindi glyphs render correctly */
+  font-family: 'Inter', 'Noto Sans Tamil', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
   background: #f8fafc;
+}
+
+/* Ensure letterspacing/weight settings still apply to fallback fonts */
+* {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 .mapcn-popup {

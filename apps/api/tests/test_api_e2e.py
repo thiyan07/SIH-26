@@ -43,10 +43,13 @@ def test_acceptance_vertical_slice(client):
     assert "overall_score" in score
     assert "confidence_label" in score
 
-    # deterministic financials: 1L capital -> 10L project -> 9L loan
+    # deterministic financials (cost-driven): the project cost comes from the
+    # dairy cost template (micro), not from capital x 10. 1L capital -> the
+    # beneficiary borrows only what they can't cover: 1,68,300 - 1,00,000.
     fin = ev["financial_plan"]
-    assert fin["project_cost"] == pytest.approx(1_000_000, rel=1e-6)
-    assert fin["loan_amount"] == pytest.approx(900_000, rel=1e-6)
+    assert fin["project_cost"] == pytest.approx(168_300, rel=1e-6)
+    assert fin["loan_amount"] == pytest.approx(68_300, rel=1e-6)
+    assert fin["required_financing"] == pytest.approx(68_300, rel=1e-6)
 
     # scheme routed to Term Loan
     assert fin["scheme_code"] == "term_loan"
@@ -213,3 +216,76 @@ def test_e2e_demo_rows_never_leak_into_evidence(client, session):
     # demo competitor excluded from the mapped-competitor counts
     names = {c["name"] for c in ev["business_competition"].get("competitors", [])}
     assert "Demo Dairy" not in names
+
+
+def test_e2e_grocery_10km_and_intelligence_layer(client):
+    """SIH26091 acceptance: Erode small grocery, own capital Rs10k.
+
+    Verifies the 10km competitor count is present and >= 5km, the monthly
+    economics chain, seasonal intelligence, product recommendations and
+    weather-relevance gating are all emitted with honest ESTIMATED provenance
+    (never promoted to REAL).
+    """
+    r = client.post("/analysis", json={
+        "state": "Tamil Nadu", "district": "Erode",
+        "block": "Sathyamangalam", "village": "Sathyamangalam",
+        "capital_available": 10000, "category_code": "grocery",
+        "language": "en",
+    })
+    assert r.status_code == 200, r.text
+    ev = r.json()
+
+    # 5km & 10km competitor counts both present, and 10km >= 5km by construction
+    bc = ev["business_competition"]
+    assert "mapped_competitors_5km" in bc
+    assert "mapped_competitors_10km" in bc
+    assert bc["mapped_competitors_10km"] >= bc["mapped_competitors_5km"] >= 0
+
+    # Monthly economics chain present and deterministic
+    econ = ev["monthly_economics"]
+    assert econ["is_estimate"] is True
+    assert econ["gross_profit"] == pytest.approx(econ["monthly_revenue"] - econ["cogs"])
+    assert econ["operating_profit"] == pytest.approx(econ["gross_profit"] - econ["opex"])
+    assert econ["cash_surplus"] == pytest.approx(econ["operating_profit"] - econ["emi"])
+    assert econ["break_even_state"] in ("surplus", "deficit", "insufficient_data")
+
+    # Seasonal intelligence
+    sea = ev["seasonal_intelligence"]
+    assert len(sea["curve"]) == 12
+    assert sea["is_estimate"] is True
+    assert sea["cash_flow_risk"] in ("LOW", "MEDIUM", "HIGH")
+
+    # Product recommendations with the required schema
+    for rec in ev["product_recommendations"]:
+        assert {"product", "relevance", "reason", "confidence", "evidence"} <= set(rec)
+        assert rec["provenance"] == "ESTIMATED"
+
+    # Weather relevance gate: grocery is LOW relevance, weather flags suppressed
+    wi = ev["weather_intelligence"]
+    assert wi["relevant"] is False
+    assert wi["sensitivity"] == "LOW"
+    assert wi["risk"]["risk_delta"] == 0
+
+    # ESTIMATED intelligence is never promoted to REAL
+    assert econ["is_estimate"] is not False
+
+    # own capital Rs10k drives a small/labelled loan structure
+    fin = ev["financial_plan"]
+    assert fin["own_contribution"] == pytest.approx(10000, rel=1e-6)
+    assert fin["loan_amount"] >= 0
+
+
+def test_e2e_financial_calculate_includes_monthly_economics(client):
+    r = client.post("/financial/calculate", json={
+        "category_code": "grocery",
+        "capital_available": 10000,
+    })
+    assert r.status_code == 200, r.text
+    body = r.json()
+    econ = body["monthly_economics"]
+    assert econ["is_estimate"] is True
+    assert econ["cash_surplus"] == pytest.approx(econ["operating_profit"] - econ["emi"])
+    # deterministic chain (no div-by-zero, all defined)
+    assert econ["monthly_revenue"] >= 0
+    assert econ["gross_profit"] >= 0
+

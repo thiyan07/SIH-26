@@ -38,6 +38,9 @@ class LoanStructure:
     total_project_cost: float
     beneficiary_contribution: float
     beneficiary_contribution_pct: float
+    own_contribution: float
+    required_financing: float
+    shortfall: float
     loan_amount: float
     max_loan_allowed: Optional[float]
     subsidy_amount: float
@@ -53,6 +56,10 @@ class LoanStructure:
     repayment_health: Optional[dict] = None
     quarterly: list[dict] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    assumed_fields: list[str] = field(default_factory=list)
+    is_assumed: bool = False
+    scheme_source: Optional[str] = None
+    alternatives: list[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -154,6 +161,8 @@ def structure_loan(
     # Determine scheme to use
     scheme_rule = None
     chosen_eligibility = None
+    assumed_fields = []
+    scheme_source = None
     if eligible_schemes:
         # Prefer explicitly requested scheme
         if preferred_scheme_code:
@@ -170,30 +179,54 @@ def structure_loan(
 
         if chosen_eligibility:
             sd = chosen_eligibility.scheme_details
+            scheme_source = f"Scheme '{sd['name']}' ({sd['code']}) declared parameters"
+            # Never silently substitute defaults for scheme-declared values. When a
+            # scheme does not declare a term (e.g. a grant scheme with no interest
+            # rate / tenure), we record the field as ASSUMED so it is not presented
+            # as if it came from the scheme.
+            interest_rate = sd.get("interest_rate")
+            tenure_years = sd.get("tenure_years")
+            moratorium_months = sd.get("moratorium_months")
+            margin_pct = sd.get("margin_pct")
+            for field_name, val in (
+                ("interest_rate", interest_rate),
+                ("tenure_years", tenure_years),
+                ("moratorium_months", moratorium_months),
+                ("margin_pct", margin_pct),
+            ):
+                if val is None:
+                    assumed_fields.append(field_name)
             scheme_rule = SchemeRule(
                 code=sd["code"],
                 name=sd["name"],
                 min_project_cost=sd.get("min_project_cost"),
                 max_project_cost=sd.get("max_project_cost"),
                 max_loan_amount=sd.get("max_loan_amount"),
-                interest_rate=sd.get("interest_rate") if sd.get("interest_rate") is not None else 10.0,
-                tenure_years=sd.get("tenure_years") if sd.get("tenure_years") is not None else 5,
-                moratorium_months=sd.get("moratorium_months") if sd.get("moratorium_months") is not None else 0,
-                margin_pct=sd.get("margin_pct") if sd.get("margin_pct") is not None else 10.0,
+                interest_rate=10.0 if interest_rate is None else interest_rate,
+                tenure_years=5 if tenure_years is None else tenure_years,
+                moratorium_months=0 if moratorium_months is None else moratorium_months,
+                margin_pct=10.0 if margin_pct is None else margin_pct,
                 moratorium_mode=sd.get("moratorium_mode") or "interest_only_during_moratorium",
             )
 
     if scheme_rule is None:
-        # Fallback: derive plan from capital available (only when capital is a
-        # positive, usable amount). Otherwise use a neutral default rule so a
-        # beneficiary who provided a project cost but no capital can still get a
-        # structured plan without an artificial crash.
-        if capital_available and capital_available > 0:
-            from app.engines.finance import DEFAULT_SCHEMES
-            plan = derive_financial_plan(capital_available, DEFAULT_SCHEMES)
-            if plan.scheme:
-                scheme_rule = plan.scheme
-        if scheme_rule is None:
+        # Fallback: route the *actual project cost* through the default demo
+        # schemes (cost-driven), treating any capital as the beneficiary's own
+        # contribution. Only used when no eligible scheme was supplied. Because
+        # these parameters come from the framework demo config rather than a
+        # beneficiary-specific matched scheme, they are marked ASSUMED.
+        from app.engines.finance import DEFAULT_SCHEMES
+        plan = derive_financial_plan(total_cost, capital_available, DEFAULT_SCHEMES)
+        if plan.scheme:
+            scheme_rule = plan.scheme
+            scheme_source = plan.scheme.source_document or "Default demo financing configuration"
+            scheme_source = scheme_source + " (framework configuration, not beneficiary-specific)"
+            for fn in ("interest_rate", "tenure_years", "moratorium_months", "margin_pct"):
+                if fn not in assumed_fields:
+                    assumed_fields.append(fn)
+        else:
+            # Cost exceeds the largest supported scheme: still produce a clearly
+            # labelled non-scheme structure rather than crashing.
             scheme_rule = SchemeRule(
                 code="term_loan", name="Term Loan",
                 min_project_cost=0.0, max_project_cost=5_000_000,
@@ -202,31 +235,60 @@ def structure_loan(
                 margin_pct=10.0,
                 source_document="Assumed demo parameters; verify with channelizing agency.",
             )
+            assumed_fields = ["interest_rate", "tenure_years", "moratorium_months", "margin_pct"]
+            scheme_source = "Assumed demo parameters; verify with channelizing agency."
 
-    # Beneficiary contribution
-    if beneficiary_contribution_pct is not None:
-        bc_pct = beneficiary_contribution_pct
-    elif scheme_rule and scheme_rule.margin_pct:
-        bc_pct = scheme_rule.margin_pct
-    else:
-        bc_pct = 10.0
+    is_assumed = bool(assumed_fields)
 
-    beneficiary_contribution = round(total_cost * bc_pct / 100.0, 2)
-    loan_amount = round(total_cost - beneficiary_contribution, 2)
+    # Financing is cost-driven: the beneficiary covers as much as they can from
+    # own capital, and borrows only the remainder (subject to scheme caps).
+    # The scheme's margin_pct is a *floor* on the beneficiary's contribution,
+    # never a forced 90% loan.
+    used_capital = min(capital_available, total_cost)
+    own_contribution = round(used_capital, 2)
+    required_financing = round(max(0.0, total_cost - used_capital), 2)
 
-    # Enforce scheme loan cap
-    max_loan = None
-    notes = []
-    if scheme_rule and scheme_rule.max_loan_amount:
+    # Determine the loan from the real financing need, capped by the scheme.
+    if scheme_rule and scheme_rule.max_loan_amount is not None:
         max_loan = scheme_rule.max_loan_amount
-        if loan_amount > max_loan:
-            notes.append(
-                f"Loan capped from ₹{loan_amount:,.0f} to ₹{max_loan:,.0f} "
-                f"(scheme maximum for {scheme_rule.name})."
-            )
-            loan_amount = max_loan
-            # Recalculate contribution
-            beneficiary_contribution = round(total_cost - loan_amount, 2)
+        loan_amount = min(required_financing, max_loan)
+    else:
+        max_loan = None
+        loan_amount = required_financing
+
+    notes = []
+    if assumed_fields:
+        notes.append(
+            "ASSUMED/ESTIMATED parameters (not declared by the underlying scheme): "
+            + ", ".join(assumed_fields)
+            + ". Verify all terms with the implementing agency."
+        )
+
+    if max_loan is not None and required_financing > max_loan:
+        notes.append(
+            f"Financing need ₹{required_financing:,.0f} exceeds the {scheme_rule.name} "
+            f"maximum of ₹{max_loan:,.0f}; loan capped and the shortfall must be covered "
+            f"by own capital or other sources."
+        )
+
+    # Shortfall: if the beneficiary cannot meet the scheme's minimum own
+    # contribution AND the loan is already capped, surface the gap explicitly.
+    shortfall = 0.0
+    floor_pct = (scheme_rule.margin_pct if scheme_rule and scheme_rule.margin_pct is not None else 10.0)
+    required_contribution_floor = total_cost * floor_pct / 100.0
+    if own_contribution < required_contribution_floor and required_financing > 0:
+        shortfall = round(required_contribution_floor - own_contribution, 2)
+        notes.append(
+            f"Shortfall: {scheme_rule.name if scheme_rule else 'this scheme'} expects a "
+            f"beneficiary contribution of at least ₹{required_contribution_floor:,.0f} "
+            f"(≥{floor_pct:g}% of project cost). You have ₹{own_contribution:,.0f}; add "
+            f"₹{shortfall:,.0f} to qualify for the full financing."
+        )
+
+    # Beneficiary contribution reported is the own capital actually committed
+    # toward the project (capped at the project cost).
+    beneficiary_contribution = own_contribution
+    bc_pct = round(own_contribution / total_cost * 100.0, 2) if total_cost else 0.0
 
     # Subsidy
     subsidy_amount = 0.0
@@ -302,6 +364,9 @@ def structure_loan(
         total_project_cost=total_cost,
         beneficiary_contribution=beneficiary_contribution,
         beneficiary_contribution_pct=bc_pct,
+        own_contribution=own_contribution,
+        required_financing=required_financing,
+        shortfall=shortfall,
         loan_amount=loan_amount,
         max_loan_allowed=max_loan,
         subsidy_amount=subsidy_amount,
@@ -317,6 +382,10 @@ def structure_loan(
         repayment_health=health,
         quarterly=quarterly,
         notes=notes,
+        assumed_fields=assumed_fields,
+        is_assumed=is_assumed,
+        scheme_source=scheme_source,
+        alternatives=alternatives,
     )
 
 
@@ -341,6 +410,15 @@ def structure_financials(
         beneficiary_contribution_pct, profile,
     )
 
+    # scheme_eligibility must align with the recommended (chosen) scheme, not
+    # merely the top-scoring entry which may be PARTIALLY/NOT eligible.
+    chosen_details = None
+    if eligible_schemes and loan.scheme_code:
+        for e in eligible_schemes:
+            if e.scheme_code == loan.scheme_code:
+                chosen_details = e.scheme_details
+                break
+
     return FinancialStructure(
         beneficiary={
             "state": profile.state,
@@ -354,9 +432,9 @@ def structure_financials(
         },
         cost_breakdown=cost,
         loan_structure=loan,
-        scheme_eligibility=eligible_schemes[0].scheme_details if eligible_schemes and eligible_schemes[0].status == "ELIGIBLE" else None,
+        scheme_eligibility=chosen_details,
         recommended_scheme=loan.scheme_name,
-        alternatives=loan.notes and [] or [],
+        alternatives=loan.alternatives,
     )
 
 
@@ -382,6 +460,9 @@ def to_dict(result: FinancialStructure) -> dict:
             "total_project_cost": result.loan_structure.total_project_cost,
             "beneficiary_contribution": result.loan_structure.beneficiary_contribution,
             "beneficiary_contribution_pct": result.loan_structure.beneficiary_contribution_pct,
+            "own_contribution": result.loan_structure.own_contribution,
+            "required_financing": result.loan_structure.required_financing,
+            "shortfall": result.loan_structure.shortfall,
             "loan_amount": result.loan_structure.loan_amount,
             "max_loan_allowed": result.loan_structure.max_loan_allowed,
             "subsidy_amount": result.loan_structure.subsidy_amount,
@@ -396,8 +477,13 @@ def to_dict(result: FinancialStructure) -> dict:
             "repayment_health": result.loan_structure.repayment_health,
             "quarterly": result.loan_structure.quarterly,
             "notes": result.loan_structure.notes,
+            "assumed_fields": result.loan_structure.assumed_fields,
+            "is_assumed": result.loan_structure.is_assumed,
+            "scheme_source": result.loan_structure.scheme_source,
+            "alternatives": result.loan_structure.alternatives,
         },
         "recommended_scheme": result.recommended_scheme,
+        "scheme_eligibility": result.scheme_eligibility,
         "alternatives": result.alternatives,
         "disclaimer": result.disclaimer,
     }

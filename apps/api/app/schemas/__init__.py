@@ -124,6 +124,11 @@ class AnalysisRequest(BaseModel):
 class FinancialCalculateRequest(BaseModel):
     capital_available: float = Field(gt=0)
     category_code: str
+    # Optional explicit project cost. If omitted, the API derives it from the
+    # category cost template (micro scale) — the advisory analysis pipeline is
+    # the primary consumer and always supplies a cost-derived project cost.
+    project_cost: Optional[float] = Field(default=None, ge=0)
+    scale: Optional[str] = Field(default="micro")
     # optional business model inputs
     model_inputs: Optional[dict[str, Any]] = None
 

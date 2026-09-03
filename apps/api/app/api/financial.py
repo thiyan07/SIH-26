@@ -44,10 +44,15 @@ def _scheme_rules(db: Session):
 @router.post("/financial/calculate")
 def financial_calculate(req: FinancialCalculateRequest, db: Session = Depends(get_db)):
     rules = _scheme_rules(db)
-    plan = derive_financial_plan(req.capital_available, rules)
+    if req.project_cost is not None and req.project_cost > 0:
+        project_cost = req.project_cost
+    else:
+        from app.engines.cost_templates import get_total_template_cost
+        project_cost = get_total_template_cost(req.category_code, req.scale or "micro")
+    plan = derive_financial_plan(project_cost, req.capital_available, rules)
     scheme = plan.scheme
     schedule = None
-    if scheme is not None:
+    if scheme is not None and plan.loan_amount > 0:
         schedule = build_schedule(
             principal=plan.loan_amount,
             annual_rate=scheme.interest_rate,
@@ -61,11 +66,22 @@ def financial_calculate(req: FinancialCalculateRequest, db: Session = Depends(ge
         health = repayment_health(profit.outputs.get("estimated_monthly_operating_profit", 0.0),
                                   schedule.monthly_emi_effective)
 
+    # Monthly economics: canonical revenue -> COGS -> gross -> opex ->
+    # operating profit -> EMI -> cash surplus chain + break-even.
+    from app.engines.business_intelligence import monthly_economics, monthly_economics_to_dict
+    econ_emi = schedule.monthly_emi_effective if schedule else 0.0
+    econ_revenue = profit.outputs.get("monthly_revenue")
+    economics = monthly_economics(req.category_code, monthly_revenue=econ_revenue, emi=econ_emi)
+    econ_dict = monthly_economics_to_dict(economics)
+
     return {
         "capital_available": req.capital_available,
         "project_cost": round(plan.project_cost, 2),
+        "own_contribution": round(plan.own_contribution, 2),
+        "required_financing": round(plan.required_financing, 2),
+        "shortfall": round(plan.shortfall, 2),
+        "shortfall_reason": plan.shortfall_reason,
         "loan_amount": round(plan.loan_amount, 2),
-        "margin_pct": plan.margin_pct,
         "scheme": {
             "code": scheme.code if scheme else None,
             "name": scheme.name if scheme else None,
@@ -94,6 +110,7 @@ def financial_calculate(req: FinancialCalculateRequest, db: Session = Depends(ge
             "outputs": profit.outputs,
             "inputs_schema": model_inputs_schema(req.category_code)["inputs_schema"],
         },
+        "monthly_economics": econ_dict,
         "repayment_health": health,
         "disclaimer": "Scheme parameters are demo assumptions based on the problem statement; verify with the agency.",
     }

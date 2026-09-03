@@ -4,13 +4,26 @@ All values here are computed, never guessed. Scheme parameters come from the
 configured rules (in production from the `government_schemes` table). The
 values used are the demo defaults from the problem statement and are always
 labelled as such.
+
+Financing model (SIH 26091): a project's cost is driven by the beneficiary's
+actual business requirements (business category + scale + location cost
+templates), NOT by ``Available Capital x 10``. The required financing is simply
+what the beneficiary cannot cover from their own capital::
+
+    required_financing = max(0, project_cost - own_capital)
+
+the resulting loan is then capped by the governing scheme's financing limits.
+The 90%-of-cost figure in the problem statement is a *ceiling*, not a mandated
+loan — a beneficiary who can self-fund should not be forced to borrow.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional
 
-DEFAULT_MARGIN_PCT = 10.0  # available margin = 10% of project cost
+# Deprecated inverse-margin constant retained for external callers that still
+# reference it, but no longer used to derive a project cost from capital.
+DEFAULT_MARGIN_PCT = 10.0  # legacy: beneficiary margin assumed = 10% of cost
 
 
 @dataclass
@@ -66,15 +79,18 @@ DEFAULT_SCHEMES = (MICRO_FINANCE, TERM_LOAN)
 
 @dataclass
 class FinancialPlan:
-    capital_available: float
     project_cost: float
+    capital_available: float
+    required_financing: float
+    own_contribution: float
     loan_amount: float
-    margin_amount: float
-    margin_pct: float
+    max_loan_allowed: Optional[float]
     scheme: Optional[SchemeRule] = None
     scheme_decision: Optional[str] = None  # micro_finance | term_loan | no_supported_scheme
     scheme_reason: Optional[str] = None
     beyond_maximum: bool = False
+    shortfall: float = 0.0
+    shortfall_reason: Optional[str] = None
     notes: list[str] = field(default_factory=list)
 
 
@@ -83,51 +99,95 @@ class FinancialEngineError(ValueError):
 
 
 def derive_financial_plan(
-    capital_available: float,
+    project_cost: float,
+    capital_available: float = 0.0,
     schemes: tuple[SchemeRule, ...] = DEFAULT_SCHEMES,
 ) -> FinancialPlan:
-    """Compute project_cost, loan_amount, and route to a scheme."""
-    if capital_available <= 0:
-        raise FinancialEngineError("capital_available must be positive")
+    """Derive a financing plan from the *actual project cost*, not from capital.
 
-    # Available margin is configurable; we use the first scheme's margin as the
-    # global default (all schemes share the same 10% assumption by default).
-    margin_pct = schemes[0].margin_pct if schemes else DEFAULT_MARGIN_PCT
-    margin_frac = margin_pct / 100.0
+    ``project_cost`` is the business's real cost (business category + scale +
+    location cost template, or an explicitly stated figure). It is used
+    verbatim — it is never re-invented from available capital.
 
-    project_cost = capital_available / margin_frac
-    loan_amount = project_cost * (1 - margin_frac)
+    ``capital_available`` is the beneficiary's own contribution toward that
+    cost (defaults to 0 when unknown). Financing is what the beneficiary cannot
+    cover themselves: ``required_financing = max(0, project_cost - capital)``,
+    and the resulting loan is capped by the governing scheme's maximum. The 90%
+    figure from the problem statement is treated as a ceiling, never as a
+    mandatory loan.
+    """
+    if project_cost is None or project_cost < 0:
+        raise FinancialEngineError("project_cost must be a non-negative amount")
+    if capital_available is None:
+        capital_available = 0.0
+    if capital_available < 0:
+        raise FinancialEngineError("capital_available must be non-negative")
 
-    plan = FinancialPlan(
-        capital_available=capital_available,
-        project_cost=project_cost,
-        loan_amount=loan_amount,
-        margin_amount=capital_available,
-        margin_pct=margin_pct,
-    )
+    required_financing = max(0.0, project_cost - capital_available)
+    own_contribution = min(capital_available, project_cost)
 
     scheme, decision, reason = _route(project_cost, schemes)
-    plan.scheme = scheme
-    plan.scheme_decision = decision
-    plan.scheme_reason = reason
 
-    if scheme is not None:
-        # enforce loan maximum cap
-        if scheme.max_loan_amount is not None and loan_amount > scheme.max_loan_amount:
-            plan.notes.append(
-                f"Loan amount capped from ₹{loan_amount:,.0f} to ₹{scheme.max_loan_amount:,.0f} "
-                f"(scheme maximum)."
-            )
-            loan_amount = scheme.max_loan_amount
-    else:
+    plan = FinancialPlan(
+        project_cost=project_cost,
+        capital_available=capital_available,
+        required_financing=required_financing,
+        own_contribution=own_contribution,
+        loan_amount=0.0,
+        max_loan_allowed=None,
+        scheme=scheme,
+        scheme_decision=decision,
+        scheme_reason=reason,
+    )
+
+    if scheme is None:
         plan.beyond_maximum = True
         plan.notes.append(
             f"Project cost ₹{project_cost:,.0f} exceeds the largest supported scheme "
-            f"maximum; no supported scheme recommended."
+            f"maximum; no supported scheme recommended. Show as ESTIMATED / "
+            f"non-scheme financing (SCHEME_UNAVAILABLE)."
+        )
+        return plan
+
+    plan.max_loan_allowed = scheme.max_loan_amount
+    loan_amount = min(required_financing, scheme.max_loan_amount) if scheme.max_loan_amount is not None else required_financing
+
+    # Scheme financing cap: if the beneficiary needs more than the scheme can
+    # lend, the remainder must come from own capital or other sources.
+    if scheme.max_loan_amount is not None and required_financing > scheme.max_loan_amount:
+        plan.notes.append(
+            f"Financing need ₹{required_financing:,.0f} exceeds the {scheme.name} "
+            f"maximum of ₹{scheme.max_loan_amount:,.0f}; loan capped and the "
+            f"shortfall must be covered by own capital or other sources."
         )
 
     plan.loan_amount = loan_amount
+
+    # Own-capital shortfall vs. the scheme's contribution expectation.
+    _apply_shortfall(plan, scheme)
+
     return plan
+
+
+def _apply_shortfall(plan: FinancialPlan, scheme: SchemeRule) -> None:
+    """Detect and explain an own-capital shortfall against the scheme rules.
+
+    The 90%-financing ceiling implies the beneficiary is expected to cover at
+    least 10% of the project cost from their own pocket. If their stated own
+    capital is below that floor *and* the loan is already at the cap, surface
+    the shortfall explicitly so the caller can display it.
+    """
+    floor_pct = scheme.margin_pct if scheme.margin_pct is not None else DEFAULT_MARGIN_PCT
+    required_contribution_floor = plan.project_cost * floor_pct / 100.0
+    if plan.own_contribution < required_contribution_floor and plan.required_financing > 0:
+        plan.shortfall = round(required_contribution_floor - plan.own_contribution, 2)
+        plan.shortfall_reason = (
+            f"{scheme.name} expects a beneficiary contribution of at least "
+            f"₹{required_contribution_floor:,.0f} (≥{floor_pct:g}% of project cost). "
+            f"You have ₹{plan.own_contribution:,.0f}; add ₹{plan.shortfall:,.0f} "
+            f"to qualify for the full {scheme.name} financing."
+        )
+        plan.notes.append(plan.shortfall_reason)
 
 
 def _route(

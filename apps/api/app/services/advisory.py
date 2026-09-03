@@ -13,28 +13,30 @@ This is the main SIH26091 advisory pipeline — all deterministic, no LLM.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from app.db.models import GovernmentScheme
-from app.engines.cost_templates import LOCATION_FACTORS, get_cost_template, get_total_template_cost
+from app.ai.extractor import parse_multilingual_free_text
+from app.engines.cost_templates import LOCATION_FACTORS
 from app.engines.financial_structuring import (
     FinancialStructure,
-    build_cost_breakdown,
     structure_financials,
+)
+from app.engines.financial_structuring import (
     to_dict as financial_to_dict,
 )
-from app.engines.nlp_parser import ParsedInput, parse_free_text, to_dict as nlp_to_dict
+from app.engines.nlp_parser import ParsedInput
+from app.engines.nlp_parser import to_dict as nlp_to_dict
 from app.engines.profit import simulate_model
-from app.engines.repayment import repayment_health
 from app.engines.scheme_eligibility import (
     BeneficiaryProfile,
     EligibilityResult,
     match_schemes,
+)
+from app.engines.scheme_eligibility import (
     to_dict as eligibility_to_dict,
 )
-from app.engines.score import compute_opportunity
 
 
 @dataclass
@@ -46,6 +48,7 @@ class AdvisoryReport:
     financial_structure: Optional[FinancialStructure] = None
     profit_model: Optional[dict] = None
     market_context: Optional[dict] = None
+    business_intelligence: Optional[dict] = None
     risks: list[dict] = field(default_factory=list)
     action_plan: list[str] = field(default_factory=list)
     key_documents: list[str] = field(default_factory=list)
@@ -94,6 +97,20 @@ def _assess_risks(business_type: str, profit_model: dict, financial: FinancialSt
     """Generate risk assessment based on all available data."""
     risks = []
     ls = financial.loan_structure
+
+    # Seasonal cash-flow risk (from the seasonal intelligence engine).
+    from app.engines.business_intelligence import seasonal_intelligence
+    seasonal = seasonal_intelligence(business_type or "other")
+    risks.append({
+        "category": "Seasonal",
+        "risk": f"Seasonal cash-flow risk is {seasonal['cash_flow_risk'].lower()}",
+        "level": seasonal["cash_flow_risk"].lower(),
+        "detail": (f"{seasonal['cash_flow_risk_reason']} Peak in month "
+                   f"{seasonal['peak_month']}, low in month {seasonal['low_month']} "
+                   f"(index {seasonal['low_index']:.2f})."),
+        "mitigation": seasonal["inventory_implication"],
+        "seasonal_intelligence": seasonal,
+    })
 
     # Financial risk
     if ls.repayment_health:
@@ -194,6 +211,11 @@ def _build_action_plan(
             f"Loan amount: ₹{ls.loan_amount:,.0f}, "
             f"Your contribution: ₹{ls.beneficiary_contribution:,.0f}."
         )
+        if ls.shortfall > 0:
+            plan.append(
+                f"3a. Address contribution shortfall of ₹{ls.shortfall:,.0f} — "
+                f"arrange additional own capital or confirm scheme flexibility."
+            )
     else:
         plan.append("3. No eligible scheme found — arrange financing through bank or self-funding.")
 
@@ -300,7 +322,10 @@ def _generate_summary(
 
     # Funding
     lines.append(f"Your Contribution: ₹{ls.beneficiary_contribution:,.0f} ({ls.beneficiary_contribution_pct}%)")
+    lines.append(f"Required Financing: ₹{ls.required_financing:,.0f}")
     lines.append(f"Loan Amount: ₹{ls.loan_amount:,.0f}")
+    if ls.shortfall > 0:
+        lines.append(f"Contribution Shortfall: ₹{ls.shortfall:,.0f} (add own capital to qualify for full financing)")
     if ls.subsidy_amount > 0:
         lines.append(f"Subsidy ({ls.subsidy_pct}%): ₹{ls.subsidy_amount:,.0f}")
     lines.append("")
@@ -387,7 +412,7 @@ def run_advisory(
     # Step 1: Parse input
     if parsed is None:
         if free_text:
-            parsed = parse_free_text(free_text)
+            parsed = parse_multilingual_free_text(free_text)
         elif structured_input:
             # Build ParsedInput from structured dict
             parsed = ParsedInput(
@@ -447,6 +472,24 @@ def run_advisory(
     # Step 6: Risks
     risks = _assess_risks(parsed.business_type or "other", profit_model, financial)
 
+    # Step 6b: Business-intelligence layer (deterministic, labelled ESTIMATED):
+    # seasonal intelligence, product recommendations, monthly economics and
+    # weather relevance for the report.
+    from app.engines.business_intelligence import (
+        monthly_economics,
+        monthly_economics_to_dict,
+        recommend_products,
+        seasonal_intelligence,
+    )
+    biz_type = parsed.business_type or "other"
+    avg_revenue = (profit_model or {}).get("monthly_revenue")
+    economics = monthly_economics(biz_type, monthly_revenue=avg_revenue, emi=financial.loan_structure.monthly_emi_after_moratorium)
+    business_intelligence = {
+        "seasonal": seasonal_intelligence(biz_type),
+        "product_recommendations": recommend_products(biz_type),
+        "monthly_economics": monthly_economics_to_dict(economics),
+    }
+
     # Step 7: Action plan
     action_plan = _build_action_plan(parsed, eligibility, financial, profit_model)
 
@@ -462,6 +505,7 @@ def run_advisory(
         scheme_eligibility=eligibility,
         financial_structure=financial,
         profit_model=profit_model,
+        business_intelligence=business_intelligence,
         risks=risks,
         action_plan=action_plan,
         key_documents=documents,
@@ -476,6 +520,7 @@ def report_to_dict(report: AdvisoryReport) -> dict:
         "scheme_eligibility": [eligibility_to_dict(e) for e in report.scheme_eligibility],
         "financial_structure": financial_to_dict(report.financial_structure) if report.financial_structure else None,
         "profit_model": report.profit_model,
+        "business_intelligence": report.business_intelligence,
         "risks": report.risks,
         "action_plan": report.action_plan,
         "key_documents": report.key_documents,

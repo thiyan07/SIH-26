@@ -4,6 +4,7 @@ import { useAnalysis } from '../lib/analysisStore'
 import { Card, CardHeader, Provenance } from '../components/ui'
 import { BusinessMap } from '../components/BusinessMap'
 import { pointsFromGeoJSON } from '../lib/geo'
+import { tr, type Language } from '../lib/i18n'
 import type { AnalysisResult, InfrastructurePoint, LocationOut, MapLayersResponse, MapPoint } from '../types'
 
 interface Price {
@@ -20,7 +21,7 @@ interface Price {
 }
 
 export function Market() {
-  const { result, setResult, setForm } = useAnalysis()
+  const { result, setResult, setForm, lang } = useAnalysis()
   const [prices, setPrices] = useState<Price[]>([])
   const [pricesNote, setPricesNote] = useState('')
   const [markets, setMarkets] = useState<MapPoint[]>([])
@@ -87,22 +88,23 @@ export function Market() {
       })
   }, [result])
 
-  if (!result) return <Empty onLoadDemo={() => loadDemo()} loadingDemo={demoLoading} />
+  if (!result) return <Empty lang={lang} onLoadDemo={() => loadDemo()} loadingDemo={demoLoading} />
   const bc = result.business_competition
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Market Intelligence</h1>
-        <p className="text-sm text-gray-500">Local demand, competition and going prices around your pinned village.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{tr('marketIntelligence', lang)}</h1>
+        <p className="text-sm text-gray-500">{tr('marketIntelligenceSub', lang)}</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Mini label="Competitors (5 km)" value={bc?.mapped_competitors_5km ?? '-'} />
-        <Mini label="Competitors (10 km)" value={bc?.mapped_competitors_10km ?? '-'} />
+      <div className="grid gap-4 md:grid-cols-4">
+        <Mini label={tr('competitors5km', lang)} value={bc?.mapped_competitors_5km ?? '-'} />
+        <Mini label={tr('competitors5to10km', lang)} value={bc?.mapped_competitors_5km != null && bc?.mapped_competitors_10km != null ? bc.mapped_competitors_10km - bc.mapped_competitors_5km : '-'} sub={tr('additionalInRing', lang)} />
+        <Mini label={tr('competitors10km', lang)} value={bc?.mapped_competitors_10km ?? '-'} />
         <Mini
-          label="Nearest competitor"
-          value={bc?.nearest_competitor_km != null ? `${bc.nearest_competitor_km} km` : '—'}
+          label={tr('nearestCompetitor', lang)}
+          value={bc?.nearest_competitor_km != null ? `${bc.nearest_competitor_km} ${tr('km', lang)}` : '—'}
           sub={bc?.nearest_competitor}
         />
       </div>
@@ -110,7 +112,7 @@ export function Market() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <Card>
-            <CardHeader title="Live Map of Nearby Businesses" subtitle="Clusters show Mapped businesses; red pins are competitors; orange = markets, purple = other infrastructure." />
+            <CardHeader title={tr('liveMapNearby', lang)} subtitle={tr('liveMapSub', lang)} />
             <BusinessMap
               center={{ latitude: result.location.latitude, longitude: result.location.longitude }}
               businesses={bc?.businesses || []}
@@ -122,24 +124,24 @@ export function Market() {
             <p className="mt-2 text-xs text-gray-500">{layersNote || bc?.note || ''}</p>
             <div className="mt-3">
               <Provenance
-                source={bc?.data_completeness || 'Mapped via OpenStreetMap'}
+                source={bc?.data_completeness || tr('mappedViaOSM', lang)}
                 reference="© OpenStreetMap contributors"
-                confidence={bc?.note ? 'Partial' : 'High'}
+                confidence={bc?.note ? tr('confidencePartial', lang) : tr('confidenceHigh', lang)}
               />
             </div>
           </Card>
         </div>
 
         <Card>
-          <CardHeader title="Nearest Markets" subtitle="Markets/mandis within 20 km" />
+          <CardHeader title={tr('nearestMarkets', lang)} subtitle={tr('nearestMarketsSub', lang)} />
           {markets.length === 0 ? (
-            <p className="text-sm text-gray-500">No market points mapped around this village yet.</p>
+            <p className="text-sm text-gray-500">{tr('noMarketPoints', lang)}</p>
           ) : (
             <ul className="space-y-2">
               {markets.map((m, i) => (
                 <li key={i} className="rounded-lg bg-gray-50 p-2 text-sm text-gray-700">
-                  {m.name || (m.kind ? `${m.kind} · ` : '') + `Market ${i + 1}`}
-                  {m.distance_km != null && <span className="ml-1 text-xs text-gray-400">({m.distance_km} km)</span>}
+                  {m.name || (m.kind ? `${m.kind} · ` : '') + `${tr('marketLabel', lang)} ${i + 1}`}
+                  {m.distance_km != null && <span className="ml-1 text-xs text-gray-400">({m.distance_km} {tr('km', lang)})</span>}
                 </li>
               ))}
             </ul>
@@ -148,20 +150,20 @@ export function Market() {
       </div>
 
       <Card>
-        <CardHeader title="Sample Going Prices" subtitle={pricesNote} />
+        <CardHeader title={tr('sampleGoingPrices', lang)} subtitle={pricesNote} />
         {prices.length === 0 ? (
-          <p className="text-sm text-gray-500">No sourced price data available. GramBiz only shows referenced, not invented, prices.</p>
+          <p className="text-sm text-gray-500">{tr('noSourcedPrices', lang)}</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-gray-500">
-                  <th className="py-2 pr-4">Item</th>
-                  <th className="py-2 pr-4">Unit</th>
-                  <th className="py-2 pr-4">Modal (₹)</th>
-                  <th className="py-2 pr-4">Range (₹)</th>
-                  <th className="py-2 pr-4">Market</th>
-                  <th className="py-2">Reference</th>
+                  <th className="py-2 pr-4">{tr('item', lang)}</th>
+                  <th className="py-2 pr-4">{tr('unit', lang)}</th>
+                  <th className="py-2 pr-4">{tr('modal', lang)}</th>
+                  <th className="py-2 pr-4">{tr('range', lang)}</th>
+                  <th className="py-2 pr-4">{tr('marketLabel', lang)}</th>
+                  <th className="py-2">{tr('reference', lang)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -196,24 +198,24 @@ function Mini({ label, value, sub }: { label: string; value: string | number; su
   )
 }
 
-function Empty({ onLoadDemo, loadingDemo }: { onLoadDemo: () => void; loadingDemo: boolean }) {
+function Empty({ lang, onLoadDemo, loadingDemo }: { lang: Language; onLoadDemo: () => void; loadingDemo: boolean }) {
   return (
     <div className="py-20 text-center text-gray-500">
-      <p>Run an analysis first to see market data.</p>
+      <p>{tr('runAnalysisMarket', lang)}</p>
       <div className="mt-4 flex items-center justify-center gap-3">
         <button
           onClick={onLoadDemo}
           disabled={loadingDemo}
           className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
         >
-          {loadingDemo ? 'Loading demo…' : 'Load demo workspace (Perundurai, restaurant)'}
+          {loadingDemo ? tr('loadingDemo', lang) : tr('loadDemoWorkspace', lang)}
         </button>
         <a href="/analyze" className="text-sm text-brand-600 underline">
-          Analyze now →
+          {tr('analyzeNow', lang)}
         </a>
       </div>
       <p className="mt-3 text-xs text-gray-400">
-        One click loads a ready-made demo analysis; you can also build your own on the Analyze page.
+        {tr('marketOneClickNote', lang)}
       </p>
     </div>
   )

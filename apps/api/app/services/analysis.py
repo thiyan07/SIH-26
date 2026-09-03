@@ -6,6 +6,7 @@ persists an AnalysisRun.
 """
 from __future__ import annotations
 
+from datetime import date
 from types import SimpleNamespace
 from typing import Any, Optional
 
@@ -21,9 +22,17 @@ from app.db.models import (
     PopulationStatistic,
     WeatherStatistic,
 )
+from app.engines.business_intelligence import (
+    apply_weather_risk,
+    monthly_economics,
+    monthly_economics_to_dict,
+    recommend_products,
+    seasonal_intelligence,
+)
 from app.engines.category_profiles import get_category_profile
 from app.engines.competition import analyze as analyze_competition
 from app.engines.competition import to_dict as competition_to_dict
+from app.engines.cost_templates import get_total_template_cost
 from app.engines.finance import derive_financial_plan
 from app.engines.health import health_access_evidence
 from app.engines.location_features import location_features
@@ -95,6 +104,72 @@ def _business_competition(db: Session, location: Location, category_code: str) -
         "live_discovery": discovery,
     }
     return result
+
+
+def _business_evidence_profile(
+    db: Session, latitude: float, longitude: float, category_code: str, radius_km: float = 5.0
+) -> dict:
+    """Assess real (non-demo) business evidence near the location.
+
+    Coverage and freshness are derived from the actual ingested business rows
+    instead of the hard-coded ``medium``/``unknown`` defaults, so scraped or
+    verified listings (e.g. Google Maps vendor records with high/medium
+    confidence and fresh ``retrieved_at`` timestamps) count as current,
+    higher-coverage evidence.
+
+    Returns:
+        coverage:      "high" when at least half of a meaningful set of nearby
+                       real businesses are fresh vendor/geo records with
+                       high/medium confidence; otherwise "medium" (never
+                       claims exhaustive coverage or invents data).
+        freshness:     freshness bucket of the newest real record in the area.
+        real_count / verified_ratio / source_counts / newest_retrieved_at:
+                       provenance detail for the confidence explanations.
+    """
+    from app.db.models import Business
+    from app.geo import find_nearby
+
+    rows = find_nearby(
+        db, Business, latitude, longitude, radius_km, {"category_code": category_code}, limit=300
+    )
+    real = [r for r in rows if not getattr(r, "is_demo", False)]
+    if not real:
+        return {
+            "coverage": "medium",
+            "freshness": freshness_for(source_type="business"),
+            "real_count": 0,
+            "verified_ratio": 0.0,
+            "source_counts": {},
+            "newest_retrieved_at": None,
+        }
+
+    source_counts: dict[str, int] = {}
+    verified = 0
+    newest = None
+    for r in real:
+        src = (r.source_name or "").strip() or (r.source_type or "unknown")
+        source_counts[src] = source_counts.get(src, 0) + 1
+        # Verified, current, higher-confidence records (vendor/geo scraped
+        # listings, mapped OSM) count as strong evidence; raw low-confidence
+        # or demo rows do not.
+        if r.confidence in ("high", "medium") or r.source_type in ("vendor", "osm"):
+            verified += 1
+        if r.retrieved_at is not None and (newest is None or r.retrieved_at > newest):
+            newest = r.retrieved_at
+
+    verified_ratio = verified / len(real)
+    coverage = "high" if (verified_ratio >= 0.5 and len(real) >= 5) else "medium"
+    freshness = freshness_for(
+        source_type="business", reference_date=(newest.date() if newest else None)
+    )
+    return {
+        "coverage": coverage,
+        "freshness": freshness,
+        "real_count": len(real),
+        "verified_ratio": round(verified_ratio, 2),
+        "source_counts": source_counts,
+        "newest_retrieved_at": newest.isoformat() if newest else None,
+    }
 
 
 def _live_discovery_evidence(db: Session, lat: float, lon: float, category_code: str) -> dict:
@@ -310,18 +385,24 @@ def run_analysis(db: Session, req) -> dict:
 
     capital = float(req.capital_available)
     category = req.category_code
+    scale = (req.preferred_scale or "micro") if hasattr(req, "preferred_scale") else "micro"
 
-    # 1. financial plan (scheme routing)
-    fin = derive_financial_plan(capital)
+    # 1. financial plan (scheme routing) — cost-driven. The project cost comes
+    # from the business cost template (category + scale), NOT from capital x 10.
+    # The beneficiary borrows only what they cannot cover from own capital.
+    project_cost = get_total_template_cost(category, scale)
+    fin = derive_financial_plan(project_cost, capital)
     scheme = fin.scheme
 
     # 2. profit model (estimated)
     model_inputs = getattr(req, "model_inputs", None) or {}
     profit = simulate_model(category, model_inputs)
 
-    # 3. deferred debt service: use effective monthly debt service (EMI)
+    # 3. deferred debt service: use effective monthly debt service (EMI).
+    # Only relevant when there is an actual loan; a self-funded project
+    # (own capital >= project cost) has no debt service.
     monthly_debt_service = None
-    if scheme is not None:
+    if scheme is not None and fin.loan_amount > 0:
         schedule = build_repay_schedule(
             principal=fin.loan_amount,
             annual_rate=scheme.interest_rate,
@@ -343,17 +424,29 @@ def run_analysis(db: Session, req) -> dict:
 
     # 4. competition / market evidence (reusable engines, plan §12-13)
     profile = get_category_profile(db, category)
+    # Assess coverage/freshness from the actual nearby business rows so real
+    # scraped/verified listings (e.g. Google Maps vendor records) are counted
+    # as current, higher-coverage evidence rather than the historical default
+    # of "medium"/"unknown".
+    biz_evidence = _business_evidence_profile(
+        db,
+        latitude=location_view.latitude,
+        longitude=location_view.longitude,
+        category_code=category,
+        radius_km=5.0,
+    )
+    biz_coverage = biz_evidence["coverage"]
     competitor = analyze_competition(
         db, latitude=location_view.latitude, longitude=location_view.longitude,
         category_code=category, radius_km=5.0,
-        data_completeness="medium",
+        data_completeness=biz_coverage,
     )
     competition = competition_to_dict(competitor)
     signal_codes = tuple(profile.get("demand_signals") or market_default_signal_codes())
     market_reach = analyze_market(
         db, location=location_view, radius_km=10.0,
         signal_codes=signal_codes,
-        data_completeness="medium",
+        data_completeness=biz_coverage,
     )
     market = market_reach.to_dict()
     population = _population(db, location)
@@ -362,6 +455,22 @@ def run_analysis(db: Session, req) -> dict:
     soil = soil_health_evidence(
         db, state=location.state, district=location.district,
         block=location.block, village=location.village, location_id=location.id,
+    )
+
+    # --- Business-intelligence layer (deterministic, labelled ESTIMATED) ---
+    # Weather/climate sensitivity gated by category relevance.
+    weather_intelligence = apply_weather_risk(category, weather)
+    # Seasonal demand intelligence + product recommendations.
+    seasonal = seasonal_intelligence(category)
+    products = recommend_products(category)
+    # Monthly economics built from the estimated operating model revenue and
+    # the actual deferred debt service (EMI) when a loan is present.
+    model_revenue = profit.outputs.get("monthly_revenue")
+    econ_emi = monthly_debt_service if monthly_debt_service is not None else 0.0
+    economics = monthly_economics(
+        category,
+        monthly_revenue=model_revenue,
+        emi=econ_emi,
     )
     # Location-scoped MSME / industrial context (UDYAM pincode-level, factories
     # district-level). Never point-radius competitors; approximate + labelled.
@@ -382,7 +491,7 @@ def run_analysis(db: Session, req) -> dict:
     fin_fit = _financial_fit_score(capital, fin.loan_amount)
     risk = _risk_score(competition, weather, infrastructure, soil)
 
-    years_since_2011 = 2026 - (population.get("census_year") or 2011) if population.get("available") else None
+    years_since_2011 = date.today().year - (population.get("census_year") or 2011) if population.get("available") else None
 
     result = compute_opportunity(
         demand=demand,
@@ -410,9 +519,10 @@ def run_analysis(db: Session, req) -> dict:
         source_type="population",
         reference_year=population.get("census_year"),
     ) if population.get("available") else "unknown"
-    # OSM business records carry a retrieval timestamp; treat age since
-    # retrieval as "unknown" when no retrieved_at was recorded.
-    bus_bucket = "unknown"
+    # Business freshness: derived from the newest real record near the
+    # location (scraped Google Maps / geo listings carry a retrieved_at
+    # timestamp), falling back to "unknown" only when nothing is recorded.
+    bus_bucket = biz_evidence["freshness"]
     missing_indicators = []
     if not population.get("available"):
         missing_indicators.append("population")
@@ -475,7 +585,7 @@ def run_analysis(db: Session, req) -> dict:
         "price": price_evidence,
         "location_features": loc_features,
         "industry_context": industry_ctx,
-        "data_confidence": data_quality,
+        "data_confidence": {**data_quality, "business_evidence": biz_evidence},
         "opportunity_score": {
             "overall_score": result.overall_score,
             "demand_score": result.demand_score,
@@ -494,8 +604,12 @@ def run_analysis(db: Session, req) -> dict:
         "financial_plan": {
             "capital_available": round(capital, 2),
             "project_cost": round(fin.project_cost, 2),
+            "own_contribution": round(fin.own_contribution, 2),
+            "required_financing": round(fin.required_financing, 2),
+            "shortfall": round(fin.shortfall, 2),
+            "shortfall_reason": fin.shortfall_reason,
             "loan_amount": round(fin.loan_amount, 2),
-            "margin_pct": fin.margin_pct,
+            "scale": scale,
             "scheme_code": scheme.code if scheme else None,
             "scheme_name": scheme.name if scheme else None,
             "scheme_decision": fin.scheme_decision,
@@ -523,6 +637,10 @@ def run_analysis(db: Session, req) -> dict:
             "notes": profit.notes,
         },
         "category_profile": profile,
+        "weather_intelligence": weather_intelligence,
+        "seasonal_intelligence": seasonal,
+        "product_recommendations": products,
+        "monthly_economics": monthly_economics_to_dict(economics),
         "recommendation": {
             "label": result.recommendation,
             "reason": result.recommendation_reason,
