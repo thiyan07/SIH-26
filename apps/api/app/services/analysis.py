@@ -247,7 +247,34 @@ def _population(db: Session, location: Location) -> dict:
         real_data_condition(PopulationStatistic),
     )
     row = db.execute(stmt).scalars().first()
+    # Fallback to demo/proxy when no real Census row exists — still village-level,
+    # but clearly labelled as demo so the frontend can show it with is_demo flag.
     if row is None:
+        demo_row = db.execute(
+            select(PopulationStatistic).where(PopulationStatistic.location_id == location.id)
+        ).scalars().first()
+        if demo_row is not None:
+            return {
+                "population": demo_row.population,
+                "households": demo_row.households,
+                "males": demo_row.males,
+                "females": demo_row.females,
+                "sex_ratio": demo_row.sex_ratio,
+                "literacy": demo_row.literacy,
+                "workers": demo_row.workers,
+                "non_workers": demo_row.non_workers,
+                "census_year": demo_row.census_year or 2011,
+                "available": True,
+                "is_historical": True,
+                "note": f"Demo proxy (Census {demo_row.census_year or 2011} baseline) — village-level estimate, not official current population.",
+                "source_name": demo_row.source_name or "Demo seed (Erode)",
+                "dataset_name": demo_row.dataset_name or "seed_demo",
+                "source_type": demo_row.source_type or "demo",
+                "confidence": demo_row.confidence or "low",
+                "is_demo": True,
+                "is_estimate": True,
+                "is_village_level": True,
+            }
         return {
             "population": None,
             "households": None,
@@ -387,6 +414,64 @@ def run_analysis(db: Session, req) -> dict:
     capital = float(req.capital_available)
     category = req.category_code
     scale = (req.preferred_scale or "micro") if hasattr(req, "preferred_scale") else "micro"
+    # Auto-recommend when no category given (user wants AI to suggest which business)
+    suggested_businesses = []
+    if not category or getattr(req, "auto_recommend", False):
+        from app.catalog.business_categories import all_codes
+        from app.engines.cost_templates import get_total_template_cost as _gtc
+        from app.engines.profit import simulate_model as _sim
+        from app.engines.scheme_eligibility import BeneficiaryProfile as _BP, match_schemes as _ms
+        from app.engines.competition import analyze as _ac
+        candidates = []
+        for code in all_codes():
+            try:
+                tc = _gtc(code, scale)
+            except Exception:
+                continue
+            # affordability (margin-aware)
+            shortfall = max(0, tc * 0.1 - capital)
+            aff = 100 if capital >= tc * 0.1 else max(0, 100 - (shortfall / (tc*0.1) * 100)) if tc else 50
+            if capital == 0:
+                aff = 60
+            try:
+                prof = _sim(code)
+                mp = prof.outputs.get("estimated_monthly_operating_profit", 0) or 0
+                ps = min(100, max(0, (mp / 50000) * 100))
+            except Exception:
+                mp = 0
+                ps = 30
+            # competition at proposed location
+            cs = 50
+            cc = None
+            try:
+                comp = _ac(db, latitude=location_view.latitude, longitude=location_view.longitude, category_code=code, radius_km=5)
+                cc = getattr(comp, 'competitors_5km', None) or comp.mapped_competitors_5km if hasattr(comp, 'mapped_competitors_5km') else 0
+                cs = getattr(comp, 'competition_score', 50) or 50
+            except Exception:
+                pass
+            try:
+                bp = _BP(state=location.state, district=location.district, block=location.block, village=location.village, business_type=code, project_cost=tc, capital_available=capital, preferred_scale=scale)
+                sch = _ms(db, bp)
+                elig = sum(1 for s in sch if s.status == "ELIGIBLE")
+                ss = min(100, elig * 40)
+            except Exception:
+                elig = 0
+                ss = 40
+            overall = round(aff*0.30 + ps*0.30 + cs*0.20 + ss*0.20, 1)
+            reasons=[]
+            if aff>=80:
+                reasons.append(f"Fits capital ₹{capital:,.0f} (cost ₹{tc:,.0f})")
+            if mp>20000:
+                reasons.append(f"Profit ~₹{mp:,.0f}/mo")
+            if cc is not None and cc <3:
+                reasons.append(f"Low competition ({cc} nearby)")
+            if elig>0:
+                reasons.append(f"{elig} scheme(s)")
+            candidates.append({"business_type":code,"label":code.replace("_"," ").title(),"scale":scale,"total_project_cost":tc,"estimated_monthly_profit":mp,"competitors_5km":cc,"eligible_schemes":elig,"scores":{"affordability":round(aff,1),"profit":round(ps,1),"competition":round(cs,1),"scheme":ss,"overall":overall},"overall_score":overall,"reasons":reasons or ["Balanced"]})
+        candidates.sort(key=lambda x: x["overall_score"], reverse=True)
+        suggested_businesses = candidates[:5]
+        if suggested_businesses:
+            category = suggested_businesses[0]["business_type"]
 
     # 1. financial plan (scheme routing) — cost-driven. The project cost comes
     # from the business cost template (category + scale), NOT from capital x 10.
@@ -667,6 +752,7 @@ def run_analysis(db: Session, req) -> dict:
             schedule,
             monthly_economics_to_dict(economics),
         ),
+        "suggested_businesses": suggested_businesses,
         "data_sources": _collect_data_sources(competition, population, weather, price_evidence, soil, infrastructure, loc_features),
     }
 

@@ -7,11 +7,33 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts'
+import { lazy, Suspense } from 'react'
 import { useAnalysis } from '../lib/analysisStore'
 import { LINK_BRAND } from '../lib/theme'
 import { Badge, Card, CardHeader, Disclaimer, ScoreBar, StatCard } from '../components/ui'
 import { ScoreDonut } from '../components/ScoreDonut'
+import { Card3D } from '../components/aceternity/Card3D'
+import { Spotlight } from '../components/aceternity/BackgroundBeams'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { tr, interpolate, recommendationLabel, type Language } from '../lib/i18n'
+
+const Globe = lazy(() => import('../components/three/Globe').then(m => ({ default: m.Globe })))
+
+function SafeGlobe(props: { businesses: { lat: number; lon: number }[]; className?: string }) {
+  return (
+    <ErrorBoundary
+      fallback={
+        <div className="flex h-[300px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-500">
+          3D globe unavailable on this device — map still works below.
+        </div>
+      }
+    >
+      <Suspense fallback={<div className="h-[300px] animate-pulse rounded-xl bg-slate-800" />}>
+        <Globe {...props} />
+      </Suspense>
+    </ErrorBoundary>
+  )
+}
 
 const RECO_COLOR: Record<string, string> = { GO: 'green', MODIFY: 'amber', AVOID: 'red' }
 
@@ -24,6 +46,7 @@ export function Dashboard() {
   const si = result.seasonal_intelligence
   const wi = result.weather_intelligence
   const prs = result.product_recommendations
+  const suggested = (result as any).suggested_businesses as import('../types').SuggestedBusiness[] | undefined
   const bars = [
     { label: tr('demand', lang), value: score.demand_score, hint: tr('demandHint', lang) },
     { label: tr('competition', lang), value: score.competition_score, hint: tr('competitionHint', lang) },
@@ -33,35 +56,39 @@ export function Dashboard() {
   ]
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">{tr('reportTitle', lang)}</h1>
-          <p className="text-sm text-gray-500">
-            {result.location.village || result.location.block || ''} · {result.location.district}, {result.location.state} · {tr('pinsLabel', lang)} {showPins(result.location, lang)}
-            {pm?.is_estimate ? ` · ${tr('estimatedOperatingModel', lang)}` : ''}
-          </p>
+      <Spotlight>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-100 bg-gradient-to-br from-white via-teal-50/50 to-cyan-50/30 p-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-gray-900">{tr('reportTitle', lang)}</h1>
+            <p className="text-sm text-gray-500">
+              {result.location.village || result.location.block || ''} · {result.location.district}, {result.location.state} · {tr('pinsLabel', lang)} {showPins(result.location, lang)}
+              {pm?.is_estimate ? ` · ${tr('estimatedOperatingModel', lang)}` : ''}
+            </p>
+          </div>
+          <Badge color={RECO_COLOR[recommendation.label] || 'gray'}>
+            {recommendationLabel(recommendation.label, lang)}
+          </Badge>
         </div>
-        <Badge color={RECO_COLOR[recommendation.label] || 'gray'}>
-          {recommendationLabel(recommendation.label, lang)}
-        </Badge>
-      </div>
+      </Spotlight>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader title={tr('opportunityScore', lang)} subtitle={`${tr('confidence', lang)}: ${score.confidence_label}`} />
-          <div className="flex items-center gap-6">
-            <ScoreDonut value={score.overall_score} size={150} />
-            <div className="flex-1">
-              {bars.map((b) => (
-                <ScoreBar key={b.label} label={b.label} value={b.value} color={b.value >= 50 ? 'green' : b.value >= 35 ? 'amber' : 'red'} hint={b.hint} />
-              ))}
+        <Card3D>
+          <Card className="h-full border-teal-100 shadow-md">
+            <CardHeader title={tr('opportunityScore', lang)} subtitle={`${tr('confidence', lang)}: ${score.confidence_label}`} />
+            <div className="flex items-center gap-6">
+              <ScoreDonut value={score.overall_score} size={150} />
+              <div className="flex-1">
+                {bars.map((b) => (
+                  <ScoreBar key={b.label} label={b.label} value={b.value} color={b.value >= 50 ? 'green' : b.value >= 35 ? 'amber' : 'red'} hint={b.hint} />
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
-            <strong className="text-gray-700">{tr('interpretation', lang)}</strong> {recommendation.reason}
-          </div>
-          <ConfidenceExplanation score={score} dataConfidence={result.data_confidence} lang={lang} />
-        </Card>
+            <div className="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+              <strong className="text-gray-700">{tr('interpretation', lang)}</strong> {recommendation.reason}
+            </div>
+            <ConfidenceExplanation score={score} dataConfidence={result.data_confidence} lang={lang} />
+          </Card>
+        </Card3D>
 
         <div className="grid grid-cols-3 gap-4">
           <StatCard
@@ -93,6 +120,47 @@ export function Dashboard() {
           <StatCard label={tr('loanAmount', lang)} value={`₹${formatINR(fp.loan_amount)}`} sub={`${tr('ownContributionShort', lang)} ₹${formatINR(fp.own_contribution ?? 0)}`} />
         </div>
       </div>
+
+      {suggested && suggested.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-700">AI Suggested Opportunities</h2>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">3D Pins • hover to tilt</span>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {suggested.slice(0, 6).map((s, i) => (
+              <Card3D key={`${s.business_type}-${i}`}>
+                <div className="group relative flex h-full flex-col rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-orange-50 to-white p-4 shadow-sm transition-all hover:shadow-lg hover:rotate-[0.8deg]">
+                  <div className="absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 rounded-full bg-gradient-to-b from-amber-300 to-amber-600 shadow-md ring-2 ring-white" />
+                  <div className="absolute -top-1 left-1/2 h-6 w-px -translate-x-1/2 bg-gradient-to-b from-amber-400 to-transparent" />
+                  <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-amber-700">{s.scale} • score {s.overall_score}</div>
+                  <div className="mt-1 text-sm font-extrabold text-gray-900">{s.label}</div>
+                  <div className="text-[11px] text-gray-500">{s.business_type}</div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-lg bg-white p-2 text-center shadow-sm">
+                      <div className="text-[10px] text-gray-400">Project cost</div>
+                      <div className="font-bold text-gray-900">₹{formatINR(s.total_project_cost)}</div>
+                    </div>
+                    <div className="rounded-lg bg-white p-2 text-center shadow-sm">
+                      <div className="text-[10px] text-gray-400">Monthly profit</div>
+                      <div className="font-bold text-emerald-700">₹{formatINR(s.estimated_monthly_profit)}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {s.reasons.slice(0, 2).map((r, idx) => (
+                      <span key={idx} className="rounded-full bg-teal-600 px-2 py-0.5 text-[10px] font-medium text-white">{r}</span>
+                    ))}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400">
+                    <span>{s.competitors_5km ?? 0} competitors · {s.eligible_schemes} schemes</span>
+                    <span className="font-mono">#{i + 1}</span>
+                  </div>
+                </div>
+              </Card3D>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -236,8 +304,11 @@ export function Dashboard() {
               {wi.reason && <p className="mt-1 text-[11px] italic text-gray-400">{wi.reason}</p>}
             </div>
           </Card>
+          <SafeGlobe className="h-[300px] shadow-xl" businesses={(result.business_competition?.businesses || []).slice(0, 40).map((b: any) => ({ lat: b.latitude, lon: b.longitude }))} />
         </div>
-      ) : null}
+      ) : (
+        <SafeGlobe className="h-[300px] shadow-xl" businesses={(result.business_competition?.businesses || []).slice(0, 40).map((b: any) => ({ lat: b.latitude, lon: b.longitude }))} />
+      )}
     </div>
   )
 }
@@ -304,7 +375,7 @@ function NoResult({ lang }: { lang: Language }) {
       <div className="text-4xl">🌾</div>
       <h2 className="mt-4 text-xl font-bold text-gray-900">{tr('noAnalysisYet', lang)}</h2>
       <p className="mt-2 text-sm text-gray-500">{tr('noAnalysisDesc', lang)}</p>
-      <a href="/analyze" className="mt-4 inline-block rounded-lg bg-brand-600 px-5 py-2 text-sm font-medium text-white hover:bg-brand-700">
+      <a href="/analyze" className="mt-4 inline-block rounded-lg bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700">
         {tr('analyzeBusiness', lang)}
       </a>
     </div>
@@ -326,7 +397,7 @@ function Rows({ rows }: { rows: [string, string][] }) {
 
 function MiniStat({ label, value, symbol, suffix }: { label: string; value?: number; symbol?: string; suffix?: string }) {
   return (
-    <div className="rounded-lg bg-brand-50 p-3">
+    <div className="rounded-lg bg-teal-50 p-3">
       <div className="text-[11px] text-gray-500">{label}</div>
       <div className="text-base font-bold text-gray-900">
         {symbol || ''}
@@ -384,7 +455,7 @@ function ConfidenceExplanation({ score, dataConfidence, lang }: { score: any; da
   const positive = confidenceReasons.filter((r) => /recent|point-level|high|complete|current/i.test(r))
   const limitations = confidenceReasons.filter((r) => /old|ageing|approximate|incomplete|missing|insufficient|unknown|low/i.test(r))
   return (
-    <div className="mt-3 rounded-xl border border-brand-100 bg-brand-50/50 p-3 text-xs text-gray-700">
+    <div className="mt-3 rounded-xl border border-teal-100 bg-teal-50/50 p-3 text-xs text-gray-700">
       <div className="mb-1 flex items-center gap-2">
         <span className="font-semibold text-gray-800">{tr('whyThisScore', lang)}</span>
         {dataConfidence && (

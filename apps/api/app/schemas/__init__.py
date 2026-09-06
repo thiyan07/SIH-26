@@ -105,13 +105,14 @@ class AnalysisRequest(BaseModel):
     proposed_latitude: Optional[float] = Field(default=None, ge=-90, le=90)
     proposed_longitude: Optional[float] = Field(default=None, ge=-180, le=180)
     capital_available: float = Field(gt=0)
-    category_code: str
+    category_code: Optional[str] = None
     business_experience: Optional[bool] = None
     existing_shop: Optional[bool] = None
     existing_equipment: Optional[bool] = None
     family_members: Optional[int] = Field(default=None, ge=0)
     preferred_scale: Optional[str] = None
     language: str = Field(default="en", pattern="^(en|ta|hi)$")
+    auto_recommend: bool = Field(default=False, description="When true and no category_code, return ranked business suggestions")
 
     @field_validator("capital_available")
     @classmethod

@@ -23,9 +23,20 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem(KEY)
-      if (saved) setResult(JSON.parse(saved) as AnalysisResult)
-    } catch {
-      /* ignore */
+      if (saved) {
+        const parsed = JSON.parse(saved) as any
+        // Guard against stale / incompatible shapes from older builds
+        if (parsed && parsed.location && parsed.opportunity_score && parsed.financial_plan) {
+          setResult(parsed as AnalysisResult)
+        } else {
+          // Old shape — clear to avoid render crashes
+          localStorage.removeItem(KEY)
+          console.warn('[analysisStore] cleared stale cached analysis')
+        }
+      }
+    } catch (e) {
+      localStorage.removeItem(KEY)
+      console.warn('[analysisStore] failed to parse cached analysis', e)
     }
   }, [])
 

@@ -219,6 +219,53 @@ def schemes_recommend(req: SchemeRecommendRequest, db: Session = Depends(get_db)
 
 @router.get("/schemes")
 def schemes(db: Session = Depends(get_db)):
+    # Return full GovernmentScheme rows with all requirement fields for transparency
+    from sqlalchemy import select
+    from app.db.models import GovernmentScheme
+    rows = list(db.execute(select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True))).scalars())
+    if rows:
+        return {
+            "schemes": [
+                {
+                    "code": r.code,
+                    "name": r.name,
+                    "description": r.description,
+                    "implementing_agency": r.implementing_agency,
+                    "scheme_url": r.scheme_url,
+                    "scheme_type": r.scheme_type,
+                    "min_project_cost": float(r.min_project_cost) if r.min_project_cost is not None else None,
+                    "max_project_cost": float(r.max_project_cost) if r.max_project_cost is not None else None,
+                    "max_loan_amount": float(r.max_loan_amount) if r.max_loan_amount is not None else None,
+                    "interest_rate": r.interest_rate,
+                    "tenure_years": r.tenure_years,
+                    "moratorium_months": r.moratorium_months,
+                    "moratorium_mode": r.moratorium_mode,
+                    "margin_pct": r.margin_pct,
+                    "beneficiary_contribution_pct": float(r.beneficiary_contribution_pct) if r.beneficiary_contribution_pct is not None else None,
+                    "subsidy_pct": float(r.subsidy_pct) if r.subsidy_pct is not None else None,
+                    "eligible_business_types": r.eligible_business_types,
+                    "eligible_states": r.eligible_states,
+                    "eligible_districts": r.eligible_districts,
+                    "target_beneficiary_categories": r.target_beneficiary_categories,
+                    "min_age": r.min_age,
+                    "max_age": r.max_age,
+                    "min_annual_income": float(r.min_annual_income) if r.min_annual_income is not None else None,
+                    "max_annual_income": float(r.max_annual_income) if r.max_annual_income is not None else None,
+                    "requires_existing_business": r.requires_existing_business,
+                    "requires_domicile": r.requires_domicile,
+                    "category_eligibility_rules": r.category_eligibility_rules,
+                    "required_documents": r.required_documents,
+                    "application_authority": r.application_authority,
+                    "application_process": r.application_process,
+                    "source_document": r.source_url,
+                    "source_date": r.reference_date.strftime("%Y-%m-%d") if r.reference_date else None,
+                    "note": r.description[:120] if r.description else "",
+                    "confidence_level": r.confidence_level,
+                }
+                for r in rows
+            ],
+            "note": "All requirement details included — verify eligibility with the implementing agency before applying.",
+        }
     rules = _scheme_rules(db)
     return {
         "schemes": [

@@ -2,23 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-  /* Latin first (Inter), then Tamil & Devanagari fallbacks so Tamil/Hindi glyphs render correctly */
-  font-family: 'Inter', 'Noto Sans Tamil', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
-  background: #f8fafc;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --primary: 173 80% 32%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 173 60% 94%;
+    --accent-foreground: 173 80% 20%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 173 80% 32%;
+    --radius: 0.85rem;
+  }
 }
 
-/* Ensure letterspacing/weight settings still apply to fallback fonts */
-* {
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  font-family: 'Inter', 'Noto Sans Tamil', 'Noto Sans Devanagari', system-ui, -apple-system, sans-serif;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-.mapcn-popup {
-  font-size: 0.85rem;
-  line-height: 1.4;
+/* serene mesh background */
+.app-bg {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(20,184,166,0.09), transparent 60%),
+    radial-gradient(900px 500px at 90% 0%, rgba(6,182,212,0.08), transparent 55%),
+    linear-gradient(to bottom, #f8fafc, #ffffff);
 }
+
+/* glass */
+.glass {
+  background: rgba(255,255,255,0.78);
+  backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid rgba(255,255,255,0.6);
+}
+
+/* custom scrollbar */
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* focus ring */
+:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+
+/* map */
+.mapcn-popup { font-size: 0.85rem; line-height: 1.4; }
+
+/* print */
+@media print { header, footer, nav { display: none !important; } main { padding: 0 !important; } }
+
+/* number tabular */
+.tabular { font-variant-numeric: tabular-nums; }

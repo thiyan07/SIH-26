@@ -27,7 +27,17 @@ export function LoanExplainer() {
   const { result, lang } = useAnalysis()
   const le = result?.loan_explainer
 
-  if (!result || !le) return null
+  if (!result || !le) {
+    return (
+      <div className="mx-auto max-w-2xl py-16 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">🎓</div>
+        <h2 className="mt-4 text-lg font-bold text-slate-900">{tr('navLoanExplainer', lang)}</h2>
+        <p className="mt-2 text-sm text-slate-500">{tr('noAnalysisYet', lang)}</p>
+        <p className="mt-1 text-xs text-slate-400">Run an analysis from Analyze to see loan explained village-wise: funding, EMI, schedule and affordability.</p>
+        <a href="/analyze" className="mt-5 inline-flex rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow hover:bg-brand-700">Go to Analyze →</a>
+      </div>
+    )
+  }
 
   const project_cost = le.funding_summary.project_cost
   const own_capital = le.funding_summary.own_capital

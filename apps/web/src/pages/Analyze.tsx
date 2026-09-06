@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
-import { Button, Card, CardHeader } from '../components/ui'
+import { Button, CardHeader } from '../components/ui'
 import { ShopLocationPicker } from '../components/ShopLocationPicker'
+import { BackgroundBeams, Spotlight } from '../components/aceternity/BackgroundBeams'
+import { BentoGrid, BentoCard } from '../components/aceternity/BentoGrid'
+import { Card3D } from '../components/aceternity/Card3D'
 import { tr, interpolate, type Language } from '../lib/i18n'
 import type { AnalysisResult, Category, LocationOut, AdvisoryParseOutput, AdvisoryReport } from '../types'
 
@@ -35,6 +38,7 @@ export function Analyze() {
   const [searching, setSearching] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [autoRecommend, setAutoRecommend] = useState(false)
   const [form, setLocalForm] = useState({
     q: '',
     state: '',
@@ -51,18 +55,13 @@ export function Analyze() {
     family_members: 0,
     preferred_scale: 'small',
   })
-  // Exact proposed shop location (dragged on the map). Kept separate from the
-  // admin-area selection so the proposed point never overwrites the village.
   const [areaPinned, setAreaPinned] = useState(false)
   const [draftProposed, setDraftProposed] = useState<{ lat: number; lng: number } | null>(null)
   const [confirmedProposed, setConfirmedProposed] = useState<{ lat: number; lng: number } | null>(null)
-  // Live competitor preview around the exact dragged map marker. Re-fetched
-  // (debounced) on every marker move so results track the pin (A !== B when moved).
   const [liveComp, setLiveComp] = useState<DiscoveryResult | null>(null)
   const [liveCompLoading, setLiveCompLoading] = useState(false)
   const [liveCompError, setLiveCompError] = useState<string | null>(null)
 
-  // SIH26091 multilingual NLP advisory (free-text → structured form + full report)
   const [advisoryText, setAdvisoryText] = useState('')
   const [advisoryLang, setAdvisoryLang] = useState<Language>('en')
   const [advisoryParsing, setAdvisoryParsing] = useState(false)
@@ -90,8 +89,6 @@ export function Analyze() {
       .finally(() => setSearching(false))
   }, [form.q])
 
-  // Live competitor preview: whenever the exact search radius. Debounce ~600ms
-  // so dragging the pin issues one query at rest, keyed by the exact lat/lng.
   useEffect(() => {
     if (!draftProposed) {
       setLiveComp(null)
@@ -105,7 +102,7 @@ export function Analyze() {
         .post<DiscoveryResult>('/businesses/discovery', {
           latitude: draftProposed.lat,
           longitude: draftProposed.lng,
-          category_code: form.category_code,
+          category_code: autoRecommend ? undefined : form.category_code,
         })
         .then((r) => setLiveComp(r))
         .catch((e: any) => {
@@ -116,7 +113,7 @@ export function Analyze() {
     }, 600)
     return () => window.clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftProposed, lang])
+  }, [draftProposed, lang, form.category_code, autoRecommend])
 
 
   const pickLocation = (l: LocationOut) => {
@@ -155,6 +152,7 @@ export function Analyze() {
         existing_shop: false,
         existing_equipment: false,
         family_members: 3,
+        auto_recommend: false,
       }
       setForm(payload)
       const res = await api.post<AnalysisResult>('/analysis', payload)
@@ -171,8 +169,6 @@ export function Analyze() {
     if (draftProposed) setConfirmedProposed({ lat: draftProposed.lat, lng: draftProposed.lng })
   }
 
-  // Parse free text (English/Tamil/Hindi) via the NLP engine and pre-fill the
-  // structured feasibility form from the extracted fields (SIH26091 FR: NLP).
   const parseAndPrefill = async () => {
     if (!advisoryText.trim()) return
     setAdvisoryParsing(true)
@@ -184,7 +180,10 @@ export function Analyze() {
         language: advisoryLang,
       })
       const next = { ...form }
-      if (parsed.business_type) next.category_code = parsed.business_type
+      if (parsed.business_type) {
+        next.category_code = parsed.business_type
+        setAutoRecommend(false)
+      }
       if (parsed.scale) next.preferred_scale = parsed.scale
       if (parsed.project_cost) next.capital_available = parsed.project_cost
       if (parsed.location?.state) next.state = parsed.location.state
@@ -192,7 +191,7 @@ export function Analyze() {
       if (parsed.location?.block) next.block = parsed.location.block
       if (parsed.location?.village) next.village = parsed.location.village
       setLocalForm(next)
-      setForm(next)
+      setForm(next as any)
       setAdvisoryNote(
         interpolate(tr('advisoryParsedAs', lang), {
           type: parsed.business_type || '—',
@@ -207,7 +206,6 @@ export function Analyze() {
     }
   }
 
-  // Run the full multilingual advisory pipeline and render the report inline.
   const runFullAdvisory = async () => {
     if (!advisoryText.trim()) return
     setAdvisoryLoading(true)
@@ -217,6 +215,16 @@ export function Analyze() {
       const report = await api.post<AdvisoryReport>('/advisory/report', {
         free_text: advisoryText,
         language: advisoryLang,
+        // Use pinned form location + selected category as fallback so report
+        // never shows "None District" / generic "Business" when free text is vague
+        state: form.state || undefined,
+        district: form.district || undefined,
+        block: form.block || undefined,
+        village: form.village || undefined,
+        business_type: autoRecommend ? undefined : (form.category_code || undefined),
+        scale: form.preferred_scale || undefined,
+        capital_available: form.capital_available || undefined,
+        project_cost: undefined,
       })
       setAdvisoryReport(report)
     } catch (e: any) {
@@ -226,9 +234,6 @@ export function Analyze() {
     }
   }
 
-  // Exact pin placement is mandatory before a real analysis: any new pin
-  // placement (drag, map click, GPS, search result) invalidates a previous
-  // confirmation, so generate stays blocked until the exact spot is confirmed.
   const exactConfirmed =
     confirmedProposed !== null &&
     draftProposed !== null &&
@@ -242,7 +247,7 @@ export function Analyze() {
     setLoading(true)
     setError(null)
     try {
-      const payload = {
+      const payload: any = {
         state: form.state,
         district: form.district,
         block: form.block || undefined,
@@ -250,7 +255,8 @@ export function Analyze() {
         proposed_latitude: confirmedProposed ? confirmedProposed.lat : undefined,
         proposed_longitude: confirmedProposed ? confirmedProposed.lng : undefined,
         capital_available: form.capital_available,
-        category_code: form.category_code,
+        category_code: autoRecommend ? undefined : form.category_code,
+        auto_recommend: autoRecommend,
         business_experience: form.business_experience,
         existing_shop: form.existing_shop,
         existing_equipment: form.existing_equipment,
@@ -270,286 +276,306 @@ export function Analyze() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{tr('feasibilityPlanTitle', lang)}</h1>
-        <p className="text-sm text-gray-500">
-          {result ? tr('analyzeIntroResult', lang) : tr('analyzeIntroNoResult', lang)} {tr('viewResultDashboard', lang)}{result ? ` ${tr('viewUpdatedResult', lang)}` : ''} {tr('onDashboard', lang)}
-        </p>
-      </div>
-
-      {/* SIH26091: Multilingual NLP advisory — describe the business in plain words */}
-      <Card>
-        <CardHeader
-          title={tr('advisoryTitle', advisoryLang)}
-          subtitle={tr('advisorySubtitle', advisoryLang)}
-        />
-        <div className="space-y-3">
-          <textarea
-            value={advisoryText}
-            onChange={(e) => setAdvisoryText(e.target.value)}
-            rows={3}
-            placeholder={tr('advisoryPlaceholder', advisoryLang)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={advisoryLang}
-              onChange={(e) => setAdvisoryLang(e.target.value as Language)}
-              className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-700"
-            >
-              <option value="en">English</option>
-              <option value="ta">தமிழ்</option>
-              <option value="hi">हिंदी</option>
-            </select>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={parseAndPrefill}
-              disabled={advisoryParsing || !advisoryText.trim()}
-            >
-              {advisoryParsing ? tr('parsing', advisoryLang) : tr('parsePrefill', advisoryLang)}
-            </Button>
-            <Button
-              type="button"
-              onClick={runFullAdvisory}
-              disabled={advisoryLoading || !advisoryText.trim()}
-            >
-              {advisoryLoading ? tr('generating', advisoryLang) : tr('fullAdvisory', advisoryLang)}
-            </Button>
-            {advisoryNote && <span className="text-xs text-emerald-700">{advisoryNote}</span>}
-          </div>
-          {advisoryError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm text-red-700">{advisoryError}</div>
-          )}
-          {advisoryReport && <AdvisoryReportView report={advisoryReport} lang={advisoryLang} />}
+      <Spotlight>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{tr('feasibilityPlanTitle', lang)}</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {result ? tr('analyzeIntroResult', lang) : tr('analyzeIntroNoResult', lang)} {tr('viewResultDashboard', lang)}{result ? ` ${tr('viewUpdatedResult', lang)}` : ''} {tr('onDashboard', lang)}
+          </p>
         </div>
-      </Card>
+      </Spotlight>
 
-      <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-800">
-        <strong>{tr('quickStart', lang)}</strong> {tr('notSureWhatToEnter', lang)}{' '}
-        <button onClick={loadDemo} disabled={loading} className="font-semibold underline">
-          {loading ? tr('running', lang) : tr('loadDemoWorkspace', lang)}
-        </button>
-      </div>
+      <BackgroundBeams className="rounded-2xl border border-gray-200">
+        <div className="relative rounded-2xl bg-white/95 p-5 backdrop-blur-sm">
+          <CardHeader
+            title={tr('advisoryTitle', advisoryLang)}
+            subtitle={tr('advisorySubtitle', advisoryLang)}
+          />
+          <div className="space-y-3">
+            <textarea
+              value={advisoryText}
+              onChange={(e) => setAdvisoryText(e.target.value)}
+              rows={3}
+              placeholder={tr('advisoryPlaceholder', advisoryLang)}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+            />
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={advisoryLang}
+                onChange={(e) => setAdvisoryLang(e.target.value as Language)}
+                className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-700"
+              >
+                <option value="en">English</option>
+                <option value="ta">தமிழ்</option>
+                <option value="hi">हिंदी</option>
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={parseAndPrefill}
+                disabled={advisoryParsing || !advisoryText.trim()}
+              >
+                {advisoryParsing ? tr('parsing', advisoryLang) : tr('parsePrefill', advisoryLang)}
+              </Button>
+              <Button
+                type="button"
+                onClick={runFullAdvisory}
+                disabled={advisoryLoading || !advisoryText.trim()}
+              >
+                {advisoryLoading ? tr('generating', advisoryLang) : tr('fullAdvisory', advisoryLang)}
+              </Button>
+              {advisoryNote && <span className="text-xs font-medium text-emerald-700">{advisoryNote}</span>}
+            </div>
+            {advisoryError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm text-red-700">{advisoryError}</div>
+            )}
+            {advisoryReport && <AdvisoryReportView report={advisoryReport} lang={advisoryLang} />}
+          </div>
+        </div>
+      </BackgroundBeams>
+
+      <Card3D>
+        <div className="rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 via-cyan-50 to-white p-4 text-sm text-teal-900 shadow-sm">
+          <strong>{tr('quickStart', lang)}</strong> {tr('notSureWhatToEnter', lang)}{' '}
+          <button onClick={loadDemo} disabled={loading} className="font-semibold text-teal-700 underline decoration-teal-300 underline-offset-4 hover:text-teal-900">
+            {loading ? tr('running', lang) : tr('loadDemoWorkspace', lang)}
+          </button>
+        </div>
+      </Card3D>
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-      <form onSubmit={submit} className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader title={tr('yourLocation', lang)} subtitle={tr('yourLocationSub', lang)} />
-          <label className="mb-1 block text-xs font-medium text-gray-600">{tr('searchVillageBlock', lang)}</label>
-          <input
-            value={form.q}
-            onChange={(e) => setLocalForm((f) => ({ ...f, q: e.target.value }))}
-            placeholder={tr('searchPlaceholder', lang)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-          />
-          {searching && <p className="mt-1 text-xs text-gray-400">{tr('searching', lang)}</p>}
-          {locations.length > 0 && (
-            <ul className="mt-2 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white">
-              {locations.map((l) => (
-                <li key={l.id}>
-                  <button
-                    type="button"
-                    onClick={() => pickLocation(l)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-brand-50"
-                  >
-                    <span className="font-medium text-gray-800">
-                      {[l.village, l.block].filter(Boolean).join(', ')}
-                    </span>
-                    <span className="text-gray-400"> · {l.district}, {l.state}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <div className="mt-4 grid grid-cols-3 gap-3">
-            <Field label={tr('state', lang)} value={form.state} onChange={(v) => setLocalForm((f) => ({ ...f, state: v }))} />
-            <Field label={tr('district', lang)} value={form.district} onChange={(v) => setLocalForm((f) => ({ ...f, district: v }))} />
-            <Field label={tr('block', lang)} value={form.block} onChange={(v) => setLocalForm((f) => ({ ...f, block: v }))} />
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <Field label={tr('village', lang)} value={form.village} onChange={(v) => setLocalForm((f) => ({ ...f, village: v }))} />
-            <label className="text-xs text-gray-500">
-              <span className="font-medium">{tr('adminAreaCentre', lang)}</span>
-              <div className="mt-1 rounded-lg bg-gray-50 p-2 font-mono text-xs">
-                {form.latitude ? `${form.latitude.toFixed(4)}, ${form.longitude.toFixed(4)}` : tr('notPinned', lang)}
+      <form onSubmit={submit} className="space-y-6">
+        <BentoGrid className="md:grid-cols-2 lg:grid-cols-2">
+          <BentoCard title={tr('yourLocation', lang)} description={tr('yourLocationSub', lang)}>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">{tr('searchVillageBlock', lang)}</label>
+                <input
+                  value={form.q}
+                  onChange={(e) => setLocalForm((f) => ({ ...f, q: e.target.value }))}
+                  placeholder={tr('searchPlaceholder', lang)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                />
+                {searching && <p className="mt-1 text-xs text-gray-400">{tr('searching', lang)}</p>}
+                {locations.length > 0 && (
+                  <ul className="mt-2 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+                    {locations.map((l) => (
+                      <li key={l.id}>
+                        <button
+                          type="button"
+                          onClick={() => pickLocation(l)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-teal-50"
+                        >
+                          <span className="font-medium text-gray-800">
+                            {[l.village, l.block].filter(Boolean).join(', ')}
+                          </span>
+                          <span className="text-gray-400"> · {l.district}, {l.state}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-            </label>
-          </div>
-
-          {areaPinned && form.latitude && form.longitude ? (
-            <div className="mt-4">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-600">{tr('exactProposedShop', lang)}</span>
-                <span className="text-[10px] text-gray-400">{tr('dragPinOrClick', lang)}</span>
+              <div className="grid grid-cols-3 gap-3">
+                <Field label={tr('state', lang)} value={form.state} onChange={(v) => setLocalForm((f) => ({ ...f, state: v }))} />
+                <Field label={tr('district', lang)} value={form.district} onChange={(v) => setLocalForm((f) => ({ ...f, district: v }))} />
+                <Field label={tr('block', lang)} value={form.block} onChange={(v) => setLocalForm((f) => ({ ...f, block: v }))} />
               </div>
-              <ShopLocationPicker
-                latitude={form.latitude}
-                longitude={form.longitude}
-                confirmedLat={confirmedProposed ? confirmedProposed.lat : null}
-                confirmedLng={confirmedProposed ? confirmedProposed.lng : null}
-                onProposedChange={(lat, lng) => {
-                  setDraftProposed({ lat, lng })
-                  setConfirmedProposed(null)
-                }}
-              />
-              <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-xs text-gray-700">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="font-medium text-gray-800">{tr('competitorsAroundPoint', lang)}</span>
-                  {draftProposed && (
-                    <span className="text-[10px] text-gray-400">
-                      {tr('refreshOnMove', lang)} {liveCompLoading ? tr('searching', lang) : ''}
-                    </span>
-                  )}
-                </div>
-                {!draftProposed ? (
-                  <p className="text-gray-400">{tr('movePinToPreview', lang)}</p>
-                ) : liveCompError ? (
-                  <p className="text-red-600">{liveCompError}</p>
-                ) : liveComp ? (
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <strong className="text-base text-gray-900">
-                        {interpolate(tr('totalMapped', lang), { n: liveComp.competitors?.total_mapped ?? 0 })}
-                      </strong>
-                      <span className="text-emerald-700">{interpolate(tr('directCount', lang), { n: liveComp.competitors?.direct ?? 0 })}</span>
-                      <span className="text-amber-700">{interpolate(tr('indirectCount', lang), { n: liveComp.competitors?.indirect ?? 0 })}</span>
-                      {liveComp.competitors?.nearest_km != null && (
-                        <span>{interpolate(tr('nearestApprox', lang), { n: liveComp.competitors.nearest_km })}</span>
-                      )}
-                      <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] uppercase">
-                        {liveComp.data_status}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
-                      <span>
-                        {interpolate(tr('withinRadiusKm', lang), { n: Math.round((liveComp.search_radius_m || 3000) / 1000) })}
-                        {liveComp.data?.primary_source || 'OSM'}
-                      </span>
-                      {liveComp.confidence?.label && (
-                        <span>{tr('coverageLabel', lang)}{liveComp.confidence.label}</span>
-                      )}
-                      {liveComp.competitors?.rings &&
-                        Object.entries(liveComp.competitors.rings)
-                          .filter(([, v]) => Number(v) > 0)
-                          .slice(0, 4)
-                          .map(([k, v]) => (
-                            <span key={k}>
-                              {k.replace('m', ' m')}: {v}
-                            </span>
-                          ))}
-                    </div>
-                    <p className="text-[10px] text-gray-400">
-                      {liveComp.data?.note ||
-                        tr('zeroMappedNote', lang)}
-                    </p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label={tr('village', lang)} value={form.village} onChange={(v) => setLocalForm((f) => ({ ...f, village: v }))} />
+                <label className="text-xs text-gray-500">
+                  <span className="font-medium">{tr('adminAreaCentre', lang)}</span>
+                  <div className="mt-1 rounded-lg bg-gray-50 p-2 font-mono text-xs">
+                    {form.latitude ? `${form.latitude.toFixed(4)}, ${form.longitude.toFixed(4)}` : tr('notPinned', lang)}
                   </div>
-                ) : (
-                  <p className="text-gray-400">{tr('searchingDots', lang)}</p>
-                )}
+                </label>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-3">
-                {exactConfirmed ? (
-                  <span className="text-xs font-medium text-emerald-600">
-                    {interpolate(tr('confirmedLocation', lang), { lat: confirmedProposed.lat.toFixed(5), lng: confirmedProposed.lng.toFixed(5) })}
-                  </span>
-                ) : (
-                  <span className="text-xs font-medium text-amber-600">
-                    {tr('notConfirmed', lang)}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={confirmProposed}
-                  disabled={!draftProposed || !!confirmedProposed}
-                  className="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700 disabled:opacity-50"
+
+              {areaPinned && form.latitude && form.longitude ? (
+                <div className="pt-2">
+                  <div className="mb-1 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-gray-700">{tr('exactProposedShop', lang)}</span>
+                    <span className="text-[10px] text-gray-400">{tr('dragPinOrClick', lang)}</span>
+                  </div>
+                  <ShopLocationPicker
+                    latitude={form.latitude}
+                    longitude={form.longitude}
+                    confirmedLat={confirmedProposed ? confirmedProposed.lat : null}
+                    confirmedLng={confirmedProposed ? confirmedProposed.lng : null}
+                    onProposedChange={(lat, lng) => {
+                      setDraftProposed({ lat, lng })
+                      setConfirmedProposed(null)
+                    }}
+                  />
+                  <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-xs text-gray-700">
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="font-medium text-gray-800">{tr('competitorsAroundPoint', lang)}</span>
+                      {draftProposed && (
+                        <span className="text-[10px] text-gray-400">
+                          {tr('refreshOnMove', lang)} {liveCompLoading ? tr('searching', lang) : ''}
+                        </span>
+                      )}
+                    </div>
+                    {!draftProposed ? (
+                      <p className="text-gray-400">{tr('movePinToPreview', lang)}</p>
+                    ) : liveCompError ? (
+                      <p className="text-red-600">{liveCompError}</p>
+                    ) : liveComp ? (
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <strong className="text-base text-gray-900">
+                            {interpolate(tr('totalMapped', lang), { n: liveComp.competitors?.total_mapped ?? 0 })}
+                          </strong>
+                          <span className="text-emerald-700">{interpolate(tr('directCount', lang), { n: liveComp.competitors?.direct ?? 0 })}</span>
+                          <span className="text-amber-700">{interpolate(tr('indirectCount', lang), { n: liveComp.competitors?.indirect ?? 0 })}</span>
+                          {liveComp.competitors?.nearest_km != null && (
+                            <span>{interpolate(tr('nearestApprox', lang), { n: liveComp.competitors.nearest_km })}</span>
+                          )}
+                          <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] uppercase">
+                            {liveComp.data_status}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
+                          <span>
+                            {interpolate(tr('withinRadiusKm', lang), { n: Math.round((liveComp.search_radius_m || 3000) / 1000) })}
+                            {liveComp.data?.primary_source || 'OSM'}
+                          </span>
+                          {liveComp.confidence?.label && (
+                            <span>{tr('coverageLabel', lang)}{liveComp.confidence.label}</span>
+                          )}
+                          {liveComp.competitors?.rings &&
+                            Object.entries(liveComp.competitors.rings)
+                              .filter(([, v]) => Number(v) > 0)
+                              .slice(0, 4)
+                              .map(([k, v]) => (
+                                <span key={k}>
+                                  {k.replace('m', ' m')}: {v}
+                                </span>
+                              ))}
+                        </div>
+                        <p className="text-[10px] text-gray-400">
+                          {liveComp.data?.note ||
+                            tr('zeroMappedNote', lang)}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-gray-400">{tr('searchingDots', lang)}</p>
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    {exactConfirmed ? (
+                      <span className="text-xs font-medium text-emerald-600">
+                        {interpolate(tr('confirmedLocation', lang), { lat: confirmedProposed.lat.toFixed(5), lng: confirmedProposed.lng.toFixed(5) })}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium text-amber-600">
+                        {tr('notConfirmed', lang)}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={confirmProposed}
+                      disabled={!draftProposed || !!confirmedProposed}
+                      className="shrink-0 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-teal-700 disabled:opacity-50"
+                    >
+                      {confirmedProposed ? tr('confirmed', lang) : tr('confirmThisLocation', lang)}
+                    </button>
+                  </div>
+                  {!exactConfirmed && (
+                    <p className="mt-1 text-[11px] text-amber-600">
+                      {tr('confirmBeforeGenerate', lang)}
+                    </p>
+                  )}
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    {tr('pinUnconfirmedNote', lang)}
+                  </p>
+                </div>
+              ) : null}
+            </div>
+          </BentoCard>
+
+          <BentoCard title={tr('businessCapital', lang)} description={tr('businessCapitalSub', lang)}>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">{tr('businessCategory', lang)}</label>
+                <select
+                  value={form.category_code}
+                  onChange={(e) => setLocalForm((f) => ({ ...f, category_code: e.target.value }))}
+                  disabled={autoRecommend}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400 focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                 >
-                  {confirmedProposed ? tr('confirmed', lang) : tr('confirmThisLocation', lang)}
-                </button>
+                  {categories.length === 0 && <option value="dairy">{tr('catDairy', lang)}</option>}
+                  {categories.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs font-medium text-amber-900 hover:bg-amber-50">
+                  <input
+                    type="checkbox"
+                    checked={autoRecommend}
+                    onChange={(e) => setAutoRecommend(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-amber-300 text-teal-600 focus:ring-teal-500"
+                  />
+                  <span>🤖 AI Suggest — let GramBiz recommend the best business type for this location & budget</span>
+                </label>
+                {autoRecommend && <p className="mt-1 text-[11px] text-gray-500">Category is optional when AI Suggest is enabled. The analysis will return ranked suggestions.</p>}
               </div>
-              {!exactConfirmed && (
-                <p className="mt-1 text-[11px] text-amber-600">
-                  {tr('confirmBeforeGenerate', lang)}
-                </p>
-              )}
-              <p className="mt-1 text-[10px] text-gray-400">
-                {tr('pinUnconfirmedNote', lang)}
-              </p>
-            </div>
-          ) : null}
-        </Card>
-
-        <Card>
-          <CardHeader title={tr('businessCapital', lang)} subtitle={tr('businessCapitalSub', lang)} />
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">{tr('businessCategory', lang)}</label>
-              <select
-                value={form.category_code}
-                onChange={(e) => setLocalForm((f) => ({ ...f, category_code: e.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                {categories.length === 0 && <option value="dairy">{tr('catDairy', lang)}</option>}
-                {categories.map((c) => (
-                  <option key={c.code} value={c.code}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">
-                {tr('availableCapitalLabel', lang)}{form.capital_available.toLocaleString('en-IN')}
-              </label>
-              <input
-                type="range"
-                min={5000}
-                max={1000000}
-                step={5000}
-                value={form.capital_available}
-                onChange={(e) => setLocalForm((f) => ({ ...f, capital_available: Number(e.target.value) }))}
-                className="w-full"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">{tr('preferredScale', lang)}</label>
-              <div className="flex gap-2">
-                {['micro', 'small', 'medium'].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setLocalForm((f) => ({ ...f, preferred_scale: s }))}
-                    className={`flex-1 rounded-lg border px-3 py-1.5 text-sm capitalize ${
-                      form.preferred_scale === s
-                        ? 'border-brand-600 bg-brand-50 text-brand-700'
-                        : 'border-gray-300 text-gray-600'
-                    }`}
-                  >
-                    {tr(s as 'micro' | 'small' | 'medium', lang)}
-                  </button>
-                ))}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">
+                  {tr('availableCapitalLabel', lang)}{form.capital_available.toLocaleString('en-IN')}
+                </label>
+                <input
+                  type="range"
+                  min={5000}
+                  max={1000000}
+                  step={5000}
+                  value={form.capital_available}
+                  onChange={(e) => setLocalForm((f) => ({ ...f, capital_available: Number(e.target.value) }))}
+                  className="w-full accent-teal-600"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">{tr('preferredScale', lang)}</label>
+                <div className="flex gap-2">
+                  {['micro', 'small', 'medium'].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setLocalForm((f) => ({ ...f, preferred_scale: s }))}
+                      className={`flex-1 rounded-lg border px-3 py-1.5 text-sm capitalize ${
+                        form.preferred_scale === s
+                          ? 'border-teal-600 bg-teal-50 text-teal-700'
+                          : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {tr(s as 'micro' | 'small' | 'medium', lang)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <Toggle label={tr('experience', lang)} value={form.business_experience} onChange={(v) => setLocalForm((f) => ({ ...f, business_experience: v }))} lang={lang} />
+                <Toggle label={tr('hasShop', lang)} value={form.existing_shop} onChange={(v) => setLocalForm((f) => ({ ...f, existing_shop: v }))} lang={lang} />
+                <Toggle label={tr('hasEquip', lang)} value={form.existing_equipment} onChange={(v) => setLocalForm((f) => ({ ...f, existing_equipment: v }))} lang={lang} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">{tr('familyMembers', lang)}</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.family_members}
+                  onChange={(e) => setLocalForm((f) => ({ ...f, family_members: Number(e.target.value) }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                />
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              <Toggle label={tr('experience', lang)} value={form.business_experience} onChange={(v) => setLocalForm((f) => ({ ...f, business_experience: v }))} lang={lang} />
-              <Toggle label={tr('hasShop', lang)} value={form.existing_shop} onChange={(v) => setLocalForm((f) => ({ ...f, existing_shop: v }))} lang={lang} />
-              <Toggle label={tr('hasEquip', lang)} value={form.existing_equipment} onChange={(v) => setLocalForm((f) => ({ ...f, existing_equipment: v }))} lang={lang} />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-gray-600">{tr('familyMembers', lang)}</label>
-              <input
-                type="number"
-                min={0}
-                value={form.family_members}
-                onChange={(e) => setLocalForm((f) => ({ ...f, family_members: Number(e.target.value) }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-        </Card>
+          </BentoCard>
+        </BentoGrid>
 
-        <div className="lg:col-span-2 flex justify-between">
+        <div className="flex justify-between">
           <Button type="button" variant="outline" onClick={() => navigate('/')}>
             {tr('back', lang)}
           </Button>
@@ -588,7 +614,7 @@ function AdvisoryReportView({ report, lang }: { report: AdvisoryReport; lang: La
               {schemes.slice(0, 4).map((s) => (
                 <li key={s.scheme_code} className="flex items-center justify-between text-sm">
                   <span className="text-gray-800">{s.scheme_name}</span>
-                  <span className="rounded px-1.5 py-0.5 text-[10px] font-medium text-white bg-brand-600">
+                  <span className="rounded px-1.5 py-0.5 text-[10px] font-medium text-white bg-teal-600">
                     {Math.round(s.match_score)}% · {s.status.slice(0, 3)}
                   </span>
                 </li>
@@ -670,7 +696,7 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-medium text-gray-600">{label}</span>
-      <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+      <input value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500" />
     </label>
   )
 }
@@ -681,7 +707,7 @@ function Toggle({ label, value, onChange, lang }: { label: string; value: boolea
       type="button"
       onClick={() => onChange(!value)}
       className={`rounded-lg border px-3 py-2 text-sm ${
-        value ? 'border-brand-600 bg-brand-50 text-brand-700' : 'border-gray-300 text-gray-600'
+        value ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
       }`}
     >
       {label}: {value ? tr('yes', lang) : tr('no', lang)}

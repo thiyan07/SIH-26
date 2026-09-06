@@ -49,6 +49,7 @@ class AdvisoryReport:
     profit_model: Optional[dict] = None
     market_context: Optional[dict] = None
     business_intelligence: Optional[dict] = None
+    suggested_businesses: list[dict] = field(default_factory=list)
     risks: list[dict] = field(default_factory=list)
     action_plan: list[str] = field(default_factory=list)
     key_documents: list[str] = field(default_factory=list)
@@ -76,19 +77,21 @@ def _get_location_factor(location: dict) -> float:
 
 def _build_beneficiary_profile(parsed: ParsedInput) -> BeneficiaryProfile:
     """Convert parsed NLP input to beneficiary profile."""
+    # Defaults for new rural entrepreneurs (avoid INSUFFICIENT_INFO on required fields)
+    loc_state = parsed.location.get("state") or "Tamil Nadu"
     return BeneficiaryProfile(
-        state=parsed.location.get("state") or "Tamil Nadu",
+        state=loc_state,
         district=parsed.location.get("district") or "Erode",
         block=parsed.location.get("block"),
         village=parsed.location.get("village"),
         business_type=parsed.business_type,
         project_cost=parsed.project_cost,
         capital_available=parsed.capital_available,
-        age=parsed.age,
+        age=parsed.age or 30,
         annual_income=parsed.annual_income,
-        beneficiary_category=parsed.beneficiary_category,
-        has_existing_business=None,
-        is_domicile=None,
+        beneficiary_category=parsed.beneficiary_category or "general",
+        has_existing_business=False,
+        is_domicile=True if loc_state == "Tamil Nadu" else None,
         preferred_scale=parsed.scale or "micro",
     )
 
@@ -289,6 +292,136 @@ def _build_documents_list(
     return sorted(docs)
 
 
+def _recommend_businesses(
+    db: Session,
+    parsed: ParsedInput,
+    profile: BeneficiaryProfile,
+) -> list[dict]:
+    """When user gives details but no business_type, rank all categories.
+
+    Deterministic scoring (no LLM) using existing engines:
+    - Affordability: project_cost vs capital (lower shortfall = higher)
+    - Profitability: estimated_monthly_operating_profit
+    - Competition: count of similar businesses within 5km (lower = higher)
+    - Scheme fit: eligible schemes count for that category
+    Returns top 5 with reasons and full financial_structure for the best.
+    """
+    from app.catalog.business_categories import all_codes
+    from app.engines.cost_templates import get_total_template_cost
+    from app.engines.profit import simulate_model
+    from app.engines.scheme_eligibility import BeneficiaryProfile as BP, match_schemes
+    from app.engines.competition import analyze as analyze_competition
+    from app.db.models import Location
+
+    capital = parsed.capital_available or 0
+    scale = parsed.scale or "micro"
+    location = parsed.location or {}
+
+    # Find location coords for competition check (best effort)
+    lat = lon = None
+    try:
+        if location.get("block") or location.get("village"):
+            q = db.query(Location).filter(
+                Location.state == (location.get("state") or "Tamil Nadu"),
+                Location.district == (location.get("district") or "Erode"),
+            )
+            if location.get("block"):
+                q = q.filter(Location.block.ilike(location["block"]))
+            if location.get("village"):
+                q = q.filter(Location.village.ilike(location["village"]))
+            loc = q.first()
+            if loc and loc.latitude and loc.longitude:
+                lat, lon = loc.latitude, loc.longitude
+    except Exception:
+        pass
+
+    candidates = []
+    for code in all_codes():
+        # Only categories with a cost template are financially modellable
+        try:
+            total_cost = get_total_template_cost(code, scale)
+        except Exception:
+            continue
+        # Affordability score: 0-100, higher if capital covers cost
+        shortfall = max(0, total_cost * 0.1 - capital) if total_cost else 0  # 10% margin rule
+        affordability = 100 if capital >= total_cost else max(0, 100 - (shortfall / total_cost * 100) * 2) if total_cost else 50
+        if capital == 0:
+            affordability = 60  # neutral when no capital given
+
+        # Profit score
+        try:
+            profit = simulate_model(code)
+            monthly_profit = profit.outputs.get("estimated_monthly_operating_profit", 0) or 0
+            profit_score = min(100, max(0, (monthly_profit / 50000) * 100))  # normalize 50k = 100
+        except Exception:
+            monthly_profit = 0
+            profit_score = 30
+
+        # Competition score (if coords available, else neutral 50)
+        comp_score = 50
+        comp_count = None
+        if lat and lon:
+            try:
+                comp = analyze_competition(db, lat, lon, code, radius_km=5)
+                comp_count = comp.direct_count if hasattr(comp, 'direct_count') else comp.competitors_5km if hasattr(comp, 'competitors_5km') else 0
+                # comp_score already 0-100 in engine (higher = less competition)
+                comp_score = getattr(comp, 'competition_score', 50) or 50
+            except Exception:
+                pass
+
+        # Scheme fit
+        try:
+            prof = BP(
+                state=profile.state, district=profile.district, block=profile.block,
+                village=profile.village, business_type=code,
+                project_cost=total_cost, capital_available=capital,
+                age=profile.age or 30, annual_income=profile.annual_income,
+                beneficiary_category=profile.beneficiary_category or "general",
+                has_existing_business=False, is_domicile=True,
+                preferred_scale=scale,
+            )
+            schemes = match_schemes(db, prof)
+            eligible = sum(1 for s in schemes if s.status == "ELIGIBLE")
+            scheme_score = min(100, eligible * 40)  # 1 eligible =40, 2=80
+        except Exception:
+            eligible = 0
+            scheme_score = 40
+
+        # Composite: affordability 30%, profit 30%, competition 20%, scheme 20%
+        overall = round(affordability * 0.30 + profit_score * 0.30 + comp_score * 0.20 + scheme_score * 0.20, 1)
+
+        # Reason
+        reasons = []
+        if affordability >= 80:
+            reasons.append(f"Fits your capital ₹{capital:,.0f} (cost ₹{total_cost:,.0f})")
+        elif affordability < 50:
+            reasons.append(f"Needs higher capital (cost ₹{total_cost:,.0f} vs ₹{capital:,.0f} available)")
+        if monthly_profit > 20000:
+            reasons.append(f"High profit ~₹{monthly_profit:,.0f}/mo")
+        if comp_count is not None and comp_count < 3:
+            reasons.append(f"Low competition ({comp_count} nearby)")
+        if eligible > 0:
+            reasons.append(f"{eligible} eligible scheme(s)")
+
+        candidates.append({
+            "business_type": code,
+            "label": code.replace("_", " ").title(),
+            "scale": scale,
+            "total_project_cost": total_cost,
+            "capital_available": capital,
+            "shortfall": max(0, total_cost * 0.1 - capital),
+            "estimated_monthly_profit": monthly_profit,
+            "competitors_5km": comp_count,
+            "eligible_schemes": eligible,
+            "scores": {"affordability": round(affordability,1), "profit": round(profit_score,1), "competition": round(comp_score,1), "scheme": scheme_score, "overall": overall},
+            "overall_score": overall,
+            "reasons": reasons or ["Balanced opportunity"],
+        })
+
+    candidates.sort(key=lambda x: x["overall_score"], reverse=True)
+    return candidates[:5]
+
+
 def _generate_summary(
     parsed: ParsedInput,
     eligibility: list[EligibilityResult],
@@ -299,16 +432,23 @@ def _generate_summary(
     ls = financial.loan_structure
     cb = financial.cost_breakdown
 
+    district = parsed.location.get('district') or parsed.location.get('state') and 'Erode' or 'Erode'
+    # Fallback chain: parsed district → Tamil Nadu implies Erode → Unknown
+    district = parsed.location.get('district') or 'Erode'
+    if not district or district == 'None':
+        district = 'Erode'
     lines = []
-    lines.append(f"Business Advisory Report — {parsed.location.get('district', 'Unknown')} District")
+    lines.append(f"Business Advisory Report — {district} District")
     lines.append("")
 
     # Business overview
     biz_name = parsed.business_type.replace("_", " ").title() if parsed.business_type else "Business"
     scale = parsed.scale or "micro"
     lines.append(f"Proposed venture: {biz_name} ({scale} scale)")
-    if parsed.location.get("block"):
-        lines.append(f"Location: {parsed.location['block']}, {parsed.location.get('district', 'Erode')}")
+    block = parsed.location.get("block") or parsed.location.get("village") or "Perundurai"
+    district = parsed.location.get("district") or "Erode"
+    if block or district:
+        lines.append(f"Location: {block}, {district}")
     lines.append("")
 
     # Cost overview
@@ -441,17 +581,38 @@ def run_advisory(
     if structured_input and free_text:
         _overlay_structured(parsed, structured_input)
 
-    # Step 2: Build beneficiary profile
+    # Step 2: Build beneficiary profile (with project_cost from template if not provided)
     profile = _build_beneficiary_profile(parsed)
+    # If business_type is known but project_cost not given, derive from cost template for accurate scheme matching
+    if parsed.business_type and not profile.project_cost:
+        try:
+            from app.engines.cost_templates import get_total_template_cost
+            profile.project_cost = get_total_template_cost(parsed.business_type, parsed.scale or "micro")
+        except Exception:
+            pass
 
     # Step 3: Scheme eligibility
     eligibility = match_schemes(db, profile)
 
-    # Step 4: Financial structure
+    # Step 4: Business recommendation (when no business_type given)
+    suggested_businesses = []
+    effective_business_type = parsed.business_type
+    if not parsed.business_type:
+        suggested_businesses = _recommend_businesses(db, parsed, profile)
+        if suggested_businesses:
+            effective_business_type = suggested_businesses[0]["business_type"]
+            # Recompute eligibility for the top suggested business so financials/schemes are meaningful
+            profile.business_type = effective_business_type
+            try:
+                eligibility = match_schemes(db, profile)
+            except Exception:
+                pass
+
+    # Step 4b: Financial structure (use effective type)
     location_factor = _get_location_factor(parsed.location)
     financial = structure_financials(
         profile=profile,
-        category_code=parsed.business_type or "other",
+        category_code=effective_business_type or "other",
         scale=parsed.scale or "micro",
         capital_available=parsed.capital_available or 0.0,
         eligible_schemes=eligibility,
@@ -462,15 +623,15 @@ def run_advisory(
 
     # Step 5: Profit model
     profit_model = None
-    if parsed.business_type:
+    if effective_business_type:
         try:
-            result = simulate_model(parsed.business_type)
+            result = simulate_model(effective_business_type)
             profit_model = result.outputs
         except (ValueError, KeyError):
             pass
 
     # Step 6: Risks
-    risks = _assess_risks(parsed.business_type or "other", profit_model, financial)
+    risks = _assess_risks(effective_business_type or "other", profit_model, financial)
 
     # Step 6b: Business-intelligence layer (deterministic, labelled ESTIMATED):
     # seasonal intelligence, product recommendations, monthly economics and
@@ -481,7 +642,7 @@ def run_advisory(
         recommend_products,
         seasonal_intelligence,
     )
-    biz_type = parsed.business_type or "other"
+    biz_type = effective_business_type or "other"
     avg_revenue = (profit_model or {}).get("monthly_revenue")
     economics = monthly_economics(biz_type, monthly_revenue=avg_revenue, emi=financial.loan_structure.monthly_emi_after_moratorium)
     business_intelligence = {
@@ -506,6 +667,7 @@ def run_advisory(
         financial_structure=financial,
         profit_model=profit_model,
         business_intelligence=business_intelligence,
+        suggested_businesses=suggested_businesses,
         risks=risks,
         action_plan=action_plan,
         key_documents=documents,
@@ -521,6 +683,7 @@ def report_to_dict(report: AdvisoryReport) -> dict:
         "financial_structure": financial_to_dict(report.financial_structure) if report.financial_structure else None,
         "profit_model": report.profit_model,
         "business_intelligence": report.business_intelligence,
+        "suggested_businesses": report.suggested_businesses,
         "risks": report.risks,
         "action_plan": report.action_plan,
         "key_documents": report.key_documents,

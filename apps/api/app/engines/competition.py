@@ -54,6 +54,8 @@ class CompetitionResult:
     nearest_competitor: Optional[str] = None
     businesses: list[dict] = field(default_factory=list)
     demo_businesses: list[dict] = field(default_factory=list)
+    source_counts: dict = field(default_factory=dict)
+    sources: dict = field(default_factory=dict)
 
 
 def _level(count: int) -> str:
@@ -87,6 +89,43 @@ def _confidence(count: int, coverage: str) -> float:
     if count == 0 and coverage != "high":
         base *= 0.6  # "no mapped competitors" is less certain with low coverage
     return round(base, 2)
+
+
+def _source_breakdown(rows) -> tuple[dict, dict]:
+    """Provenance breakdown across the mapped-competitor set.
+
+    ``source_counts`` counts raw rows per ``source_name``. ``sources`` buckets
+    each canonical competitor: a row carrying a Google Maps confirmation
+    (ingested merges record it in ``tags[\"sources\"]`` / the
+    ``metadata_json[\"google_maps\"]`` block) is ``both``; otherwise the bucket
+    is derived from its ``source``/``source_name``.
+
+    ``mapped_competitors_5km``/``_10km`` keep using the raw row count. After
+    the Google Maps ingest merges a matching listing into its canonical OSM
+    row (never inserting a duplicate), one physical store equals one row, so
+    the raw count is already the unique-canonical count and these buckets are
+    non-inflated.
+    """
+    source_counts: dict[str, int] = {}
+    buckets = {"osm_only": 0, "google_maps_only": 0, "both": 0, "other": 0}
+    for r, _d in rows:
+        src_name = (r.source_name or "").strip() or (r.source_type or "unknown")
+        source_counts[src_name] = source_counts.get(src_name, 0) + 1
+
+        tags = r.tags or {}
+        sources = tags.get("sources") or (tags.get("source") and [tags["source"]])
+        google = bool((r.metadata_json or {}).get("google_maps"))
+        has_gm = "google_maps" in (sources or []) or google
+        has_osm = "osm" in (sources or []) or r.source == "osm" or r.source_type == "osm"
+        if has_gm and has_osm:
+            buckets["both"] += 1
+        elif has_gm:
+            buckets["google_maps_only"] += 1
+        elif has_osm:
+            buckets["osm_only"] += 1
+        else:
+            buckets["other"] += 1
+    return source_counts, buckets
 
 
 def analyze(
@@ -145,6 +184,7 @@ def analyze(
         if getattr(r, "is_demo", False)  # only report synthetic rows, never real
     ]
 
+    source_counts, buckets = _source_breakdown(rows)
     return CompetitionResult(
         mapped_competitors=count_5km,
         mapped_competitors_5km=count_5km,
@@ -167,6 +207,8 @@ def analyze(
             for r, d in rows[:50]
         ],
         demo_businesses=demo_businesses,
+        source_counts=source_counts,
+        sources=buckets,
     )
 
 
@@ -187,4 +229,6 @@ def to_dict(r: CompetitionResult, *, as_mapped: bool = True) -> dict:
         "note": "Mapped business data may be incomplete; competitor counts are minimums, not exhaustive.",
         "businesses": r.businesses,
         "demo_competitors": r.demo_businesses,
+        "source_counts": r.source_counts,
+        "sources": r.sources,
     }

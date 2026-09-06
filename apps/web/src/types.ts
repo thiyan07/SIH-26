@@ -257,6 +257,7 @@ export interface AnalysisResult {
     uses_proposed_location?: boolean
     source?: any
   }
+  suggested_businesses?: SuggestedBusiness[]
   population: any
   business_competition: {
     mapped_competitors_5km: number
@@ -356,12 +357,29 @@ export interface AdvisoryFinancialStructure {
   disclaimer?: string
 }
 
+export interface SuggestedBusiness {
+  business_type: string
+  label: string
+  scale: string
+  total_project_cost: number
+  capital_available: number
+  shortfall: number
+  estimated_monthly_profit: number
+  competitors_5km?: number | null
+  eligible_schemes: number
+  scores: { affordability: number; profit: number; competition: number; scheme: number; overall: number }
+  overall_score: number
+  reasons: string[]
+}
+
 export interface AdvisoryReport {
   parsed_input?: AdvisoryParseOutput
   beneficiary_profile?: any
   scheme_eligibility?: AdvisorySchemeMatch[]
   financial_structure?: AdvisoryFinancialStructure
   profit_model?: any
+  business_intelligence?: any
+  suggested_businesses?: SuggestedBusiness[]
   risks?: any
   action_plan?: any
   key_documents?: any

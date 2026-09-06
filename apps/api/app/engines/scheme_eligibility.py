@@ -114,7 +114,7 @@ def _check_business_type(eligible_types: Any, business_type: Optional[str]) -> t
     if business_type in eligible_types:
         return True, f"Business type: '{business_type}' is supported", ""
     # Also check broader categories (e.g., "dairy" might match "farming" umbrella)
-    return False, f"Business type: '{business_type}' is not in supported list", ""
+    return False, "", f"Business type: '{business_type}' is not in supported list"
 
 
 def _check_location(eligible_states: Any, eligible_districts: Any,
@@ -137,7 +137,7 @@ def _check_category_beneficiary(eligible_categories: Any, beneficiary_category: 
         return False, "", "Category: beneficiary category not specified"
     if beneficiary_category in eligible_categories:
         return True, f"Category: '{beneficiary_category}' is a target group", ""
-    return False, f"Category: '{beneficiary_category}' is not in target groups", ""
+    return False, "", f"Category: '{beneficiary_category}' is not in target groups"
 
 
 def _compute_score(passes: int, fails: int, missing: int, total: int) -> float:
@@ -304,7 +304,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
         score = _compute_score(passes, fails, missing_count, total_checks)
         status = _status_from_score(score, has_fail, all_info)
         
-        # Build scheme details for the response
+        # Build scheme details for the response — full requirement set for eligibility transparency
         details = {
             "code": scheme.code,
             "name": scheme.name,
@@ -321,6 +321,17 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
             "margin_pct": scheme.margin_pct,
             "beneficiary_contribution_pct": float(scheme.beneficiary_contribution_pct) if scheme.beneficiary_contribution_pct is not None else None,
             "subsidy_pct": float(scheme.subsidy_pct) if scheme.subsidy_pct is not None else None,
+            "eligible_business_types": scheme.eligible_business_types,
+            "eligible_states": scheme.eligible_states,
+            "eligible_districts": scheme.eligible_districts,
+            "target_beneficiary_categories": scheme.target_beneficiary_categories,
+            "min_age": scheme.min_age,
+            "max_age": scheme.max_age,
+            "min_annual_income": float(scheme.min_annual_income) if scheme.min_annual_income is not None else None,
+            "max_annual_income": float(scheme.max_annual_income) if scheme.max_annual_income is not None else None,
+            "requires_existing_business": scheme.requires_existing_business,
+            "requires_domicile": scheme.requires_domicile,
+            "category_eligibility_rules": scheme.category_eligibility_rules,
             "required_documents": scheme.required_documents,
             "application_authority": scheme.application_authority,
             "application_process": scheme.application_process,
