@@ -64,6 +64,8 @@ const dict = {
     ta: 'கடன் விளக்கம்',
     hi: 'ऋण व्याख्याकर्ता',
   },
+  navCompare: { en: 'Compare', ta: 'ஒப்பீடு', hi: 'तुलना' },
+  navHistory: { en: 'History', ta: 'வரலாறு', hi: 'इतिहास' },
   // ── Landing / common ──
   subtitle: {
     en: 'Hyper-Local Business Intelligence',

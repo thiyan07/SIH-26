@@ -4,6 +4,7 @@ import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
 import { Button, CardHeader } from '../components/ui'
 import { ShopLocationPicker } from '../components/ShopLocationPicker'
+import { VoiceInput } from '../components/VoiceInput'
 import { BackgroundBeams, Spotlight } from '../components/aceternity/BackgroundBeams'
 import { BentoGrid, BentoCard } from '../components/aceternity/BentoGrid'
 import { Card3D } from '../components/aceternity/Card3D'
@@ -94,7 +95,7 @@ export function Analyze() {
     // Instant for single letter: filter from local Erode cache
     if (q.length === 1 && erodeCache) {
       const low = q.toLowerCase()
-      const instant = erodeCache.filter(l => l.village.toLowerCase().startsWith(low) || l.block.toLowerCase().startsWith(low)).slice(0, 15)
+      const instant = erodeCache.filter(l => (l.village || '').toLowerCase().startsWith(low) || (l.block || '').toLowerCase().startsWith(low)).slice(0, 15)
       if (instant.length) setLocations(instant)
     } else if (searchCache.current.has(q.toLowerCase())) {
       setLocations(searchCache.current.get(q.toLowerCase())!)
@@ -325,6 +326,7 @@ export function Analyze() {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             />
             <div className="flex flex-wrap items-center gap-2">
+              <VoiceInput lang={advisoryLang} onResult={(t) => setAdvisoryText((prev) => (prev ? prev + ' ' : '') + t)} />
               <select
                 value={advisoryLang}
                 onChange={(e) => setAdvisoryLang(e.target.value as Language)}

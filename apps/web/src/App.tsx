@@ -13,6 +13,8 @@ import { Report } from './pages/Report'
 import { Schemes } from './pages/Schemes'
 import { DataSources } from './pages/DataSources'
 import { LoanExplainer } from './pages/LoanExplainer'
+import { Compare } from './pages/Compare'
+import { History } from './pages/History'
 
 export default function App() {
   const location = useLocation()
@@ -31,6 +33,8 @@ export default function App() {
         <Route path="/schemes" element={<Guarded><Schemes /></Guarded>} />
         <Route path="/data-sources" element={<Guarded><DataSources /></Guarded>} />
       <Route path="/loan-explainer" element={<Guarded><LoanExplainer /></Guarded>} />
+      <Route path="/compare" element={<Guarded><Compare /></Guarded>} />
+      <Route path="/history" element={<Guarded><History /></Guarded>} />
       </Routes>
     </Layout>
   )

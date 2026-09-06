@@ -53,9 +53,28 @@ export function Report() {
             {result.location.village || result.location.block} · {result.location.district}, {result.location.state} — {tr('generatedPrefix', lang)} {new Date().toLocaleDateString()}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={() => window.print()} variant="outline">{tr('printSave', lang)}</Button>
           <Button onClick={loadReport} disabled={loadingAi}>{loadingAi ? tr('generating', lang) : tr('regenerateNarrative', lang)}</Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const text = `GramBiz AI Report: ${result.location.village}, ${result.location.district} - Score ${s.overall_score}/100 (${rec.label}) - ${window.location.href}`
+              const url = `https://wa.me/?text=${encodeURIComponent(text)}`
+              window.open(url, '_blank')
+            }}
+          >
+            WhatsApp
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href)
+              alert('Link copied')
+            }}
+          >
+            Copy Link
+          </Button>
         </div>
       </div>
 
