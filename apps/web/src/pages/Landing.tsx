@@ -3,7 +3,7 @@ import { tr, type Language } from '../lib/i18n'
 import { useAnalysis } from '../lib/analysisStore'
 import { lazy, Suspense } from 'react'
 import { ErrorBoundary } from '../components/ErrorBoundary'
-const Globe = lazy(() => import('../components/three/Globe').then(m => ({ default: m.Globe })))
+const Globe = lazy(() => import('../components/three/Globe'))
 
 const FEATURES = [
   { icon: '📍', title: 'Hyper-local mapping', desc: 'OSM-cached businesses within 10 km of your pin — no invented data.' },

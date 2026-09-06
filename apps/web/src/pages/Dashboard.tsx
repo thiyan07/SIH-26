@@ -17,7 +17,7 @@ import { Spotlight } from '../components/aceternity/BackgroundBeams'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { tr, interpolate, recommendationLabel, type Language } from '../lib/i18n'
 
-const Globe = lazy(() => import('../components/three/Globe').then(m => ({ default: m.Globe })))
+const Globe = lazy(() => import('../components/three/Globe'))
 
 function SafeGlobe(props: { businesses: { lat: number; lon: number }[]; className?: string }) {
   return (
