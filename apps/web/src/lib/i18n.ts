@@ -66,6 +66,8 @@ const dict = {
   },
   navCompare: { en: 'Compare', ta: 'ஒப்பீடு', hi: 'तुलना' },
   navHistory: { en: 'History', ta: 'வரலாறு', hi: 'इतिहास' },
+  navExpenses: { en: 'Ledger', ta: 'பேரேடு', hi: 'बहीखाता' },
+  navVideos: { en: 'Videos', ta: 'வீடியோ', hi: 'वीडियो' },
   // ── Landing / common ──
   subtitle: {
     en: 'Hyper-Local Business Intelligence',

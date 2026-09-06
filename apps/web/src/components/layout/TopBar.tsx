@@ -9,12 +9,17 @@ export function TopBar() {
   const nav = useNavigate()
   const [q,setQ] = useState('')
   const [cmdOpen,setCmdOpen] = useState(false)
+  const [dark, setDark] = useState(() => typeof window !== 'undefined' && localStorage.getItem('grambiz.theme') === 'dark')
 
   // cmd+k
   useEffect(()=>{
     const h=(e:KeyboardEvent)=>{ if((e.metaKey||e.ctrlKey)&& e.key.toLowerCase()==='k'){ e.preventDefault(); setCmdOpen(v=>!v)}}
     window.addEventListener('keydown',h); return ()=>window.removeEventListener('keydown',h)
   },[])
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark)
+    localStorage.setItem('grambiz.theme', dark ? 'dark' : 'light')
+  }, [dark])
 
   const breadcrumb = loc.pathname==='/' ? 'Home' : loc.pathname.replace('/','').replace('-',' ').replace(/\b\w/g,c=>c.toUpperCase())
 
@@ -42,6 +47,13 @@ export function TopBar() {
           {result && <span className="hidden rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 sm:inline">● Analysis ready</span>}
           {!result && <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 sm:inline">No analysis yet</span>}
 
+          <button
+            onClick={() => setDark(v => !v)}
+            className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm hover:bg-slate-50"
+            title={dark ? 'Switch to light' : 'Switch to dark'}
+          >
+            {dark ? '☀️' : '🌙'}
+          </button>
           <select value={lang} onChange={e=>setLang(e.target.value as Language)} className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm">
             <option value="en">EN</option><option value="ta">TA</option><option value="hi">HI</option>
           </select>

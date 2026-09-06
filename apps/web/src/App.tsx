@@ -15,6 +15,8 @@ import { DataSources } from './pages/DataSources'
 import { LoanExplainer } from './pages/LoanExplainer'
 import { Compare } from './pages/Compare'
 import { History } from './pages/History'
+import { ExpenseTracker } from './pages/ExpenseTracker'
+import { VideoTutorials } from './pages/VideoTutorials'
 
 export default function App() {
   const location = useLocation()
@@ -35,6 +37,8 @@ export default function App() {
       <Route path="/loan-explainer" element={<Guarded><LoanExplainer /></Guarded>} />
       <Route path="/compare" element={<Guarded><Compare /></Guarded>} />
       <Route path="/history" element={<Guarded><History /></Guarded>} />
+      <Route path="/expenses" element={<Guarded><ExpenseTracker /></Guarded>} />
+      <Route path="/videos" element={<Guarded><VideoTutorials /></Guarded>} />
       </Routes>
     </Layout>
   )

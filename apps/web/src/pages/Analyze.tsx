@@ -622,6 +622,15 @@ export function Analyze() {
   )
 }
 
+function speak(text: string, lang: Language) {
+  if (!('speechSynthesis' in window)) return
+  const utter = new SpeechSynthesisUtterance(text)
+  utter.lang = lang === 'ta' ? 'ta-IN' : lang === 'hi' ? 'hi-IN' : 'en-IN'
+  utter.rate = 0.9
+  speechSynthesis.cancel()
+  speechSynthesis.speak(utter)
+}
+
 function AdvisoryReportView({ report, lang }: { report: AdvisoryReport; lang: Language }) {
   const fs = report.financial_structure
   const ls = fs?.loan_structure
@@ -629,7 +638,18 @@ function AdvisoryReportView({ report, lang }: { report: AdvisoryReport; lang: La
   const schemes = report.scheme_eligibility ?? []
   return (
     <div className="mt-3 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-      <h3 className="text-sm font-bold text-gray-900">{tr('fullReportTitle', lang)}</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-gray-900">{tr('fullReportTitle', lang)}</h3>
+        {summary && (
+          <button
+            onClick={() => speak(summary.slice(0, 400), lang)}
+            className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800"
+            title="Listen in Tamil/Hindi/English"
+          >
+            🔊 Listen
+          </button>
+        )}
+      </div>
 
       {summary && <p className="rounded-lg bg-white p-3 text-sm text-gray-700">{summary}</p>}
 

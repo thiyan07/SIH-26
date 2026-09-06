@@ -75,6 +75,12 @@ export function Report() {
           >
             Copy Link
           </Button>
+          <img
+            src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(window.location.href)}`}
+            alt="QR"
+            className="h-10 w-10 rounded-lg border border-slate-200 bg-white p-1"
+            title="Scan to open report"
+          />
         </div>
       </div>
 

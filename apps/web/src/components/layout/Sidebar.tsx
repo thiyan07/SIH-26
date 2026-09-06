@@ -16,6 +16,8 @@ const ITEMS: Item[] = [
   { to: '/loan-explainer', labelKey: 'navLoanExplainer', icon: '🎓', desc: 'Learn', group: 'Output' },
   { to: '/compare', labelKey: 'navCompare' as any, icon: '⚖️', desc: 'Village vs', group: 'Output' },
   { to: '/history', labelKey: 'navHistory' as any, icon: '🕘', desc: 'Past runs', group: 'Output' },
+  { to: '/expenses', labelKey: 'navExpenses' as any, icon: '💰', desc: 'Ledger', group: 'Money' },
+  { to: '/videos', labelKey: 'navVideos' as any, icon: '🎥', desc: 'Learn', group: 'Output' },
 ]
 
 const GROUPS = ['Plan','Discover','Money','Output'] as const
