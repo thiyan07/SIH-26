@@ -16,14 +16,22 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 def search_locations(q: str = "", state: str = "", district: str = "", limit: int = 20, db: Session = Depends(get_db)):
     stmt = select(Location)
     if q:
-        like = f"%{q}%"
-        stmt = stmt.where(or_(Location.village.ilike(like), Location.block.ilike(like),
-                              Location.district.ilike(like), Location.state.ilike(like)))
+        q = q.strip()
+        if len(q) == 1:
+            # Single letter: prefix match for instant first-letter suggestions, much faster with index
+            like = f"{q}%"
+            stmt = stmt.where(or_(Location.village.ilike(like), Location.block.ilike(like)))
+        else:
+            like = f"%{q}%"
+            stmt = stmt.where(or_(Location.village.ilike(like), Location.block.ilike(like),
+                                  Location.district.ilike(like), Location.state.ilike(like)))
+        # Prioritize village prefix matches
+        stmt = stmt.order_by(Location.village)
     if state:
         stmt = stmt.where(Location.state == state)
     if district:
         stmt = stmt.where(Location.district == district)
-    stmt = stmt.limit(max(1, min(limit, 100)))
+    stmt = stmt.limit(max(1, min(limit, 50)))
     return list(db.execute(stmt).scalars())
 
 

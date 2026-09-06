@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
@@ -76,18 +76,43 @@ export function Analyze() {
       .catch(() => setCategories([]))
   }, [])
 
+  // Instant first-letter search: preload Erode villages for client-side filtering
+  const [erodeCache, setErodeCache] = useState<LocationOut[] | null>(null)
+  const searchCache = useRef<Map<string, LocationOut[]>>(new Map())
   useEffect(() => {
-    if (!form.q.trim()) {
+    api.get<LocationOut[]>(`/locations/search?district=Erode&limit=600`)
+      .then((r) => setErodeCache(r))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const q = form.q.trim()
+    if (!q) {
       setLocations([])
       return
     }
+    // Instant for single letter: filter from local Erode cache
+    if (q.length === 1 && erodeCache) {
+      const low = q.toLowerCase()
+      const instant = erodeCache.filter(l => l.village.toLowerCase().startsWith(low) || l.block.toLowerCase().startsWith(low)).slice(0, 15)
+      if (instant.length) setLocations(instant)
+    } else if (searchCache.current.has(q.toLowerCase())) {
+      setLocations(searchCache.current.get(q.toLowerCase())!)
+      return
+    }
     setSearching(true)
-    api
-      .get<LocationOut[]>(`/locations/search?q=${encodeURIComponent(form.q)}&limit=15`)
-      .then((r) => setLocations(r))
-      .catch(() => setLocations([]))
-      .finally(() => setSearching(false))
-  }, [form.q])
+    const timer = window.setTimeout(() => {
+      api
+        .get<LocationOut[]>(`/locations/search?q=${encodeURIComponent(q)}&limit=15`)
+        .then((r) => {
+          searchCache.current.set(q.toLowerCase(), r)
+          setLocations(r)
+        })
+        .catch(() => setLocations([]))
+        .finally(() => setSearching(false))
+    }, q.length === 1 ? 80 : 200)
+    return () => window.clearTimeout(timer)
+  }, [form.q, erodeCache])
 
   useEffect(() => {
     if (!draftProposed) {
