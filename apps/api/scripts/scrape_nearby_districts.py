@@ -28,8 +28,15 @@ log = logging.getLogger("scrape.nearby")
 
 STATE = "Tamil Nadu"
 BASE_TMPL = "https://villageinfo.in/tamil-nadu/{district}/"
+# District slug mapping for VillageInfo URLs (some have special slugs)
+DISTRICT_SLUGS = {
+    "The Nilgiris": "the-nilgiris",
+    "Nilgiris": "the-nilgiris",
+    "Viluppuram": "viluppuram",
+    "Villupuram": "viluppuram",
+}
 
-# Fallback centroids per district (approx district HQ)
+# Fallback centroids per district (approx district HQ) - 15 districts total
 FALLBACKS = {
     "Coimbatore": (11.0168, 76.9558),
     "Tiruppur": (11.1085, 77.3411),
@@ -37,9 +44,19 @@ FALLBACKS = {
     "Salem": (11.6643, 78.1460),
     "Erode": (11.346, 77.716),
     "Karur": (10.9601, 78.0766),
+    "The Nilgiris": (11.4102, 76.6950),
     "Nilgiris": (11.4102, 76.6950),
+    "Dindigul": (10.3673, 77.9803),
+    "Tiruchirappalli": (10.7905, 78.7047),
+    "Dharmapuri": (12.1278, 78.1582),
+    "Krishnagiri": (12.5186, 78.2140),
+    "Theni": (10.0104, 77.4768),
+    "Pudukkottai": (10.3803, 78.8208),
+    "Thanjavur": (10.7870, 79.1378),
+    "Viluppuram": (11.9401, 79.4861),
+    "Villupuram": (11.9401, 79.4861),
 }
-ALL_NEARBY = ["Coimbatore", "Tiruppur", "Namakkal", "Salem"]
+ALL_NEARBY = ["Coimbatore", "Tiruppur", "Namakkal", "Salem", "Karur", "The Nilgiris", "Dindigul", "Tiruchirappalli", "Dharmapuri", "Krishnagiri", "Theni", "Pudukkottai", "Thanjavur", "Viluppuram"]
 
 HEADERS = {"User-Agent": "GramBiz AI (SIH 2026) VillageInfo scraper"}
 
@@ -53,19 +70,18 @@ def _fetch(url: str) -> str:
         return resp.read().decode(charset, errors="replace")
 
 def _talukas(district: str) -> list[str]:
-    url = BASE_TMPL.format(district=district.lower())
+    slug = DISTRICT_SLUGS.get(district, district.lower())
+    url = BASE_TMPL.format(district=slug)
     html = _fetch(url)
     soup = BeautifulSoup(html, "lxml")
     talukas = []
     for a in soup.select("table a[href*='/tamil-nadu/']"):
         href = a.get("href", "")
         # href like /tamil-nadu/coimbatore/sulur/
-        m = re.search(rf"/{district.lower()}/([^/]+)/", href, re.IGNORECASE)
+        m = re.search(rf"/{slug}/([^/]+)/", href, re.IGNORECASE)
         if m:
             txt = a.get_text(strip=True)
-            if txt and txt.lower() not in ("coimbatore", district.lower()):
-                # Filter out non-taluka links, but keep talukas (we check via table header)
-                # The taluka table has heading "List of Talukas in X District"
+            if txt and txt.lower() not in ("coimbatore", district.lower(), slug):
                 talukas.append(txt)
     # Dedupe and filter to plausible taluka names (capitalized, not too long)
     seen=set()
@@ -84,13 +100,14 @@ def _talukas(district: str) -> list[str]:
 
 def _villages_for_taluka(district: str, taluka: str) -> list[str]:
     slug = taluka.lower().replace(" ", "-")
-    url = f"{BASE_TMPL.format(district=district.lower())}{slug}/"
+    dslug = DISTRICT_SLUGS.get(district, district.lower())
+    url = f"{BASE_TMPL.format(district=dslug)}{slug}/"
     html = _fetch(url)
     soup = BeautifulSoup(html, "lxml")
     villages = []
     for a in soup.select("table a[href*='/tamil-nadu/']"):
         href = a.get("href", "")
-        if f"/{district.lower()}/{slug}/" in href.lower() and href.count("/") >= 5:
+        if f"/{dslug}/{slug}/" in href.lower() and href.count("/") >= 5:
             villages.append(a.get_text(strip=True))
     seen=set()
     uniq=[]
@@ -127,13 +144,14 @@ def scrape_district(district: str, *, dry_run: bool = False) -> dict:
             if key in existing:
                 stats["exists"]+=1
                 continue
+            dslug = DISTRICT_SLUGS.get(district, district.lower())
             if not dry_run:
                 loc = Location(
                     state=STATE, district=district, block=taluka, village=village,
                     latitude=fallback_lat, longitude=fallback_lon,
                     geo_precision="village",
                     source_name="VillageInfo.in (district village directory)",
-                    source_url=f"https://villageinfo.in/tamil-nadu/{district.lower()}/{taluka.lower().replace(' ','-')}/",
+                    source_url=f"https://villageinfo.in/tamil-nadu/{dslug}/{taluka.lower().replace(' ','-')}/",
                     dataset_name=f"villageinfo_{district.lower()}_villages",
                     source_type="government",
                     geographic_level="village", confidence="medium",
