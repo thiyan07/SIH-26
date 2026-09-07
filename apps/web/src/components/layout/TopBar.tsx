@@ -24,14 +24,14 @@ export function TopBar() {
   const breadcrumb = loc.pathname==='/' ? 'Home' : loc.pathname.replace('/','').replace('-',' ').replace(/\b\w/g,c=>c.toUpperCase())
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-slate-200/60 bg-white/80 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-900/80">
       <div className="mx-auto flex h-[60px] max-w-[1600px] items-center justify-between gap-3 px-3 sm:px-4">
         <div className="flex items-center gap-3">
           <Link to="/" className="flex items-center gap-2.5">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-600 to-cyan-600 font-extrabold text-white shadow-md">G</span>
             <div className="hidden leading-tight sm:block">
-              <div className="text-sm font-extrabold tracking-tight text-slate-900">GramBiz AI</div>
-              <div className="text-[10px] font-medium text-slate-500">{tr('subtitle', lang)}</div>
+              <div className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">GramBiz AI</div>
+              <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400">{tr('subtitle', lang)}</div>
             </div>
             <span className="hidden rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 lg:inline">SIH 26091</span>
           </Link>
@@ -49,13 +49,13 @@ export function TopBar() {
 
           <button
             onClick={() => setDark(v => !v)}
-            className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm hover:bg-slate-50"
+            className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             title={dark ? 'Switch to light' : 'Switch to dark'}
           >
             {dark ? '☀️' : '🌙'}
           </button>
-          <select value={lang} onChange={e=>setLang(e.target.value as Language)} className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm">
-            <option value="en">EN</option><option value="ta">TA</option><option value="hi">HI</option>
+          <select value={lang} onChange={e=>setLang(e.target.value as Language)} className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+            <option value="en" className="dark:bg-slate-800">EN</option><option value="ta" className="dark:bg-slate-800">TA</option><option value="hi" className="dark:bg-slate-800">HI</option>
           </select>
           <Link to="/analyze" className="hidden rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow hover:bg-slate-800 sm:inline">Analyze →</Link>
         </div>
