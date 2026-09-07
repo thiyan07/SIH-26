@@ -18,6 +18,8 @@ import { History } from './pages/History'
 import { ExpenseTracker } from './pages/ExpenseTracker'
 import { VideoTutorials } from './pages/VideoTutorials'
 import { Community } from './pages/Community'
+import { DocumentVault } from './pages/DocumentVault'
+import { Security } from './pages/Security'
 
 export default function App() {
   const location = useLocation()
@@ -41,6 +43,8 @@ export default function App() {
       <Route path="/expenses" element={<Guarded><ExpenseTracker /></Guarded>} />
       <Route path="/videos" element={<Guarded><VideoTutorials /></Guarded>} />
       <Route path="/community" element={<Guarded><Community /></Guarded>} />
+      <Route path="/vault" element={<Guarded><DocumentVault /></Guarded>} />
+      <Route path="/security" element={<Guarded><Security /></Guarded>} />
       </Routes>
     </Layout>
   )

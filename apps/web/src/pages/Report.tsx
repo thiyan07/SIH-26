@@ -6,6 +6,7 @@ import { ScoreDonut } from '../components/ScoreDonut'
 import { formatINR } from './Dashboard'
 import { recommendationLabel, tr, type Language } from '../lib/i18n'
 import { downloadCSV, downloadJSON, printElement } from '../lib/export'
+import { TTSButton } from '../components/TTS'
 
 export function Report() {
   const { result, lang } = useAnalysis()
@@ -125,7 +126,7 @@ export function Report() {
 
       <div id="report-print" className="space-y-6 print:space-y-4">
         <Card>
-          <CardHeader title={tr('executiveSummary', lang)} />
+          <CardHeader title={tr('executiveSummary', lang)} action={<TTSButton text={`${tr('overallOpportunity', lang)} ${s.overall_score} out of 100. ${rec.reason}`} lang={lang as any} />} />
           <div className="flex flex-wrap items-center gap-6">
             <ScoreDonut value={s.overall_score} size={120} />
             <div className="min-w-[220px] flex-1">

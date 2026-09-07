@@ -5,6 +5,7 @@ import { Card, CardHeader, Provenance } from '../components/ui'
 import { BusinessMap } from '../components/BusinessMap'
 import { pointsFromGeoJSON } from '../lib/geo'
 import { interpolate, tr, type Language } from '../lib/i18n'
+import { SupplierMarketplace } from '../components/SupplierMarketplace'
 import type { AnalysisResult, InfrastructurePoint, LocationOut, MapLayersResponse, MapPoint, MarketIntelligenceResponse } from '../types'
 
 const BUSINESS_CATEGORY_LABEL: Record<string, keyof typeof import('../lib/i18n')['dict']> = {
@@ -174,6 +175,11 @@ export function Market() {
           )}
         </Card>
       </div>
+
+      <Card>
+        <CardHeader title="Supplier Marketplace" subtitle="Trusted suppliers near your village — WhatsApp to order" />
+        <SupplierMarketplace />
+      </Card>
 
       {/* Category-aware verified prices + evidence */}
       <Card>

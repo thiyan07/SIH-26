@@ -17,6 +17,7 @@ import { Spotlight } from '../components/aceternity/BackgroundBeams'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { WeatherForecast } from '../components/WeatherForecast'
 import { GamificationCard, ProfileEditor } from '../components/Gamification'
+import { FarmingTips } from '../components/FarmingTips'
 import { tr, interpolate, recommendationLabel, type Language } from '../lib/i18n'
 import { downloadCSV, downloadJSON } from '../lib/export'
 
@@ -341,6 +342,7 @@ export function Dashboard() {
       )}
       {/* 7-day forecast for the pinned village */}
       <WeatherForecast lat={result.location.latitude} lon={result.location.longitude} />
+      <FarmingTips />
       <div className="grid gap-6 lg:grid-cols-2">
         <GamificationCard />
         <ProfileEditor />

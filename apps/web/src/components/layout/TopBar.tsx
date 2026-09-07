@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAnalysis } from '../../lib/analysisStore'
 import { tr, type Language } from '../../lib/i18n'
+import { NotificationsCenter } from '../Notifications'
 import { useEffect, useState } from 'react'
 
 export function TopBar() {
@@ -54,6 +55,7 @@ export function TopBar() {
           {!result && <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 sm:inline">No analysis yet</span>}
 
 
+          <NotificationsCenter />
           <button
             onClick={()=>setTheme(theme==='dark'?'light':'dark')}
             aria-label="Toggle theme"
@@ -75,29 +77,64 @@ export function TopBar() {
 }
 
 function CommandPalette({ q, setQ, onClose, nav, lang }: { q:string; setQ:(s:string)=>void; onClose:()=>void; nav: ReturnType<typeof useNavigate>; lang: Language }) {
-  const items = [
-    { to: '/analyze', label: tr('navAnalyze', lang), hint: 'New feasibility' },
-    { to: '/dashboard', label: tr('navDashboard', lang), hint: 'Score & profit' },
-    { to: '/market', label: tr('navMarket', lang), hint: 'Prices & map' },
-    { to: '/finance', label: tr('navFinance', lang), hint: 'Loan schedule' },
-    { to: '/schemes', label: tr('navSchemes', lang), hint: 'Eligibility' },
-    { to: '/report', label: tr('navReport', lang), hint: 'Print / PDF' },
-  ].filter(i=> !q || i.label.toLowerCase().includes(q.toLowerCase()))
+  const [recent, setRecent] = useState<string[]>(()=>{
+    try { return JSON.parse(localStorage.getItem('grambiz.recentSearch')||'[]') } catch { return [] }
+  })
+  const saveRecent = (term: string) => {
+    if (term.trim().length<2) return
+    setRecent(prev=>{
+      const next = [term, ...prev.filter(r=>r!==term)].slice(0,5)
+      localStorage.setItem('grambiz.recentSearch', JSON.stringify(next))
+      return next
+    })
+  }
+  const allItems = [
+    { to: '/analyze', label: tr('navAnalyze', lang), hint: 'New feasibility', keys: 'analyze village' },
+    { to: '/dashboard', label: tr('navDashboard', lang), hint: 'Score & profit', keys: 'dashboard score' },
+    { to: '/market', label: tr('navMarket', lang), hint: 'Prices & map', keys: 'market prices map' },
+    { to: '/finance', label: tr('navFinance', lang), hint: 'Loan schedule', keys: 'finance loan emi' },
+    { to: '/schemes', label: tr('navSchemes', lang), hint: 'Eligibility', keys: 'schemes subsidy' },
+    { to: '/report', label: tr('navReport', lang), hint: 'Print / PDF', keys: 'report pdf print' },
+    { to: '/map', label: tr('navMap', lang), hint: 'Live map', keys: 'map business' },
+    { to: '/simulator', label: tr('navSimulator', lang), hint: 'What-if', keys: 'simulator whatif' },
+    { to: '/community', label: tr('navData', lang), hint: 'Community', keys: 'community stories' },
+    { to: '/vault', label: 'Vault', hint: 'Documents', keys: 'vault docs' },
+  ]
+  // fuzzy: match if all chars of query appear in order in label/hint/keys
+  const fuzzy = (text: string, query: string) => {
+    if (!query) return true
+    let qi=0
+    text=text.toLowerCase()
+    query=query.toLowerCase()
+    for (let c of text) { if (c===query[qi]) qi++; if (qi===query.length) return true }
+    return query.length<=2 ? text.includes(query) : false
+  }
+  const items = allItems.filter(i=> !q || fuzzy(`${i.label} ${i.hint} ${i.keys}`, q))
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/30 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl" onClick={e=>e.stopPropagation()}>
         <div className="flex items-center gap-3 border-b p-3">
           <span className="text-slate-500">⌕</span>
-          <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Jump to Dashboard, Finance, Schemes..." className="w-full bg-transparent text-sm outline-none placeholder:text-slate-500" />
+          <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder="Jump to Dashboard, Finance, Schemes..." className="w-full bg-transparent text-sm outline-none placeholder:text-slate-500" data-testid="command-input" />
           <button onClick={onClose} className="rounded-lg bg-slate-100 px-2 py-1 text-xs">ESC</button>
         </div>
+        {recent.length>0 && !q && (
+          <div className="border-b p-2 dark:border-slate-700">
+            <div className="px-2 py-1 text-[11px] font-bold uppercase tracking-widest text-slate-500">Recent</div>
+            <div className="flex flex-wrap gap-1.5">
+              {recent.map(r=>(
+                <button key={r} data-testid="recent-search" onClick={()=>setQ(r)} className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300">{r}</button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="max-h-72 overflow-auto p-2">
           {items.map(i=>(
-            <button key={i.to} onClick={()=>{ nav(i.to); onClose()}} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left hover:bg-slate-50">
+            <button key={i.to} data-testid={`command-item-${i.to}`} onClick={()=>{ saveRecent(i.label); nav(i.to); onClose()}} className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left hover:bg-slate-50">
               <span className="text-sm font-semibold text-slate-800">{i.label}</span><span className="text-xs text-slate-500">{i.hint}</span>
             </button>
           ))}
-          {items.length===0 && <div className="px-3 py-8 text-center text-sm text-slate-500">No results</div>}
+          {items.length===0 && <div className="px-3 py-8 text-center text-sm text-slate-500">No results — try fuzzy like “dsh” for Dashboard</div>}
         </div>
       </div>
     </div>

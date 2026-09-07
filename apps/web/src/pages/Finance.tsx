@@ -4,12 +4,14 @@ import { Card, CardHeader, Disclaimer, StatCard, Badge } from '../components/ui'
 import { schedule, emi } from '../lib/finance'
 import { tr, interpolate, schemeDecisionLabel, type Language } from '../lib/i18n'
 import { formatINR } from './Dashboard'
+import { LoanComparison } from '../components/LoanComparison'
+import { CalendarReminders } from '../components/CalendarReminders'
 
 export function Finance() {
   const { result, lang } = useAnalysis()
   const fp = result?.financial_plan
   const repayment = result?.repayment
-  const [tabs, setTabs] = useState<'plan' | 'schedule'>('plan')
+  const [tabs, setTabs] = useState<'plan' | 'schedule' | 'compare'>('plan')
 
   const months = fp?.tenure_years != null ? fp.tenure_years * 12 : 0
   const moratorium = fp?.moratorium_months ?? 0
@@ -42,6 +44,7 @@ export function Finance() {
         <StatCard label={tr('repayHealth', lang)} value={repayHealth === 'High' || repayHealth === 'High-Risk' || repayHealth === 'High risk' ? tr('highRisk', lang) : repayHealth} />
       </div>
 
+      <CalendarReminders />
       {me && (
         <Card>
           <CardHeader title={tr('monthlyCashflow', lang)} subtitle={tr('cashflowSub', lang)} />
@@ -94,6 +97,7 @@ export function Finance() {
           <div className="mb-3 flex gap-2">
             <Tab active={tabs === 'plan'} onClick={() => setTabs('plan')}>{tr('planNote', lang)}</Tab>
             <Tab active={tabs === 'schedule'} onClick={() => setTabs('schedule')}>{tr('fullSchedule', lang)}</Tab>
+            <Tab active={tabs === 'compare' as any} onClick={() => setTabs('compare' as any)}>Compare 3</Tab>
           </div>
           {tabs === 'plan' ? (
             <div className="space-y-3 text-sm text-gray-600">
@@ -130,8 +134,10 @@ export function Finance() {
                 {tr('financeDisclaimer', lang)}
               </Disclaimer>
             </div>
-          ) : (
+          ) : tabs === 'schedule' ? (
             <ScheduleTable rows={rows} lang={lang} />
+          ) : (
+            <LoanComparison />
           )}
         </Card>
       </div>

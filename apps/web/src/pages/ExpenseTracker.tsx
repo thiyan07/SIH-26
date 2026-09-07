@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/ui'
+import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts'
+import { downloadCSV } from '../lib/export'
 
-type Entry = { id: string; date: string; desc: string; amount: number; type: 'income' | 'expense' }
+type Entry = { id: string; date: string; desc: string; amount: number; type: 'income' | 'expense'; category: string }
 
 export function ExpenseTracker() {
   const [entries, setEntries] = useState<Entry[]>(() => {
@@ -11,17 +13,28 @@ export function ExpenseTracker() {
   const [desc, setDesc] = useState('')
   const [amount, setAmount] = useState('')
   const [type, setType] = useState<'income'|'expense'>('expense')
+  const [category, setCategory] = useState('General')
 
   useEffect(() => { localStorage.setItem('grambiz.expenses', JSON.stringify(entries)) }, [entries])
 
   const add = () => {
     if (!desc || !amount) return
-    setEntries(e => [{ id: Date.now().toString(), date: new Date().toLocaleDateString(), desc, amount: parseFloat(amount), type }, ...e])
+    setEntries(e => [{ id: Date.now().toString(), date: new Date().toLocaleDateString(), desc, amount: parseFloat(amount), type, category }, ...e])
     setDesc(''); setAmount('')
   }
   const totalIncome = entries.filter(e => e.type==='income').reduce((s,e)=>s+e.amount,0)
   const totalExpense = entries.filter(e => e.type==='expense').reduce((s,e)=>s+e.amount,0)
   const balance = totalIncome - totalExpense
+  const byCategory = useMemo(()=>{
+    const map: Record<string, number> = {}
+    entries.filter(e=>e.type==='expense').forEach(e=>{ map[e.category]=(map[e.category]||0)+e.amount })
+    return Object.entries(map).map(([name,value])=>({ name, value }))
+  },[entries])
+  const monthly = useMemo(()=>{
+    const map: Record<string,{income:number;expense:number}> = {}
+    entries.forEach(e=>{ const m = e.date.slice(3) || 'Unknown'; if(!map[m]) map[m]={income:0,expense:0}; map[m][e.type]+=e.amount })
+    return Object.entries(map).slice(-6).map(([month, v])=>({ month, ...v }))
+  },[entries])
 
   return (
     <div className="space-y-6">
@@ -34,14 +47,51 @@ export function ExpenseTracker() {
       <Card>
         <CardHeader title="Add entry" subtitle="Milk sales, feed purchase, rent, etc." />
         <div className="flex flex-wrap gap-2">
-          <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Description (e.g. Milk sales)" className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <input value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount" type="number" className="w-32 rounded-xl border border-slate-200 px-3 py-2 text-sm" />
-          <select value={type} onChange={e=>setType(e.target.value as any)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm">
+          <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Description (e.g. Milk sales)" className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+          <input value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount" type="number" className="w-32 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+          <select value={type} onChange={e=>setType(e.target.value as any)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
             <option value="expense">Expense</option><option value="income">Income</option>
           </select>
-          <button onClick={add} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Add</button>
+          <select value={category} onChange={e=>setCategory(e.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+            <option>General</option><option>Feed</option><option>Rent</option><option>Transport</option><option>Sales</option>
+          </select>
+          <button data-testid="expense-add" onClick={add} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white">Add</button>
+          <button data-testid="expense-export" onClick={()=>downloadCSV(`expenses-${Date.now()}.csv`, [['Date','Desc','Category','Type','Amount'], ...entries.map(e=>[e.date,e.desc,e.category,e.type,e.amount])])} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold dark:border-slate-700 dark:bg-slate-800 dark:text-white">Export CSV</button>
         </div>
       </Card>
+      {entries.length>0 && (
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <CardHeader title="Expense by Category" subtitle="Where your money goes" />
+            <div data-testid="expense-pie" style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={byCategory} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                    {byCategory.map((_,i)=><Cell key={i} fill={['#0d9488','#f59e0b','#06b6d4','#8b5cf6','#ef4444'][i%5]} />)}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+          <Card>
+            <CardHeader title="Monthly Trend" subtitle="Last 6 periods" />
+            <div data-testid="expense-bar" style={{ height: 220 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthly}>
+                  <XAxis dataKey="month" tick={{fontSize:10}} />
+                  <YAxis tick={{fontSize:10}} />
+                  <Tooltip />
+                  <Legend />
+                  <Bar dataKey="income" fill="#10b981" name="Income" />
+                  <Bar dataKey="expense" fill="#ef4444" name="Expense" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
+      )}
       <Card>
         <CardHeader title="History" subtitle={`${entries.length} entries`} />
         {entries.length===0 ? <p className="text-sm text-slate-500">No entries yet — add your first sale.</p> : (

@@ -19,6 +19,8 @@ const ITEMS: Item[] = [
   { to: '/expenses', labelKey: 'navExpenses' as any, icon: '💰', desc: 'Ledger', group: 'Money' },
   { to: '/videos', labelKey: 'navVideos' as any, icon: '🎥', desc: 'Learn', group: 'Output' },
   { to: '/community', labelKey: 'communityTitle' as any, icon: '👥', desc: 'Stories', group: 'Output' },
+  { to: '/vault', labelKey: 'navData' as any, icon: '🗂️', desc: 'Vault', group: 'Output' },
+  { to: '/security', labelKey: 'navData' as any, icon: '🔒', desc: 'Privacy', group: 'Output' },
 ]
 
 const GROUPS = ['Plan','Discover','Money','Output'] as const
