@@ -1055,6 +1055,12 @@ const dict = {
   videoDesc: { en: 'As a first-time entrepreneur you want to see it done — not just read. Tamil, Hindi, English.', ta: 'முதல் முறை தொழில்முனைவோராக நீங்கள் செய்வதைப் பார்க்க விரும்புகிறீர்கள் — வெறும் வாசிப்பு மட்டுமல்ல. தமிழ், இந்தி, ஆங்கிலம்.', hi: 'पहली बार उद्यमी के रूप में आप देखकर सीखना चाहते हैं — सिर्फ पढ़ना नहीं। तमिल, हिंदी, अंग्रेजी।' },
   aiSuggestedOpportunities: { en: 'AI Suggested Opportunities', ta: 'AI பரிந்துரைக்கப்பட்ட வாய்ப்புகள்', hi: 'AI द्वारा सुझाए गए अवसर' },
   tiltHint: { en: '3D Pins • hover to tilt', ta: '3D பின்கள் • வட்டமிட்டுச் சாய்க்கவும்', hi: '3D पिन • होवर करके झुकाएं' },
+  chatWelcome: { en: 'Hi! Ask me about your business feasibility, loan or competitors.', ta: 'வணக்கம்! உங்கள் தொழில் சாத்தியக்கூறு, கடன் அல்லது போட்டியாளர்கள் பற்றி கேளுங்கள்.', hi: 'नमस्ते! अपनी व्यवसाय व्यवहार्यता, ऋण या प्रतिस्पर्धियों के बारे में पूछें।' },
+  chatPlaceholder: { en: 'Ask in Tamil, Hindi or English...', ta: 'தமிழ், இந்தி அல்லது ஆங்கிலத்தில் கேளுங்கள்...', hi: 'तमिल, हिंदी या अंग्रेज़ी में पूछें...' },
+  communityTitle: { en: 'Community Success Stories', ta: 'சமூக வெற்றிக் கதைகள்', hi: 'सामुदायिक सफलता की कहानियां' },
+  communityDesc: { en: 'Learn from peers in your district — real entrepreneurs, real journeys.', ta: 'உங்கள் மாவட்டத்தில் உள்ள சகாக்களிடம் இருந்து கற்றுக் கொள்ளுங்கள் — உண்மையான தொழில் முனைவோர்.', hi: 'अपने जिले के साथियों से सीखें — वास्तविक उद्यमी, वास्तविक यात्रा।' },
+  gamificationTitle: { en: 'Your Progress', ta: 'உங்கள் முன்னேற்றம்', hi: 'आपकी प्रगति' },
+  offlineReady: { en: 'Offline ready', ta: 'ஆஃப்லைன் தயார்', hi: 'ऑफ़लाइन तैयार' },
 } as const
 
 export function tr(key: keyof typeof dict, lang: Language): string {

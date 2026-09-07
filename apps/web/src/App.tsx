@@ -17,6 +17,7 @@ import { Compare } from './pages/Compare'
 import { History } from './pages/History'
 import { ExpenseTracker } from './pages/ExpenseTracker'
 import { VideoTutorials } from './pages/VideoTutorials'
+import { Community } from './pages/Community'
 
 export default function App() {
   const location = useLocation()
@@ -39,6 +40,7 @@ export default function App() {
       <Route path="/history" element={<Guarded><History /></Guarded>} />
       <Route path="/expenses" element={<Guarded><ExpenseTracker /></Guarded>} />
       <Route path="/videos" element={<Guarded><VideoTutorials /></Guarded>} />
+      <Route path="/community" element={<Guarded><Community /></Guarded>} />
       </Routes>
     </Layout>
   )

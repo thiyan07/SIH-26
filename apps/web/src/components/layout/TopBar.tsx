@@ -9,12 +9,18 @@ export function TopBar() {
   const nav = useNavigate()
   const [q,setQ] = useState('')
   const [cmdOpen,setCmdOpen] = useState(false)
+  const [theme, setTheme] = useState<'light'|'dark'>(()=>{
+    const saved = localStorage.getItem('grambiz.theme') as 'light'|'dark'|null
+    if (saved) return saved
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
 
-  // Force light mode — dark variant had white-on-white contrast bugs reported
+  // Theme persistence + system sync
   useEffect(()=>{
-    document.documentElement.classList.remove('dark')
-    localStorage.setItem('grambiz.theme', 'light')
-  },[])
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+    localStorage.setItem('grambiz.theme', theme)
+    document.documentElement.style.colorScheme = theme
+  },[theme])
   // cmd+k
   useEffect(()=>{
     const h=(e:KeyboardEvent)=>{ if((e.metaKey||e.ctrlKey)&& e.key.toLowerCase()==='k'){ e.preventDefault(); setCmdOpen(v=>!v)}}
@@ -48,7 +54,16 @@ export function TopBar() {
           {!result && <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 sm:inline">No analysis yet</span>}
 
 
-          <select value={lang} onChange={e=>setLang(e.target.value as Language)} className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm">
+          <button
+            onClick={()=>setTheme(theme==='dark'?'light':'dark')}
+            aria-label="Toggle theme"
+            title={`Switch to ${theme==='dark'?'light':'dark'} mode`}
+            className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            data-testid="theme-toggle"
+          >
+            {theme==='dark' ? '☀️ Light' : '🌙 Dark'}
+          </button>
+          <select value={lang} onChange={e=>setLang(e.target.value as Language)} className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
             <option value="en">EN</option><option value="ta">TA</option><option value="hi">HI</option>
           </select>
           <Link to="/analyze" className="hidden rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow hover:bg-slate-800 sm:inline">Analyze →</Link>

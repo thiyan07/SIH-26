@@ -18,7 +18,7 @@ export function Button({ className = '', variant = 'primary', size = 'md', ...pr
 }
 
 export function Card({ className = '', hover=false, ...props }: HTMLAttributes<HTMLDivElement> & { hover?: boolean }) {
-  return <div className={`rounded-2xl border border-slate-200/70 bg-white shadow-soft ${hover ? 'card-lift hover:border-slate-200' : ''} ${className}`} {...props} />
+  return <div className={`rounded-2xl border border-slate-200/70 bg-white shadow-soft dark:border-slate-700/60 dark:bg-slate-800 ${hover ? 'card-lift hover:border-slate-200' : ''} ${className}`} {...props} />
 }
 
 export function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {

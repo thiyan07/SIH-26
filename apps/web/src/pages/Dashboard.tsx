@@ -16,7 +16,9 @@ import { Card3D } from '../components/aceternity/Card3D'
 import { Spotlight } from '../components/aceternity/BackgroundBeams'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { WeatherForecast } from '../components/WeatherForecast'
+import { GamificationCard, ProfileEditor } from '../components/Gamification'
 import { tr, interpolate, recommendationLabel, type Language } from '../lib/i18n'
+import { downloadCSV, downloadJSON } from '../lib/export'
 
 const Globe = lazy(() => import('../components/three/Globe'))
 
@@ -66,9 +68,36 @@ export function Dashboard() {
               {pm?.is_estimate ? ` · ${tr('estimatedOperatingModel', lang)}` : ''}
             </p>
           </div>
-          <Badge color={RECO_COLOR[recommendation.label] || 'gray'}>
-            {recommendationLabel(recommendation.label, lang)}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <button
+              data-testid="dashboard-export-csv"
+              onClick={()=>{
+                const rows:(string|number)[][] = [
+                  ['Metric','Value'],
+                  ['Score', score.overall_score],
+                  ['Recommendation', recommendation.label],
+                  ['Project Cost', fp.project_cost],
+                  ['Loan', fp.loan_amount],
+                  ['Competitors 5km', bc?.mapped_competitors_5km ?? ''],
+                  ['Competitors 10km', bc?.mapped_competitors_10km ?? ''],
+                ]
+                downloadCSV(`grambiz-dashboard-${Date.now()}.csv`, rows)
+              }}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Export CSV
+            </button>
+            <button
+              data-testid="dashboard-export-json"
+              onClick={()=>downloadJSON(`grambiz-dashboard-${Date.now()}.json`, result)}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              JSON
+            </button>
+            <Badge color={RECO_COLOR[recommendation.label] || 'gray'}>
+              {recommendationLabel(recommendation.label, lang)}
+            </Badge>
+          </div>
         </div>
       </Spotlight>
 
@@ -312,6 +341,10 @@ export function Dashboard() {
       )}
       {/* 7-day forecast for the pinned village */}
       <WeatherForecast lat={result.location.latitude} lon={result.location.longitude} />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <GamificationCard />
+        <ProfileEditor />
+      </div>
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { Button, Card, CardHeader, Badge, Disclaimer } from '../components/ui'
 import { ScoreDonut } from '../components/ScoreDonut'
 import { formatINR } from './Dashboard'
 import { recommendationLabel, tr, type Language } from '../lib/i18n'
+import { downloadCSV, downloadJSON, printElement } from '../lib/export'
 
 export function Report() {
   const { result, lang } = useAnalysis()
@@ -63,8 +64,37 @@ export function Report() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => window.print()} variant="outline">{tr('printSave', lang)}</Button>
-          <Button onClick={loadReport} disabled={loadingAi}>{loadingAi ? tr('generating', lang) : tr('regenerateNarrative', lang)}</Button>
+          <Button onClick={() => printElement('report-print')} variant="outline" data-testid="print-btn">{tr('printSave', lang)}</Button>
+          <Button onClick={loadReport} disabled={loadingAi} data-testid="regenerate-btn">{loadingAi ? tr('generating', lang) : tr('regenerateNarrative', lang)}</Button>
+          <Button
+            variant="outline"
+            data-testid="export-csv"
+            onClick={() => {
+              const rows: (string|number)[][] = [
+                ['Field','Value'],
+                ['Village', result.location.village || result.location.block || ''],
+                ['District', result.location.district],
+                ['State', result.location.state],
+                ['Score', s.overall_score],
+                ['Recommendation', rec.label],
+                ['Competitors 5km', bc?.mapped_competitors_5km ?? ''],
+                ['Competitors 10km', bc?.mapped_competitors_10km ?? ''],
+                ['Project Cost', fp.project_cost],
+                ['Loan Amount', fp.loan_amount],
+                ['Monthly EMI', result.repayment?.monthly_emi ?? fp.emi ?? ''],
+              ]
+              downloadCSV(`grambiz-report-${Date.now()}.csv`, rows)
+            }}
+          >
+            Export CSV
+          </Button>
+          <Button
+            variant="outline"
+            data-testid="export-json"
+            onClick={() => downloadJSON(`grambiz-report-${Date.now()}.json`, result)}
+          >
+            Export JSON
+          </Button>
           <Button
             variant="outline"
             onClick={() => {

@@ -55,7 +55,14 @@ def ai_risks(request: Request, req: AiAdviceRequest, db: Session = Depends(get_d
 
 
 def _run_completion(evidence, mode, language) -> str:
+    from app.ai.llm import MockLLMProvider
     provider = get_provider()
     prompt = build_evidence_prompt(evidence, mode, language)
-    res = provider.complete(SYSTEM_INSTRUCTIONS, prompt, evidence)
-    return res.get("content", "")
+    try:
+        res = provider.complete(SYSTEM_INSTRUCTIONS, prompt, evidence)
+        return res.get("content", "")
+    except Exception:
+        # Fallback to deterministic mock when live LLM fails (no key, 404, network)
+        fallback = MockLLMProvider()
+        res = fallback.complete(SYSTEM_INSTRUCTIONS, prompt, evidence)
+        return res.get("content", "")

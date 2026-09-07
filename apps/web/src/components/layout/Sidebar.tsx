@@ -18,13 +18,14 @@ const ITEMS: Item[] = [
   { to: '/history', labelKey: 'navHistory' as any, icon: '🕘', desc: 'Past runs', group: 'Output' },
   { to: '/expenses', labelKey: 'navExpenses' as any, icon: '💰', desc: 'Ledger', group: 'Money' },
   { to: '/videos', labelKey: 'navVideos' as any, icon: '🎥', desc: 'Learn', group: 'Output' },
+  { to: '/community', labelKey: 'communityTitle' as any, icon: '👥', desc: 'Stories', group: 'Output' },
 ]
 
 const GROUPS = ['Plan','Discover','Money','Output'] as const
 
 export function Sidebar({ lang, collapsed }: { lang: Language; collapsed?: boolean }) {
   return (
-    <aside className={`${collapsed ? 'w-[72px]' : 'w-[270px]'} hidden shrink-0 flex-col border-r border-slate-200/70 bg-white lg:flex`}>
+    <aside className={`${collapsed ? 'w-[72px]' : 'w-[270px]'} hidden shrink-0 flex-col border-r border-slate-200/70 bg-white dark:border-slate-700 dark:bg-slate-900 lg:flex`}>
       <div className="space-y-6 p-4">
         {GROUPS.map(g => (
           <div key={g}>
