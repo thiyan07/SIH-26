@@ -13,13 +13,14 @@
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 11%;
     --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted-foreground: 215 16% 42%;
     --accent: 173 60% 94%;
     --accent-foreground: 173 80% 20%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 173 80% 32%;
     --radius: 0.85rem;
+    color-scheme: light;
   }
   .dark {
     --background: 222 47% 6%;
@@ -57,17 +58,55 @@ body {
     linear-gradient(to bottom, #f8fafc, #ffffff);
 }
 
+/* premium mesh for hero */
+.hero-mesh {
+  background:
+    radial-gradient(900px 480px at 18% 0%, rgba(20,184,166,0.14), transparent 65%),
+    radial-gradient(700px 420px at 88% 8%, rgba(6,182,212,0.12), transparent 60%),
+    radial-gradient(600px 360px at 55% 100%, rgba(251,191,36,0.06), transparent 70%),
+    linear-gradient(to bottom, #020617, #0f172a 55%, #020617);
+}
+
 /* glass */
 .glass {
   background: rgba(255,255,255,0.78);
   backdrop-filter: blur(14px) saturate(1.2);
   border: 1px solid rgba(255,255,255,0.6);
 }
+.glass-strong {
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(18px) saturate(1.25);
+  border: 1px solid rgba(255,255,255,0.7);
+  box-shadow: 0 8px 32px rgba(15,23,42,0.08), 0 1px 2px rgba(15,23,42,0.06);
+}
+
+/* shimmer & gradient text */
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.8s infinite;
+}
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+
+.gradient-text {
+  background: linear-gradient(92deg, #fde68a 0%, #f59e0b 22%, #f8fafc 52%, #5eead4 82%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* card lift */
+.card-lift { transition: transform .35s cubic-bezier(.22,1,.36,1), box-shadow .35s ease, border-color .35s ease; }
+.card-lift:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(15,23,42,0.10), 0 2px 8px rgba(15,23,42,0.06); }
 
 /* custom scrollbar */
 *::-webkit-scrollbar { width: 6px; height: 6px; }
 *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
 *::-webkit-scrollbar-track { background: transparent; }
+
+/* scroll perf: promote sticky headers, isolate canvas */
+header[style*="sticky"], .sticky { transform: translateZ(0); backface-visibility: hidden; }
+canvas { contain: layout paint; }
 
 /* focus ring */
 :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
@@ -80,3 +119,15 @@ body {
 
 /* number tabular */
 .tabular { font-variant-numeric: tabular-nums; }
+
+/* accessibility: placeholders and muted text must meet contrast on light backgrounds */
+input::placeholder, textarea::placeholder { color: #64748b; opacity: 1; }
+select { color: hsl(var(--foreground)); }
+select option { color: #0f172a; background: #fff; }
+
+/* ensure white-on-white never happens: cards and panels force dark text by default */
+.bg-white, .bg-slate-50, .bg-gray-50 { color: hsl(var(--foreground)); }
+
+/* leaflet attribution and map badges should be dark on light */
+.leaflet-control-attribution { color: #334155 !important; background: rgba(255,255,255,0.9) !important; }
+.leaflet-control-attribution a { color: #0f766e !important; }

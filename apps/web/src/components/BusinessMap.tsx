@@ -183,6 +183,16 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
   const radius5 = createRadiusGeoJSON(center.latitude, center.longitude, 5, 'r5')
   const radius10 = createRadiusGeoJSON(center.latitude, center.longitude, 10, 'r10')
 
+  // Layer counts for the toggle badges (helps user see that other data exists)
+  const countsBadge: Record<string, number> = {
+    all: businesses.length + markets.length + infrastructure.length + msmeClusters.length + competitors.length,
+    competitors: competitors.length || businesses.filter(b => b.category_code && competitorCodes.has(b.category_code)).length,
+    markets: markets.length,
+    restaurants: businesses.filter(b => b.category_code === 'restaurant').length,
+    retail: businesses.filter(b => b.category_code === 'grocery' || b.category_code === 'textile' || b.category_code === 'fruit_shop' || b.category_code === 'vegetable_shop').length,
+    infrastructure: infrastructure.length,
+    msme: msmeClusters.length,
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height, width: '100%' }}>
       <div className="mb-2 flex shrink-0 flex-wrap gap-1">
@@ -191,10 +201,11 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
             key={l.key}
             onClick={() => setLayer(l.key)}
             className={`rounded-md px-2.5 py-1 text-xs font-medium ${
-              layer === l.key ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              layer === l.key ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
             }`}
+            title={`${l.label}: ${countsBadge[l.key] ?? 0} items`}
           >
-            {l.label}
+            {l.label} <span className={`ml-1 rounded-full px-1 py-0.5 text-[10px] ${layer === l.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>{countsBadge[l.key] ?? 0}</span>
           </button>
         ))}
       </div>
@@ -206,11 +217,11 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
           <MapMarker latitude={center.latitude} longitude={center.longitude} color="#111827" label="You are here" />
           <MapClusterLayer id="businesses" data={businessesToGeoJSON(allShown)} />
           {showMarkets && markets.length > 0 && (
-            <MapGeoJSON id="markets" data={pointsToGeoJSON(markets)} circleColor="#d97706" />
+            <MapGeoJSON id="markets" data={pointsToGeoJSON(markets)} circleColor="#d97706" circleRadius={7} />
           )}
           {showInfrastructure && infrastructure.length > 0 && (
-            <MapGeoJSON id="infrastructure" data={infrastructureToGeoJSON(infrastructure)} circleColor="#7c3aed" circleRadius={5} />
-)}
+            <MapGeoJSON id="infrastructure" data={infrastructureToGeoJSON(infrastructure)} circleColor="#7c3aed" circleRadius={6} />
+          )}
           {comps.map((c) => (
             <MapMarker
               key={c.id}
@@ -255,6 +266,9 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
           ))}
         </Map>
       </div>
+      {showMarkets && markets.length===0 && showInfrastructure && infrastructure.length===0 && (layer as string) !=='competitors' && (
+        <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-700 ring-1 ring-amber-200">No mandis/health/transport mapped in 10 km — try a denser block or zoom out.</div>
+      )}
       {/* Legend */}
       {showCompetitors && comps.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
@@ -274,7 +288,7 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
           </span>
         </div>
       )}
-      <p className="mt-1 shrink-0 text-[10px] text-gray-400">© OpenStreetMap contributors. Mapped business data may be incomplete.</p>
+      <p className="mt-1 shrink-0 text-[10px] text-gray-500">© OpenStreetMap contributors. Mapped business data may be incomplete.</p>
     </div>
   )
 }

@@ -145,7 +145,7 @@ export function DataSources() {
                     {interpolate(tr('setMissingEnv', lang), { keys: p.missing_keys.join(', ') })}
                   </p>
                 )}
-                {p.note && <p className="mt-1 text-[11px] text-gray-400">{p.note}</p>}
+                {p.note && <p className="mt-1 text-[11px] text-gray-500">{p.note}</p>}
               </div>
             )
           })}
@@ -187,7 +187,7 @@ export function DataSources() {
                 <Row k={tr('confidence', lang)} v={s.confidence} />
                 <Row k={tr('records', lang)} v={s.record_count != null ? String(s.record_count) : undefined} />
               </dl>
-              {s.freshness_note && <p className="mt-2 text-[11px] italic text-gray-400">{s.freshness_note}</p>}
+              {s.freshness_note && <p className="mt-2 text-[11px] italic text-gray-500">{s.freshness_note}</p>}
               {s.why_used && (
                 <p className="mt-2 text-xs text-gray-600">
                   <span className="font-medium text-gray-500">{tr('whyWeUseThis', lang)}</span> {s.why_used}
@@ -263,7 +263,7 @@ function Row({ k, v }: { k: string; v?: string | null }) {
   if (!v) return null
   return (
     <div className="flex justify-between gap-3">
-      <dt className="text-gray-400">{k}</dt>
+      <dt className="text-gray-500">{k}</dt>
       <dd className="text-right font-medium text-gray-700">{v}</dd>
     </div>
   )

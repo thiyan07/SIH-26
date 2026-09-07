@@ -44,11 +44,11 @@ export function ExpenseTracker() {
       </Card>
       <Card>
         <CardHeader title="History" subtitle={`${entries.length} entries`} />
-        {entries.length===0 ? <p className="text-sm text-slate-400">No entries yet — add your first sale.</p> : (
+        {entries.length===0 ? <p className="text-sm text-slate-500">No entries yet — add your first sale.</p> : (
           <div className="divide-y divide-slate-100">
             {entries.slice(0,30).map(e=>(
               <div key={e.id} className="flex items-center justify-between py-2 text-sm">
-                <div><span className="font-medium text-slate-900">{e.desc}</span> <span className="text-xs text-slate-400">· {e.date}</span></div>
+                <div><span className="font-medium text-slate-900">{e.desc}</span> <span className="text-xs text-slate-500">· {e.date}</span></div>
                 <span className={`font-bold ${e.type==='income'?'text-emerald-600':'text-red-600'}`}>{e.type==='income'?'+': '-'}₹{e.amount.toLocaleString('en-IN')}</span>
               </div>
             ))}

@@ -94,9 +94,9 @@ export function MapClusterLayer({ data, color = '#10b981', highlightColor = '#16
                   <a className="text-xs text-blue-600 underline" href={props.website} target="_blank" rel="noreferrer">{props.website}</a>
                 )}
                 {props.distance_km != null && <div className="text-xs">{Number(props.distance_km).toFixed(2)} km away</div>}
-                {props.source && <div className="mt-1 text-[11px] text-gray-400">Source: {props.source}</div>}
-                {props.verification_status && <div className="text-[11px] text-gray-400">Verification: {props.verification_status}</div>}
-                {props.confidence && <div className="text-[11px] text-gray-400">Confidence: {props.confidence}</div>}
+                {props.source && <div className="mt-1 text-[11px] text-gray-500">Source: {props.source}</div>}
+                {props.verification_status && <div className="text-[11px] text-gray-500">Verification: {props.verification_status}</div>}
+                {props.confidence && <div className="text-[11px] text-gray-500">Confidence: {props.confidence}</div>}
               </div>
             </Popup>
           </Marker>

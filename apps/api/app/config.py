@@ -40,7 +40,7 @@ class Settings(BaseSettings):
         "https://overpass.kumi.systems/api/interpreter,"
         "https://overpass.private.coffee/api/interpreter"
     )
-    overpass_timeout_s: int = 40
+    overpass_timeout_s: int = 12
 
     # Geocoder (place / address search for the exact proposed shop location).
     # Provider is configurable; official API keys stay server-side only.

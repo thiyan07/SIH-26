@@ -13,15 +13,24 @@ export function Report() {
 
   const analysisId = (result as any)?.analysis_id
 
+  // cache ai narrative per analysis+lang to avoid re-fetching when user switches tabs
+  const cacheRef = useState(() => new Map<string,string>())[0] as Map<string,string>
   const loadReport = async () => {
+    if (!result) return
+    const key = `${analysisId || 'no-id'}:${lang}`
+    if (cacheRef.has(key)) { setAiText(cacheRef.get(key)!); return }
     setLoadingAi(true)
     try {
       const evidence = result as unknown as Record<string, unknown>
-      const res = await api.post<{ content: string }>('/ai/report', {
+      // Race LLM against a 1.2s fallback so UI never appears hung on a slow provider
+      const aiPromise = api.post<{ content: string }>('/ai/report', {
         evidence,
         language: lang,
         ...(analysisId ? { analysis_id: analysisId } : {}),
       })
+      const fallback = new Promise<{content:string}>(res => setTimeout(() => res({ content: tr('aiUnavailable', lang)}), 1200))
+      const res = await Promise.race([aiPromise, fallback]) as { content: string }
+      cacheRef.set(key, res.content)
       setAiText(res.content)
     } catch {
       setAiText(tr('aiUnavailable', lang))
@@ -34,7 +43,7 @@ export function Report() {
     if (!result) return
     loadReport()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang])
+  }, [lang, analysisId])
 
   if (!result) return <Empty lang={lang} />
 
@@ -104,10 +113,20 @@ export function Report() {
           </div>
         </Card>
 
-        {aiText && (
+        {loadingAi ? (
           <Card>
             <CardHeader title={tr('aiNarrative', lang)} subtitle={tr('aiNarrativeSub', lang)} />
-            <pre className="whitespace-pre-wrap text-sm text-gray-700">{aiText}</pre>
+            <div className="space-y-2 animate-pulse">
+              <div className="h-3 rounded bg-slate-100 w-full" />
+              <div className="h-3 rounded bg-slate-100 w-5/6" />
+              <div className="h-3 rounded bg-slate-100 w-4/6" />
+              <div className="mt-2 text-xs text-slate-500">{tr('generating', lang)} — {tr('aiNarrativeSub', lang)}</div>
+            </div>
+          </Card>
+        ) : aiText && (
+          <Card>
+            <CardHeader title={tr('aiNarrative', lang)} subtitle={tr('aiNarrativeSub', lang)} />
+            <pre className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{aiText}</pre>
           </Card>
         )}
 
@@ -121,7 +140,7 @@ export function Report() {
               [tr('nearestCompetitorRow', lang), bc?.nearest_competitor_km != null ? `${bc.nearest_competitor_km} ${tr('km', lang)} (${bc.nearest_competitor || ''})` : '—'],
               [tr('dataCompleteness', lang), bc?.data_completeness || '—'],
             ]} />
-            {bc?.note && <p className="mt-2 text-xs italic text-gray-400">{bc.note}</p>}
+            {bc?.note && <p className="mt-2 text-xs italic text-gray-500">{bc.note}</p>}
           </Card>
 
           <Card>
@@ -168,8 +187,8 @@ export function Report() {
             {(result.data_sources || []).map((d, i) => (
               <li key={i} className="rounded-lg bg-gray-50 px-3 py-2">
                 <strong className="text-gray-800">{d.name || d.source || tr('source', lang)}</strong>{' '}
-                <span className="text-gray-400">·</span> {d.reference || ''}{' '}
-                {d.confidence ? <span className="text-gray-400">· {tr('confidence', lang)} {d.confidence}</span> : null}
+                <span className="text-gray-500">·</span> {d.reference || ''}{' '}
+                {d.confidence ? <span className="text-gray-500">· {tr('confidence', lang)} {d.confidence}</span> : null}
               </li>
             ))}
           </ul>
@@ -233,7 +252,7 @@ function renderMarketReach(market: any, lang: Language) {
         ...signalRows,
       ]} />
       {(mr.notes || []).map((n: string, i: number) => (
-        <p key={i} className="mt-1 text-[11px] italic text-gray-400">{n}</p>
+        <p key={i} className="mt-1 text-[11px] italic text-gray-500">{n}</p>
       ))}
     </div>
   )

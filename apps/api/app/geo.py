@@ -184,6 +184,21 @@ def _haversine_nearby(session, model, lat: float, lon: float, radius_km: float,
 
     where_sql = distance_expr_sql(lat, lon)
     cond_sql = text(f"{where_sql} <= :radius")
+    # Bounding-box prefilter: narrows scan to a lat/lng square before the
+    # expensive haversine, giving index-friendly range scans.
+    delta = float(radius_km) / 111.0
+    bbox_lat_min, bbox_lat_max = float(lat) - delta, float(lat) + delta
+    # Longitude degrees shrink with cos(lat)
+    import math as _math
+    cos_lat = max(0.1, abs(_math.cos(_math.radians(float(lat)))))
+    lon_delta = float(radius_km) / (111.0 * cos_lat)
+    bbox_lon_min, bbox_lon_max = float(lon) - lon_delta, float(lon) + lon_delta
+    bbox_conds = [
+        model.latitude >= bbox_lat_min,
+        model.latitude <= bbox_lat_max,
+        model.longitude >= bbox_lon_min,
+        model.longitude <= bbox_lon_max,
+    ]
     bound = {"lat": float(lat), "lon": float(lon), "radius": float(radius_km)}
 
     conds = []
@@ -192,7 +207,7 @@ def _haversine_nearby(session, model, lat: float, lon: float, radius_km: float,
     if real_only:
         conds.append(real_data_condition(model))
 
-    stmt = select(model).where(cond_sql, *conds).order_by(text(where_sql)).limit(limit)
+    stmt = select(model).where(cond_sql, *bbox_conds, *conds).order_by(text(where_sql)).limit(limit)
     result = session.execute(stmt, bound).scalars().all()
     return list(result)
 

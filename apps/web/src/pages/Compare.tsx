@@ -40,14 +40,14 @@ export function Compare() {
           </label>
           <button onClick={run} disabled={loading || !a || !b} className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50">{loading ? 'Comparing…' : 'Compare'}</button>
         </div>
-        <p className="mt-2 text-xs text-slate-400">Tip: Use exact village names from the Analyze picker (593 villages now live for Erode).</p>
+        <p className="mt-2 text-xs text-slate-500">Tip: Use exact village names from the Analyze picker (593 villages now live for Erode).</p>
       </Card>
 
       {resA && resB && (
         <div className="grid gap-4 md:grid-cols-2">
           {[resA,resB].map((r,i)=>(
             <Card key={i} className="p-5">
-              <div className="text-xs font-bold uppercase tracking-widest text-slate-400">Village {i===0?'A':'B'} • {r.location.village}, {r.location.block}</div>
+              <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Village {i===0?'A':'B'} • {r.location.village}, {r.location.block}</div>
               <div className="mt-2 flex items-center gap-3">
                 <div className="text-3xl font-extrabold">{r.opportunity_score.overall_score}</div>
                 <Badge color={r.recommendation.label==='GO'?'green':r.recommendation.label==='MODIFY'?'amber':'red'}>{r.recommendation.label}</Badge>

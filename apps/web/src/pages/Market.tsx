@@ -167,7 +167,7 @@ export function Market() {
               {markets.map((m, i) => (
                 <li key={i} className="rounded-lg bg-gray-50 p-2 text-sm text-gray-700">
                   {m.name || (m.kind ? `${m.kind} · ` : '') + `${tr('marketLabel', lang)} ${i + 1}`}
-                  {m.distance_km != null && <span className="ml-1 text-xs text-gray-400">({m.distance_km} {tr('km', lang)})</span>}
+                  {m.distance_km != null && <span className="ml-1 text-xs text-gray-500">({m.distance_km} {tr('km', lang)})</span>}
                 </li>
               ))}
             </ul>
@@ -186,7 +186,7 @@ export function Market() {
         ) : !mi || !mi.available || mi.prices.length === 0 ? (
           <div className="text-sm text-gray-500">
             <p>{tr('noRelevantPrices', lang)}</p>
-            {mi?.availability_note && <p className="mt-1 text-xs text-gray-400">{mi.availability_note}</p>}
+            {mi?.availability_note && <p className="mt-1 text-xs text-gray-500">{mi.availability_note}</p>}
           </div>
         ) : (
           <div>
@@ -194,9 +194,9 @@ export function Market() {
               <span className="text-sm text-gray-600">
                 {tr('confidence', lang)}:{' '}
                 <b className="capitalize">{mi.confidence?.label}</b>{' '}
-                <span className="text-xs text-gray-400">({mi.confidence?.score ?? 0}%)</span>
+                <span className="text-xs text-gray-500">({mi.confidence?.score ?? 0}%)</span>
               </span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-500">
                 {Math.round((mi.coverage ?? 0) * 100)}% {tr('ofRelevantCommodities', lang)}
               </span>
             </div>
@@ -224,7 +224,7 @@ export function Market() {
                         {p.min != null && p.max != null ? `${p.min}–${p.max}` : '—'}
                       </td>
                       <td className="py-2 pr-4">{p.market || p.mandi || '—'}</td>
-                      <td className="py-2 pr-4 text-xs text-gray-400">{p.reference_date || '—'}</td>
+                      <td className="py-2 pr-4 text-xs text-gray-500">{p.reference_date || '—'}</td>
                       <td className="py-2 text-xs capitalize text-gray-500">{p.freshness || '—'}</td>
                     </tr>
                   ))}
@@ -240,7 +240,7 @@ export function Market() {
                   {mi.source_hierarchy.map((s, i) => (
                     <li key={i} className="flex items-center justify-between rounded-lg bg-gray-50 px-3 py-1.5 text-xs text-gray-600">
                       <span className="font-medium">{s.source_name}</span>
-                      <span className="text-gray-400">
+                      <span className="text-gray-500">
                         {s.items} {tr('item', lang).toLowerCase()} · {s.source_type || '—'}
                       </span>
                     </li>
@@ -250,7 +250,7 @@ export function Market() {
             )}
 
             {mi.notes && mi.notes.length > 0 && (
-              <p className="mt-3 text-xs text-gray-400">{mi.notes.join(' ')}</p>
+              <p className="mt-3 text-xs text-gray-500">{mi.notes.join(' ')}</p>
             )}
           </div>
         )}
@@ -264,7 +264,7 @@ function Mini({ label, value, sub }: { label: string; value: string | number; su
     <Card>
       <div className="text-xs text-gray-500">{label}</div>
       <div className="text-2xl font-bold text-gray-900">{value}</div>
-      {sub && <div className="truncate text-xs text-gray-400">{sub}</div>}
+      {sub && <div className="truncate text-xs text-gray-500">{sub}</div>}
     </Card>
   )
 }
@@ -285,7 +285,7 @@ function Empty({ lang, onLoadDemo, loadingDemo }: { lang: Language; onLoadDemo: 
           {tr('analyzeNow', lang)}
         </a>
       </div>
-      <p className="mt-3 text-xs text-gray-400">
+      <p className="mt-3 text-xs text-gray-500">
         {tr('marketOneClickNote', lang)}
       </p>
     </div>

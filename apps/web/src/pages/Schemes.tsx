@@ -120,8 +120,8 @@ export function Schemes() {
                 <React.Fragment key={s.code}>
                   <tr className={`border-b border-gray-50 cursor-pointer hover:bg-gray-50 ${m?.status === 'ELIGIBLE' ? 'bg-emerald-50' : ''} ${isExpanded ? 'bg-brand-50' : ''}`} onClick={() => setExpanded(isExpanded ? null : s.code)}>
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-gray-900 flex items-center gap-1.5">{s.name} {m?.status === 'ELIGIBLE' ? <Badge color="green">Eligible</Badge> : m?.status === 'PARTIALLY_ELIGIBLE' ? <Badge color="amber">Partial</Badge> : null} <span className="text-xs text-gray-400">{isExpanded ? '▼' : '▶'}</span></div>
-                      <div className="text-xs text-gray-400">{s.code} · {s.scheme_type || ''} {m ? `· ${m.match_score}%` : ''} {s.confidence_level ? `· ${s.confidence_level}` : ''}</div>
+                      <div className="font-semibold text-gray-900 flex items-center gap-1.5">{s.name} {m?.status === 'ELIGIBLE' ? <Badge color="green">Eligible</Badge> : m?.status === 'PARTIALLY_ELIGIBLE' ? <Badge color="amber">Partial</Badge> : null} <span className="text-xs text-gray-500">{isExpanded ? '▼' : '▶'}</span></div>
+                      <div className="text-xs text-gray-500">{s.code} · {s.scheme_type || ''} {m ? `· ${m.match_score}%` : ''} {s.confidence_level ? `· ${s.confidence_level}` : ''}</div>
                       {s.description && <div className="text-xs text-gray-500 mt-0.5 line-clamp-1">{s.description.slice(0, 90)}...</div>}
                     </td>
                     <td className="px-4 py-3 text-gray-700">
@@ -135,7 +135,7 @@ export function Schemes() {
                       {projectCost != null ? (
                         m ? (m.status === 'ELIGIBLE' ? <Badge color="green">{tr('yes', lang)} {m.match_score}%</Badge> : <Badge color={m.status === 'PARTIALLY_ELIGIBLE' ? 'amber' : 'gray'}>{m.status.slice(0,3)} {m.match_score}%</Badge>) : covers ? <Badge color="green">{tr('yes', lang)}</Badge> : <Badge color="gray">{tr('no', lang)}</Badge>
                       ) : (
-                        <span className="text-gray-400">—</span>
+                        <span className="text-gray-500">—</span>
                       )}
                     </td>
                   </tr>

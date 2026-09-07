@@ -52,7 +52,7 @@ export function Finance() {
             </div>
             <div className="rounded-lg bg-gray-50 p-3">
               <div className="text-[11px] text-gray-500">{tr('grossProfit', lang)}</div>
-              <div className="text-base font-bold text-gray-900">₹{formatINR(me.gross_profit)}{me.gross_margin_pct != null ? <span className="text-[10px] font-normal text-gray-400"> ({me.gross_margin_pct}%)</span> : null}</div>
+              <div className="text-base font-bold text-gray-900">₹{formatINR(me.gross_profit)}{me.gross_margin_pct != null ? <span className="text-[10px] font-normal text-gray-500"> ({me.gross_margin_pct}%)</span> : null}</div>
             </div>
             <div className="rounded-lg bg-gray-50 p-3">
               <div className="text-[11px] text-gray-500">{tr('operatingProfit', lang)}</div>
@@ -60,7 +60,7 @@ export function Finance() {
             </div>
             <div className="rounded-lg bg-brand-50 p-3">
               <div className="text-[11px] text-gray-500">{tr('cashSurplus', lang)}</div>
-              <div className="text-base font-bold text-gray-900">₹{formatINR(me.cash_surplus)}{me.cash_surplus_pct != null ? <span className="text-[10px] font-normal text-gray-400"> ({me.cash_surplus_pct}%)</span> : null}</div>
+              <div className="text-base font-bold text-gray-900">₹{formatINR(me.cash_surplus)}{me.cash_surplus_pct != null ? <span className="text-[10px] font-normal text-gray-500"> ({me.cash_surplus_pct}%)</span> : null}</div>
             </div>
             <div className="rounded-lg bg-gray-50 p-3">
               <div className="text-[11px] text-gray-500">{tr('breakEvenRevenue', lang)}</div>
@@ -167,7 +167,7 @@ function ScheduleTable({ rows, lang }: { rows: { month: number; payment: number;
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-gray-400">{interpolate(tr('showingFirst12', lang), { total: rows.length })}</p>
+      <p className="mt-2 text-xs text-gray-500">{interpolate(tr('showingFirst12', lang), { total: rows.length })}</p>
     </div>
   )
 }

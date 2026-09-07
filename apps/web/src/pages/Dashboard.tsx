@@ -125,8 +125,8 @@ export function Dashboard() {
       {suggested && suggested.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-700">AI Suggested Opportunities</h2>
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">3D Pins • hover to tilt</span>
+            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-700">{tr('aiSuggestedOpportunities', lang)}</h2>
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">{tr('tiltHint', lang)}</span>
           </div>
           <div className="grid gap-4 md:grid-cols-3">
             {suggested.slice(0, 6).map((s, i) => (
@@ -139,11 +139,11 @@ export function Dashboard() {
                   <div className="text-[11px] text-gray-500">{s.business_type}</div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded-lg bg-white p-2 text-center shadow-sm">
-                      <div className="text-[10px] text-gray-400">Project cost</div>
+                      <div className="text-[10px] text-gray-500">Project cost</div>
                       <div className="font-bold text-gray-900">₹{formatINR(s.total_project_cost)}</div>
                     </div>
                     <div className="rounded-lg bg-white p-2 text-center shadow-sm">
-                      <div className="text-[10px] text-gray-400">Monthly profit</div>
+                      <div className="text-[10px] text-gray-500">Monthly profit</div>
                       <div className="font-bold text-emerald-700">₹{formatINR(s.estimated_monthly_profit)}</div>
                     </div>
                   </div>
@@ -152,7 +152,7 @@ export function Dashboard() {
                       <span key={idx} className="rounded-full bg-teal-600 px-2 py-0.5 text-[10px] font-medium text-white">{r}</span>
                     ))}
                   </div>
-                  <div className="mt-2 flex items-center justify-between text-[10px] text-gray-400">
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-gray-500">
                     <span>{s.competitors_5km ?? 0} competitors · {s.eligible_schemes} schemes</span>
                     <span className="font-mono">#{i + 1}</span>
                   </div>
@@ -183,12 +183,12 @@ export function Dashboard() {
                     <span className="font-medium text-gray-900">₹{formatINR(me.break_even_revenue)}</span>
                   </div>
                 ) : (
-                  <div className="text-xs text-gray-400">{tr('breakEvenInsufficient', lang)}</div>
+                  <div className="text-xs text-gray-500">{tr('breakEvenInsufficient', lang)}</div>
                 )}
               </div>
               {me.notes?.length > 0 && (
                 <div className="mt-1 space-y-0.5">
-                  {me.notes.map((n: string, i: number) => <p key={i} className="text-[11px] italic text-gray-400">{n}</p>)}
+                  {me.notes.map((n: string, i: number) => <p key={i} className="text-[11px] italic text-gray-500">{n}</p>)}
                 </div>
               )}
             </div>
@@ -261,7 +261,7 @@ export function Dashboard() {
                 </div>
               )}
               {si.recommendation && <p className="text-xs text-gray-700">{si.recommendation}</p>}
-              {si.note && <p className="text-[11px] italic text-gray-400">{si.note}</p>}
+              {si.note && <p className="text-[11px] italic text-gray-500">{si.note}</p>}
             </div>
           ) : (
             <p className="text-sm text-gray-500">{tr('noSeasonalIntelligence', lang)}</p>
@@ -278,11 +278,11 @@ export function Dashboard() {
                     <span className="font-medium text-gray-900">{p.product || tr('product', lang)}</span>
                     <div className="flex items-center gap-1.5">
                       <Badge color={relevanceColor(p.relevance)}>{p.relevance || '—'}</Badge>
-                      <span className="text-[10px] text-gray-400">{p.confidence || '—'} {tr('confidence', lang)}</span>
+                      <span className="text-[10px] text-gray-500">{p.confidence || '—'} {tr('confidence', lang)}</span>
                     </div>
                   </div>
                   {p.reason && <p className="mt-1 text-xs text-gray-600">{p.reason}</p>}
-                  {p.evidence && <p className="mt-1 text-[11px] italic text-gray-400">{p.evidence}</p>}
+                  {p.evidence && <p className="mt-1 text-[11px] italic text-gray-500">{p.evidence}</p>}
                 </li>
               ))}
             </ul>
@@ -302,7 +302,7 @@ export function Dashboard() {
                 <span>{tr('categoryClimateSensitivity', lang)}</span>
                 <Badge color={sensitivityColor(wi.sensitivity)}>{wi.sensitivity || '—'}</Badge>
               </div>
-              {wi.reason && <p className="mt-1 text-[11px] italic text-gray-400">{wi.reason}</p>}
+              {wi.reason && <p className="mt-1 text-[11px] italic text-gray-500">{wi.reason}</p>}
             </div>
           </Card>
           <SafeGlobe className="h-[300px] shadow-xl" businesses={(result.business_competition?.businesses || []).slice(0, 40).map((b: any) => ({ lat: b.latitude, lon: b.longitude }))} />
@@ -367,7 +367,7 @@ function WeatherPanel({ weather, lang }: { weather?: any; lang: Language }) {
           ))}
         </ul>
       )}
-      {factors && <p className="text-[11px] italic text-gray-400">{tr('storedWeatherRows', lang)}</p>}
+      {factors && <p className="text-[11px] italic text-gray-500">{tr('storedWeatherRows', lang)}</p>}
     </div>
   )
 }
@@ -405,7 +405,7 @@ function MiniStat({ label, value, symbol, suffix }: { label: string; value?: num
       <div className="text-base font-bold text-gray-900">
         {symbol || ''}
         {value != null ? formatINR(value) : '—'}
-        {suffix ? <span className="text-[10px] font-normal text-gray-400"> {suffix}</span> : null}
+        {suffix ? <span className="text-[10px] font-normal text-gray-500"> {suffix}</span> : null}
       </div>
     </div>
   )
@@ -417,7 +417,7 @@ function LedgerRow({ label, value, suffix, bold, highlight }: { label: string; v
       <span className={`text-gray-500 ${bold ? 'font-semibold text-gray-700' : ''}`}>{label}</span>
       <span className={`font-medium text-gray-900 ${bold ? 'font-semibold' : ''} ${highlight ? 'text-green-700' : ''}`}>
         ₹{formatINR(value)}
-        {suffix ? <span className="text-[10px] font-normal text-gray-400"> {suffix}</span> : null}
+        {suffix ? <span className="text-[10px] font-normal text-gray-500"> {suffix}</span> : null}
       </span>
     </div>
   )

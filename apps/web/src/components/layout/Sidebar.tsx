@@ -28,7 +28,7 @@ export function Sidebar({ lang, collapsed }: { lang: Language; collapsed?: boole
       <div className="space-y-6 p-4">
         {GROUPS.map(g => (
           <div key={g}>
-            {!collapsed && <div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">{g}</div>}
+            {!collapsed && <div className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">{g}</div>}
             <div className="space-y-1">
               {ITEMS.filter(i=>i.group===g).map(n => (
                 <NavLink key={n.to} to={n.to}

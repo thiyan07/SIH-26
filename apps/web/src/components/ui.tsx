@@ -8,9 +8,9 @@ export function Button({ className = '', variant = 'primary', size = 'md', ...pr
     lg: 'px-6 py-3 text-sm',
   }
   const variants: Record<string, string> = {
-    primary: 'bg-brand-600 text-white hover:bg-brand-700 shadow-sm hover:shadow-md',
+    primary: 'bg-gradient-to-b from-brand-600 to-brand-700 text-white hover:from-brand-600 hover:to-brand-800 shadow-sm hover:shadow-md ring-1 ring-brand-700/20',
     secondary: 'bg-brand-50 text-brand-800 hover:bg-brand-100 border border-brand-100',
-    soft: 'bg-slate-900 text-white hover:bg-slate-800 shadow',
+    soft: 'bg-slate-900 text-white hover:bg-slate-800 shadow ring-1 ring-slate-900/10',
     outline: 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm',
     ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
   }
@@ -18,7 +18,7 @@ export function Button({ className = '', variant = 'primary', size = 'md', ...pr
 }
 
 export function Card({ className = '', hover=false, ...props }: HTMLAttributes<HTMLDivElement> & { hover?: boolean }) {
-  return <div className={`rounded-2xl border border-slate-200/70 bg-white shadow-soft ${hover ? 'transition-all hover:shadow-card hover:-translate-y-0.5' : ''} ${className}`} {...props} />
+  return <div className={`rounded-2xl border border-slate-200/70 bg-white shadow-soft ${hover ? 'card-lift hover:border-slate-200' : ''} ${className}`} {...props} />
 }
 
 export function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
@@ -50,7 +50,7 @@ export function StatCard({ label, value, sub, badge, icon }: { label: string; va
   return (
     <Card className="p-5">
       <div className="flex items-start justify-between">
-        <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">{label}</div>
+        <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">{label}</div>
         {icon && <div className="rounded-lg bg-slate-50 p-1.5 text-slate-500">{icon}</div>}
       </div>
       <div className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 tabular">{value}</div>
@@ -63,10 +63,10 @@ export function StatCard({ label, value, sub, badge, icon }: { label: string; va
 export function Metric({ label, value, hint, trend }: { label: string; value: string; hint?: string; trend?: 'up'|'down'|'neutral' }) {
   return (
     <div className="rounded-xl bg-slate-50 p-3">
-      <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{label}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">{label}</div>
       <div className="mt-1 flex items-baseline gap-1.5">
         <span className="text-lg font-bold text-slate-900 tabular">{value}</span>
-        {trend && <span className={`text-xs ${trend==='up' ? 'text-emerald-600' : trend==='down' ? 'text-red-600' : 'text-slate-400'}`}>{trend==='up'?'↗':'↘'}</span>}
+        {trend && <span className={`text-xs ${trend==='up' ? 'text-emerald-600' : trend==='down' ? 'text-red-600' : 'text-slate-500'}`}>{trend==='up'?'↗':'↘'}</span>}
       </div>
       {hint && <div className="text-xs text-slate-500">{hint}</div>}
     </div>
@@ -82,7 +82,7 @@ export function ScoreBar({ label, value, color = 'green', hint }: { label: strin
           {label}
           {hint && <span title={hint} className="ml-1.5 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500">?</span>}
         </span>
-        <span className="font-bold text-slate-900 tabular">{value}<span className="text-slate-400 font-normal">/100</span></span>
+        <span className="font-bold text-slate-900 tabular">{value}<span className="text-slate-500 font-normal">/100</span></span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
         <div className={`h-2 rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />

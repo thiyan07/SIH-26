@@ -312,7 +312,7 @@ export function Analyze() {
       </Spotlight>
 
       <BackgroundBeams className="rounded-2xl border border-gray-200">
-        <div className="relative rounded-2xl bg-white/95 p-5 backdrop-blur-sm">
+        <div className="relative rounded-2xl bg-white p-5">
           <CardHeader
             title={tr('advisoryTitle', advisoryLang)}
             subtitle={tr('advisorySubtitle', advisoryLang)}
@@ -384,7 +384,7 @@ export function Analyze() {
                   placeholder={tr('searchPlaceholder', lang)}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                 />
-                {searching && <p className="mt-1 text-xs text-gray-400">{tr('searching', lang)}</p>}
+                {searching && <p className="mt-1 text-xs text-gray-500">{tr('searching', lang)}</p>}
                 {locations.length > 0 && (
                   <ul className="mt-2 max-h-48 overflow-auto rounded-lg border border-gray-200 bg-white shadow-sm">
                     {locations.map((l) => (
@@ -397,7 +397,7 @@ export function Analyze() {
                           <span className="font-medium text-gray-800">
                             {[l.village, l.block].filter(Boolean).join(', ')}
                           </span>
-                          <span className="text-gray-400"> · {l.district}, {l.state}</span>
+                          <span className="text-gray-500"> · {l.district}, {l.state}</span>
                         </button>
                       </li>
                     ))}
@@ -423,7 +423,7 @@ export function Analyze() {
                 <div className="pt-2">
                   <div className="mb-1 flex items-center justify-between">
                     <span className="text-xs font-semibold text-gray-700">{tr('exactProposedShop', lang)}</span>
-                    <span className="text-[10px] text-gray-400">{tr('dragPinOrClick', lang)}</span>
+                    <span className="text-[10px] text-gray-500">{tr('dragPinOrClick', lang)}</span>
                   </div>
                   <ShopLocationPicker
                     latitude={form.latitude}
@@ -439,13 +439,13 @@ export function Analyze() {
                     <div className="mb-1 flex items-center justify-between">
                       <span className="font-medium text-gray-800">{tr('competitorsAroundPoint', lang)}</span>
                       {draftProposed && (
-                        <span className="text-[10px] text-gray-400">
+                        <span className="text-[10px] text-gray-500">
                           {tr('refreshOnMove', lang)} {liveCompLoading ? tr('searching', lang) : ''}
                         </span>
                       )}
                     </div>
                     {!draftProposed ? (
-                      <p className="text-gray-400">{tr('movePinToPreview', lang)}</p>
+                      <p className="text-gray-500">{tr('movePinToPreview', lang)}</p>
                     ) : liveCompError ? (
                       <p className="text-red-600">{liveCompError}</p>
                     ) : liveComp ? (
@@ -481,13 +481,13 @@ export function Analyze() {
                                 </span>
                               ))}
                         </div>
-                        <p className="text-[10px] text-gray-400">
+                        <p className="text-[10px] text-gray-500">
                           {liveComp.data?.note ||
                             tr('zeroMappedNote', lang)}
                         </p>
                       </div>
                     ) : (
-                      <p className="text-gray-400">{tr('searchingDots', lang)}</p>
+                      <p className="text-gray-500">{tr('searchingDots', lang)}</p>
                     )}
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-3">
@@ -514,7 +514,7 @@ export function Analyze() {
                       {tr('confirmBeforeGenerate', lang)}
                     </p>
                   )}
-                  <p className="mt-1 text-[10px] text-gray-400">
+                  <p className="mt-1 text-[10px] text-gray-500">
                     {tr('pinUnconfirmedNote', lang)}
                   </p>
                 </div>
@@ -530,7 +530,7 @@ export function Analyze() {
                   value={form.category_code}
                   onChange={(e) => setLocalForm((f) => ({ ...f, category_code: e.target.value }))}
                   disabled={autoRecommend}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400 focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500 focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                 >
                   {categories.length === 0 && <option value="dairy">{tr('catDairy', lang)}</option>}
                   {categories.map((c) => (
@@ -546,9 +546,9 @@ export function Analyze() {
                     onChange={(e) => setAutoRecommend(e.target.checked)}
                     className="h-3.5 w-3.5 rounded border-amber-300 text-teal-600 focus:ring-teal-500"
                   />
-                  <span>🤖 AI Suggest — let GramBiz recommend the best business type for this location & budget</span>
+                  <span>🤖 {tr('aiSuggestLabel', lang)}</span>
                 </label>
-                {autoRecommend && <p className="mt-1 text-[11px] text-gray-500">Category is optional when AI Suggest is enabled. The analysis will return ranked suggestions.</p>}
+                {autoRecommend && <p className="mt-1 text-[11px] text-gray-500">{tr('aiSuggestHint', lang)}</p>}
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">
@@ -720,7 +720,7 @@ function AdvisoryReportView({ report, lang }: { report: AdvisoryReport; lang: La
         </div>
       )}
 
-      {report.disclaimer && <p className="text-[11px] text-gray-400">{report.disclaimer}</p>}
+      {report.disclaimer && <p className="text-[11px] text-gray-500">{report.disclaimer}</p>}
     </div>
   )
 }

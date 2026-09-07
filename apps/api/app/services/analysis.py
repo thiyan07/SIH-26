@@ -186,7 +186,10 @@ def _live_discovery_evidence(db: Session, lat: float, lon: float, category_code:
     try:
         from app.services.competitors import discover_competitors
 
-        r = discover_competitors(db, latitude=lat, longitude=lon, category_code=category_code)
+        # Analysis must remain fast: use a short Overpass timeout (6s) and
+        # rely on the 24h geo-bucket cache + DB fallback so a slow/missing
+        # mirror never blocks the report.
+        r = discover_competitors(db, latitude=lat, longitude=lon, category_code=category_code, timeout_s=6)
     except Exception as exc:  # network timeouts, mirror failures, etc.
         return {
             "available": False,

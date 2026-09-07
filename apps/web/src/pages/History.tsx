@@ -30,7 +30,7 @@ export function History() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Client • History" title="Saved Analyses" desc="Every report you generated — village, category, score and loan — kept for the client to revisit and share." />
-      {loading ? <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400">Loading…</div> : rows.length === 0 ? (
+      {loading ? <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading…</div> : rows.length === 0 ? (
         <Card className="p-8 text-center">
           <div className="text-3xl">📂</div>
           <div className="mt-2 text-sm font-bold text-slate-900">No history yet</div>

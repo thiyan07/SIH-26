@@ -523,6 +523,7 @@ def discover_competitors(
     category_code: str,
     radius_m: Optional[int] = None,
     radius_km: Optional[float] = None,
+    timeout_s: Optional[int] = None,
 ) -> dict:
     """Discover + analyze competitors around an exact location.
 
@@ -548,28 +549,30 @@ def discover_competitors(
     result = None
     error = None
     geoapify_result = None
-    try:
-        result = overpass_provider.query(
-            lat, lon, radius_m_int, category_code, mirrors=mirrors,
-            timeout_s=settings.overpass_timeout_s,
-        )
-    except overpass_provider.OverpassUnavailable as e:
-        error = str(e)
-
-    # Optional secondary live source: Geoapify, only when a key is configured
-    # AND Overpass returned nothing usable. Falls through silently otherwise
-    # (this is a graceful, honest no-op when no key / not covered by provider).
-    if (result is None or not result.pois) and not geoapify_key_disabled:
+    effective_timeout = timeout_s if timeout_s is not None else settings.overpass_timeout_s
+    # Fast path: fresh cache within TTL is served instantly without live fetch
+    if fresh_cache is None:
         try:
-            geoapify_result = geoapify_provider.query(
-                lat, lon, radius_m_int, category_code,
-                key=geoapify_provider.api_key(settings),
-                provider_keys=settings.data_provider_keys,
+            result = overpass_provider.query(
+                lat, lon, radius_m_int, category_code, mirrors=mirrors,
+                timeout_s=effective_timeout,
             )
-        except geoapify_provider.GeoapifyUnavailable as ge:
-            geoapify_error = str(ge)
-            if error is None:
-                error = geoapify_error
+        except overpass_provider.OverpassUnavailable as e:
+            error = str(e)
+
+        # Optional secondary live source: Geoapify, only when a key is configured
+        # AND Overpass returned nothing usable.
+        if (result is None or not result.pois) and not geoapify_key_disabled:
+            try:
+                geoapify_result = geoapify_provider.query(
+                    lat, lon, radius_m_int, category_code,
+                    key=geoapify_provider.api_key(settings),
+                    provider_keys=settings.data_provider_keys,
+                )
+            except geoapify_provider.GeoapifyUnavailable as ge:
+                geoapify_error = str(ge)
+                if error is None:
+                    error = geoapify_error
 
     # DB-backed tier: real previously-ingested competitors (graceful fallback
     # when every external source is unavailable). Never fabricates a result.

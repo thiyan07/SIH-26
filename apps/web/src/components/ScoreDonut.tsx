@@ -24,7 +24,7 @@ export function ScoreDonut({ value, size = 140 }: { value: number; size?: number
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <div className="text-3xl font-bold text-gray-900">{Math.round(pct)}</div>
-        <div className="text-[10px] text-gray-400">/ 100</div>
+        <div className="text-[10px] text-gray-500">/ 100</div>
       </div>
     </div>
   )

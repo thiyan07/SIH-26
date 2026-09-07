@@ -186,7 +186,7 @@ export function ShopLocationPicker({
               aria-label="Search exact place"
               className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-16 text-sm"
             />
-            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500">
               {searching ? '…' : '🔍'}
             </span>
           </div>
@@ -222,7 +222,7 @@ export function ShopLocationPicker({
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-medium text-gray-800">{p.name}</span>
-                    <span className="block truncate text-[11px] text-gray-400">{p.display_name}</span>
+                    <span className="block truncate text-[11px] text-gray-500">{p.display_name}</span>
                   </span>
                   <span className="shrink-0 rounded border border-brand-200 bg-brand-50 px-1.5 py-0.5 text-[10px] font-medium text-brand-700">
                     Select
@@ -233,7 +233,7 @@ export function ShopLocationPicker({
           </ul>
         )}
         {!searching && !searchError && showNoPlaces && (
-          <p className="text-xs text-gray-400">No places found for "{searchedFor}".</p>
+          <p className="text-xs text-gray-500">No places found for "{searchedFor}".</p>
         )}
       </div>
 

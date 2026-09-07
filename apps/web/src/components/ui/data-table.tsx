@@ -50,7 +50,7 @@ export function DataTable<T extends Record<string, any>>({ data, columns, pageSi
                 ))}
               </tr>
             ))}
-            {pageData.length === 0 && <tr><td colSpan={columns.length} className="px-3 py-8 text-center text-sm text-gray-400">No results</td></tr>}
+            {pageData.length === 0 && <tr><td colSpan={columns.length} className="px-3 py-8 text-center text-sm text-gray-500">No results</td></tr>}
           </tbody>
         </table>
       </div>

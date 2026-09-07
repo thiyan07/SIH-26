@@ -58,7 +58,7 @@ export function Simulator() {
             </ResponsiveContainer>
           </div>
           {chart.length > 0 && (
-            <p className="mt-2 text-xs text-gray-400">
+            <p className="mt-2 text-xs text-gray-500">
               {interpolate(tr('graceNote', lang), { moratorium })}
             </p>
           )}

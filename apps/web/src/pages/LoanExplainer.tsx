@@ -33,7 +33,7 @@ export function LoanExplainer() {
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">🎓</div>
         <h2 className="mt-4 text-lg font-bold text-slate-900">{tr('navLoanExplainer', lang)}</h2>
         <p className="mt-2 text-sm text-slate-500">{tr('noAnalysisYet', lang)}</p>
-        <p className="mt-1 text-xs text-slate-400">Run an analysis from Analyze to see loan explained village-wise: funding, EMI, schedule and affordability.</p>
+        <p className="mt-1 text-xs text-slate-500">Run an analysis from Analyze to see loan explained village-wise: funding, EMI, schedule and affordability.</p>
         <a href="/analyze" className="mt-5 inline-flex rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white shadow hover:bg-brand-700">Go to Analyze →</a>
       </div>
     )
@@ -201,7 +201,7 @@ export function LoanExplainer() {
             </tbody>
           </table>
           {repayment_schedule.rows.length > 12 && (
-            <p className="mt-2 text-xs text-gray-400">{interpolate(tr('showingFirst12', lang), { total: repayment_schedule.rows.length })}</p>
+            <p className="mt-2 text-xs text-gray-500">{interpolate(tr('showingFirst12', lang), { total: repayment_schedule.rows.length })}</p>
           )}
         </div>
       </Card>
