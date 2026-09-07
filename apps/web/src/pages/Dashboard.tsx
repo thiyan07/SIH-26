@@ -15,6 +15,7 @@ import { ScoreDonut } from '../components/ScoreDonut'
 import { Card3D } from '../components/aceternity/Card3D'
 import { Spotlight } from '../components/aceternity/BackgroundBeams'
 import { ErrorBoundary } from '../components/ErrorBoundary'
+import { WeatherForecast } from '../components/WeatherForecast'
 import { tr, interpolate, recommendationLabel, type Language } from '../lib/i18n'
 
 const Globe = lazy(() => import('../components/three/Globe'))
@@ -309,6 +310,8 @@ export function Dashboard() {
       ) : (
         <SafeGlobe className="h-[300px] shadow-xl" businesses={(result.business_competition?.businesses || []).slice(0, 40).map((b: any) => ({ lat: b.latitude, lon: b.longitude }))} />
       )}
+      {/* 7-day forecast for the pinned village */}
+      <WeatherForecast lat={result.location.latitude} lon={result.location.longitude} />
     </div>
   )
 }
