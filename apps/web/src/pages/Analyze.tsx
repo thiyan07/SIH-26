@@ -80,6 +80,7 @@ export function Analyze() {
   // Instant first-letter search: preload Erode villages for client-side filtering
   const [erodeCache, setErodeCache] = useState<LocationOut[] | null>(null)
   const searchCache = useRef<Map<string, LocationOut[]>>(new Map())
+  const seqRef = useRef(0)
   useEffect(() => {
     api.get<LocationOut[]>(`/locations/search?district=Erode&limit=600`)
       .then((r) => setErodeCache(r))
@@ -90,27 +91,41 @@ export function Analyze() {
     const q = form.q.trim()
     if (!q) {
       setLocations([])
+      setSearching(false)
       return
     }
-    // Instant for single letter: filter from local Erode cache
+    // Instant for single letter: filter from local Erode cache (no server fetch)
     if (q.length === 1 && erodeCache) {
       const low = q.toLowerCase()
       const instant = erodeCache.filter(l => (l.village || '').toLowerCase().startsWith(low) || (l.block || '').toLowerCase().startsWith(low)).slice(0, 15)
-      if (instant.length) setLocations(instant)
-    } else if (searchCache.current.has(q.toLowerCase())) {
+      if (instant.length) {
+        setLocations(instant)
+        setSearching(false)
+        return
+      }
+    }
+    if (searchCache.current.has(q.toLowerCase())) {
       setLocations(searchCache.current.get(q.toLowerCase())!)
+      setSearching(false)
       return
     }
     setSearching(true)
+    const seq = ++seqRef.current
     const timer = window.setTimeout(() => {
       api
         .get<LocationOut[]>(`/locations/search?q=${encodeURIComponent(q)}&limit=15`)
         .then((r) => {
+          if (seq !== seqRef.current) return
           searchCache.current.set(q.toLowerCase(), r)
           setLocations(r)
         })
-        .catch(() => setLocations([]))
-        .finally(() => setSearching(false))
+        .catch(() => {
+          if (seq !== seqRef.current) return
+          setLocations([])
+        })
+        .finally(() => {
+          if (seq === seqRef.current) setSearching(false)
+        })
     }, q.length === 1 ? 80 : 200)
     return () => window.clearTimeout(timer)
   }, [form.q, erodeCache])
@@ -304,8 +319,8 @@ export function Analyze() {
     <div className="space-y-6">
       <Spotlight>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{tr('feasibilityPlanTitle', lang)}</h1>
-          <p className="mt-1 text-sm text-gray-500">
+          <h1 className="break-words text-2xl font-bold tracking-tight text-gray-900">{tr('feasibilityPlanTitle', lang)}</h1>
+          <p className="mt-1 break-words text-sm leading-relaxed text-gray-500">
             {result ? tr('analyzeIntroResult', lang) : tr('analyzeIntroNoResult', lang)} {tr('viewResultDashboard', lang)}{result ? ` ${tr('viewUpdatedResult', lang)}` : ''} {tr('onDashboard', lang)}
           </p>
         </div>

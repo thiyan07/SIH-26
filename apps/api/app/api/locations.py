@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import or_, select
+from sqlalchemy import case, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import Location
@@ -17,6 +17,7 @@ def search_locations(q: str = "", state: str = "", district: str = "", limit: in
     stmt = select(Location)
     if q:
         q = q.strip()
+        orig_q = q
         if len(q) == 1:
             # Single letter: prefix match for instant first-letter suggestions, much faster with index
             like = f"{q}%"
@@ -25,8 +26,20 @@ def search_locations(q: str = "", state: str = "", district: str = "", limit: in
             like = f"%{q}%"
             stmt = stmt.where(or_(Location.village.ilike(like), Location.block.ilike(like),
                                   Location.district.ilike(like), Location.state.ilike(like)))
-        # Prioritize village prefix matches
-        stmt = stmt.order_by(Location.village)
+        # Prioritize exact village, then exact block, then prefix village/block, then alphabetical
+        # Fixes "Perundurai shows for a sec then can't find": exact village was at index 15 due to alphabetical order
+        exact = orig_q
+        prefix = f"{orig_q}%"
+        stmt = stmt.order_by(
+            case(
+                (Location.village.ilike(exact), 0),
+                (Location.block.ilike(exact), 1),
+                (Location.village.ilike(prefix), 2),
+                (Location.block.ilike(prefix), 3),
+                else_=4,
+            ),
+            Location.village,
+        )
     if state:
         stmt = stmt.where(Location.state == state)
     if district:

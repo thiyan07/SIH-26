@@ -82,8 +82,8 @@ export function Schemes() {
     <div className="space-y-6">
       <Spotlight>
         <div className="rounded-xl border border-teal-100 bg-gradient-to-br from-white to-teal-50/40 p-4">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">{tr('govtSchemes', lang)}</h1>
-          <p className="mt-1 text-sm text-gray-500">{note} · {schemes.length} schemes · All eligibility requirements shown — click any scheme for details.</p>
+          <h1 className="break-words text-2xl font-bold tracking-tight text-gray-900">{tr('govtSchemes', lang)}</h1>
+          <p className="mt-1 break-words text-sm leading-relaxed text-gray-500">{note} · {schemes.length} schemes · All eligibility requirements shown — click any scheme for details.</p>
         </div>
       </Spotlight>
 

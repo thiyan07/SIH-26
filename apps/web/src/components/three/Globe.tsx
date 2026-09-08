@@ -179,14 +179,6 @@ export function Globe({ businesses, className = "" }: { businesses?: { lat: numb
           dampingFactor={0.08}
         />
       </Canvas>
-      <div className="pointer-events-none absolute inset-x-2 bottom-2 flex items-center justify-between">
-        <div className="rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-medium tracking-wide text-white/80 ring-1 ring-white/10">
-          🌍 India · Tamil Nadu · Erode
-        </div>
-        <div className="hidden sm:flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[10px] text-white/70">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> drag to rotate
-        </div>
-      </div>
     </div>
   )
 }

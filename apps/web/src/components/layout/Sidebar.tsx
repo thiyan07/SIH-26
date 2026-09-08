@@ -6,21 +6,15 @@ type Item = { to: string; labelKey: string; icon: string; desc: string; group: s
 const ITEMS: Item[] = [
   { to: '/analyze', labelKey: 'navAnalyze', icon: '🧭', desc: 'Feasibility', group: 'Plan' },
   { to: '/dashboard', labelKey: 'navDashboard', icon: '📊', desc: 'Score & ROI', group: 'Plan' },
-  { to: '/map', labelKey: 'navMap', icon: '🗺️', desc: 'Live map', group: 'Discover' },
   { to: '/market', labelKey: 'navMarket', icon: '🏪', desc: 'Prices & peers', group: 'Discover' },
   { to: '/finance', labelKey: 'navFinance', icon: '💳', desc: 'Loan plan', group: 'Money' },
   { to: '/simulator', labelKey: 'navSimulator', icon: '🎛️', desc: 'What-if', group: 'Money' },
   { to: '/schemes', labelKey: 'navSchemes', icon: '🏛️', desc: 'Subsidies', group: 'Money' },
   { to: '/report', labelKey: 'navReport', icon: '📄', desc: 'Printable', group: 'Output' },
   { to: '/data-sources', labelKey: 'navData', icon: '🔗', desc: 'Provenance', group: 'Output' },
-  { to: '/loan-explainer', labelKey: 'navLoanExplainer', icon: '🎓', desc: 'Learn', group: 'Output' },
   { to: '/compare', labelKey: 'navCompare' as any, icon: '⚖️', desc: 'Village vs', group: 'Output' },
-  { to: '/history', labelKey: 'navHistory' as any, icon: '🕘', desc: 'Past runs', group: 'Output' },
   { to: '/expenses', labelKey: 'navExpenses' as any, icon: '💰', desc: 'Ledger', group: 'Money' },
   { to: '/videos', labelKey: 'navVideos' as any, icon: '🎥', desc: 'Learn', group: 'Output' },
-  { to: '/community', labelKey: 'communityTitle' as any, icon: '👥', desc: 'Stories', group: 'Output' },
-  { to: '/vault', labelKey: 'navData' as any, icon: '🗂️', desc: 'Vault', group: 'Output' },
-  { to: '/security', labelKey: 'navData' as any, icon: '🔒', desc: 'Privacy', group: 'Output' },
 ]
 
 const GROUPS = ['Plan','Discover','Money','Output'] as const
@@ -47,15 +41,7 @@ export function Sidebar({ lang, collapsed }: { lang: Language; collapsed?: boole
           </div>
         ))}
       </div>
-      {!collapsed && (
-        <div className="mt-auto p-4">
-          <div className="rounded-2xl bg-gradient-to-br from-brand-600 to-cyan-600 p-4 text-white shadow-lg">
-            <div className="text-xs font-bold uppercase tracking-widest text-white/80">Need help?</div>
-            <div className="mt-1 text-sm font-semibold leading-tight">Describe your business in Tamil, Hindi or English — AI will pre-fill everything.</div>
-            <a href="/analyze" className="mt-3 inline-flex rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-brand-700">Try advisory →</a>
-          </div>
-        </div>
-      )}
+
     </aside>
   )
 }

@@ -18,17 +18,17 @@ export function Button({ className = '', variant = 'primary', size = 'md', ...pr
 }
 
 export function Card({ className = '', hover=false, ...props }: HTMLAttributes<HTMLDivElement> & { hover?: boolean }) {
-  return <div className={`rounded-2xl border border-slate-200/70 bg-white shadow-soft dark:border-slate-700/60 dark:bg-slate-800 ${hover ? 'card-lift hover:border-slate-200' : ''} ${className}`} {...props} />
+  return <div className={`rounded-2xl border border-slate-200/70 bg-white shadow-soft dark:border-slate-700/60 dark:bg-slate-800 box-border px-4 py-4 sm:px-6 sm:py-5 ${hover ? 'card-lift hover:border-slate-200' : ''} ${className}`} {...props} />
 }
 
 export function CardHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
-    <div className="mb-4 flex items-start justify-between gap-3">
-      <div>
-        <h3 className="text-sm font-bold tracking-tight text-slate-900">{title}</h3>
-        {subtitle && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{subtitle}</p>}
+    <div className="mb-4 flex min-w-0 items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
+        <h3 className="break-words text-sm font-bold tracking-tight text-slate-900">{title}</h3>
+        {subtitle && <p className="mt-0.5 break-words text-xs leading-relaxed text-slate-500">{subtitle}</p>}
       </div>
-      {action}
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   )
 }
@@ -48,14 +48,14 @@ export function Badge({ color = 'gray', children, className='' }: { color?: keyo
 
 export function StatCard({ label, value, sub, badge, icon }: { label: string; value: ReactNode; sub?: string; badge?: ReactNode; icon?: ReactNode }) {
   return (
-    <Card className="p-5">
-      <div className="flex items-start justify-between">
-        <div className="text-xs font-semibold uppercase tracking-widest text-slate-500">{label}</div>
-        {icon && <div className="rounded-lg bg-slate-50 p-1.5 text-slate-500">{icon}</div>}
+    <Card className="min-w-0 p-4 sm:p-5">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-2 whitespace-normal">
+        <div className="min-w-0 flex-1 break-words whitespace-normal text-xs font-semibold uppercase tracking-widest text-slate-500">{label}</div>
+        {icon && <div className="shrink-0 rounded-lg bg-slate-50 p-1.5 text-slate-500">{icon}</div>}
       </div>
-      <div className="mt-2 text-2xl font-extrabold tracking-tight text-slate-900 tabular">{value}</div>
-      {sub && <div className="mt-1 text-xs text-slate-500">{sub}</div>}
-      {badge && <div className="mt-3">{badge}</div>}
+      <div className="mt-2 break-words whitespace-normal text-xl font-extrabold tracking-tight text-slate-900 tabular sm:text-2xl">{value}</div>
+      {sub && <div className="mt-1 break-words whitespace-normal text-xs leading-relaxed text-slate-500">{sub}</div>}
+      {badge && <div className="mt-3 flex flex-wrap gap-1">{badge}</div>}
     </Card>
   )
 }
@@ -76,13 +76,13 @@ export function Metric({ label, value, hint, trend }: { label: string; value: st
 export function ScoreBar({ label, value, color = 'green', hint }: { label: string; value: number; color?: string; hint?: string }) {
   const barColor = color === 'green' ? 'bg-brand-500' : color === 'amber' ? 'bg-amber-500' : 'bg-red-500'
   return (
-    <div className="mb-3">
-      <div className="mb-1.5 flex items-center justify-between text-xs">
-        <span className="flex items-center font-medium text-slate-700">
-          {label}
-          {hint && <span title={hint} className="ml-1.5 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500">?</span>}
+    <div className="mb-3 min-w-0 box-border px-0">
+      <div className="mb-1.5 flex min-w-0 flex-wrap items-center justify-between gap-2 whitespace-normal text-xs">
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1 whitespace-normal font-medium text-slate-700">
+          <span className="min-w-0 break-words whitespace-normal">{label}</span>
+          {hint && <span title={hint} className="inline-flex h-4 w-4 shrink-0 cursor-help items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500">?</span>}
         </span>
-        <span className="font-bold text-slate-900 tabular">{value}<span className="text-slate-500 font-normal">/100</span></span>
+        <span className="shrink-0 break-words whitespace-normal font-bold text-slate-900 tabular">{value}<span className="font-normal text-slate-500">/100</span></span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
         <div className={`h-2 rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />

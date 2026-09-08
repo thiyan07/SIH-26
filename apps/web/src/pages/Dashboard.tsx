@@ -7,37 +7,14 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts'
-import { lazy, Suspense } from 'react'
 import { useAnalysis } from '../lib/analysisStore'
 import { LINK_BRAND } from '../lib/theme'
 import { Badge, Card, CardHeader, Disclaimer, ScoreBar, StatCard } from '../components/ui'
 import { ScoreDonut } from '../components/ScoreDonut'
 import { Card3D } from '../components/aceternity/Card3D'
 import { Spotlight } from '../components/aceternity/BackgroundBeams'
-import { ErrorBoundary } from '../components/ErrorBoundary'
-import { WeatherForecast } from '../components/WeatherForecast'
-import { GamificationCard, ProfileEditor } from '../components/Gamification'
-import { FarmingTips } from '../components/FarmingTips'
 import { tr, interpolate, recommendationLabel, type Language } from '../lib/i18n'
 import { downloadCSV, downloadJSON } from '../lib/export'
-
-const Globe = lazy(() => import('../components/three/Globe'))
-
-function SafeGlobe(props: { businesses: { lat: number; lon: number }[]; className?: string }) {
-  return (
-    <ErrorBoundary
-      fallback={
-        <div className="flex h-[300px] items-center justify-center rounded-xl border border-slate-200 bg-slate-50 p-6 text-center text-xs text-slate-500">
-          3D globe unavailable on this device — map still works below.
-        </div>
-      }
-    >
-      <Suspense fallback={<div className="h-[300px] animate-pulse rounded-xl bg-slate-800" />}>
-        <Globe {...props} />
-      </Suspense>
-    </ErrorBoundary>
-  )
-}
 
 const RECO_COLOR: Record<string, string> = { GO: 'green', MODIFY: 'amber', AVOID: 'red' }
 
@@ -61,15 +38,15 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <Spotlight>
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-teal-100 bg-gradient-to-br from-white via-teal-50/50 to-cyan-50/30 p-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight text-gray-900">{tr('reportTitle', lang)}</h1>
-            <p className="text-sm text-gray-500">
+        <div className="flex flex-col gap-3 rounded-xl border border-teal-100 bg-gradient-to-br from-white via-teal-50/50 to-cyan-50/30 p-4 px-4 sm:px-6 box-border sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <h1 className="break-words text-2xl font-bold tracking-tight text-gray-900">{tr('reportTitle', lang)}</h1>
+            <p className="break-words text-sm leading-relaxed text-gray-500">
               {result.location.village || result.location.block || ''} · {result.location.district}, {result.location.state} · {tr('pinsLabel', lang)} {showPins(result.location, lang)}
               {pm?.is_estimate ? ` · ${tr('estimatedOperatingModel', lang)}` : ''}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
             <button
               data-testid="dashboard-export-csv"
               onClick={()=>{
@@ -102,26 +79,26 @@ export function Dashboard() {
         </div>
       </Spotlight>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <Card3D>
           <Card className="h-full border-teal-100 shadow-md">
             <CardHeader title={tr('opportunityScore', lang)} subtitle={`${tr('confidence', lang)}: ${score.confidence_label}`} />
-            <div className="flex items-center gap-6">
-              <ScoreDonut value={score.overall_score} size={150} />
-              <div className="flex-1">
+            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
+              <div className="shrink-0"><ScoreDonut value={score.overall_score} size={150} /></div>
+              <div className="min-w-0 flex-1 w-full">
                 {bars.map((b) => (
                   <ScoreBar key={b.label} label={b.label} value={b.value} color={b.value >= 50 ? 'green' : b.value >= 35 ? 'amber' : 'red'} hint={b.hint} />
                 ))}
               </div>
             </div>
-            <div className="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+            <div className="mt-2 box-border break-words whitespace-normal rounded-lg bg-gray-50 p-3 px-4 text-xs leading-relaxed text-gray-600">
               <strong className="text-gray-700">{tr('interpretation', lang)}</strong> {recommendation.reason}
             </div>
             <ConfidenceExplanation score={score} dataConfidence={result.data_confidence} lang={lang} />
           </Card>
         </Card3D>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
           <StatCard
             label={tr('overallOpportunity', lang)}
             value={`${score.overall_score}`}
@@ -198,7 +175,7 @@ export function Dashboard() {
           <CardHeader title={tr('profitPaymentModel', lang)} subtitle={me ? tr('estimatedCashflowChain', lang) : pm?.label} />
           {me ? (
             <div className="space-y-2 text-sm">
-              <div className="rounded-lg bg-gray-50 p-3 text-[11px] font-medium uppercase tracking-wide text-gray-500">{tr('estimatedMonthlyLedger', lang)}</div>
+              <div className="box-border rounded-lg bg-gray-50 p-3 px-4 break-words whitespace-normal text-[11px] font-medium uppercase tracking-wide text-gray-500">{tr('estimatedMonthlyLedger', lang)}</div>
               <LedgerRow label={tr('revenue', lang)} value={me.monthly_revenue} />
               <LedgerRow label={tr('cogs', lang)} value={me.cogs} />
               <LedgerRow label={tr('grossProfit', lang)} value={me.gross_profit} suffix={me.gross_margin_pct != null ? `(${me.gross_margin_pct}%)` : undefined} bold />
@@ -274,18 +251,18 @@ export function Dashboard() {
                 <Badge color={riskColor(si.cash_flow_risk)}>{si.cash_flow_risk || '—'} {tr('cashflowRisk', lang)}</Badge>
               </div>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg bg-gray-50 p-2">
-                  <div className="text-gray-500">{tr('peakMonth', lang)}</div>
-                  <div className="font-semibold text-gray-900">{monthName(si.peak_month, lang)}{si.peak_index != null ? ` · ${si.peak_index}` : ''}</div>
+                <div className="box-border rounded-lg bg-gray-50 p-3 px-4">
+                  <div className="break-words whitespace-normal text-gray-500">{tr('peakMonth', lang)}</div>
+                  <div className="break-words whitespace-normal font-semibold text-gray-900">{monthName(si.peak_month, lang)}{si.peak_index != null ? ` · ${si.peak_index}` : ''}</div>
                 </div>
-                <div className="rounded-lg bg-gray-50 p-2">
-                  <div className="text-gray-500">{tr('lowMonth', lang)}</div>
-                  <div className="font-semibold text-gray-900">{monthName(si.low_month, lang)}{si.low_index != null ? ` · ${si.low_index}` : ''}</div>
+                <div className="box-border rounded-lg bg-gray-50 p-3 px-4">
+                  <div className="break-words whitespace-normal text-gray-500">{tr('lowMonth', lang)}</div>
+                  <div className="break-words whitespace-normal font-semibold text-gray-900">{monthName(si.low_month, lang)}{si.low_index != null ? ` · ${si.low_index}` : ''}</div>
                 </div>
               </div>
               {si.cash_flow_risk_reason && <p className="text-xs text-gray-600">{si.cash_flow_risk_reason}</p>}
               {si.inventory_implication && (
-                <div className="rounded-lg bg-brand-50 p-2 text-xs text-brand-800">
+                <div className="box-border rounded-lg bg-brand-50 p-3 px-4 break-words whitespace-normal text-xs text-brand-800">
                   <strong>{tr('inventory', lang)}</strong>{si.inventory_implication}
                   {si.stock_buffer_factor != null ? ` (${tr('buffer', lang)} ×${si.stock_buffer_factor})` : ''}
                 </div>
@@ -303,16 +280,16 @@ export function Dashboard() {
           {prs && prs.length > 0 ? (
             <ul className="space-y-2">
               {prs.map((p: any, i: number) => (
-                <li key={i} className="rounded-lg bg-gray-50 p-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-900">{p.product || tr('product', lang)}</span>
-                    <div className="flex items-center gap-1.5">
+                <li key={i} className="box-border rounded-lg bg-gray-50 p-3 px-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 whitespace-normal">
+                    <span className="break-words whitespace-normal font-medium text-gray-900">{p.product || tr('product', lang)}</span>
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <Badge color={relevanceColor(p.relevance)}>{p.relevance || '—'}</Badge>
-                      <span className="text-[10px] text-gray-500">{p.confidence || '—'} {tr('confidence', lang)}</span>
+                      <span className="break-words whitespace-normal text-[10px] text-gray-500">{p.confidence || '—'} {tr('confidence', lang)}</span>
                     </div>
                   </div>
-                  {p.reason && <p className="mt-1 text-xs text-gray-600">{p.reason}</p>}
-                  {p.evidence && <p className="mt-1 text-[11px] italic text-gray-500">{p.evidence}</p>}
+                  {p.reason && <p className="mt-1 break-words whitespace-normal text-xs text-gray-600">{p.reason}</p>}
+                  {p.evidence && <p className="mt-1 break-words whitespace-normal text-[11px] italic text-gray-500">{p.evidence}</p>}
                 </li>
               ))}
             </ul>
@@ -323,30 +300,20 @@ export function Dashboard() {
       </div>
 
       {wi?.relevant ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-1">
           <Card>
             <CardHeader title={tr('weatherClimate', lang)} subtitle={weatherSummary(result, lang)} />
             <WeatherPanel weather={result.weather} lang={lang} />
             <div className="mt-3 border-t border-gray-100 pt-3">
-              <div className="flex items-center gap-2 text-xs text-gray-600">
-                <span>{tr('categoryClimateSensitivity', lang)}</span>
+              <div className="flex flex-wrap items-center gap-2 whitespace-normal text-xs text-gray-600">
+                <span className="break-words whitespace-normal">{tr('categoryClimateSensitivity', lang)}</span>
                 <Badge color={sensitivityColor(wi.sensitivity)}>{wi.sensitivity || '—'}</Badge>
               </div>
-              {wi.reason && <p className="mt-1 text-[11px] italic text-gray-500">{wi.reason}</p>}
+              {wi.reason && <p className="mt-1 break-words whitespace-normal text-[11px] italic text-gray-500">{wi.reason}</p>}
             </div>
           </Card>
-          <SafeGlobe className="h-[300px] shadow-xl" businesses={(result.business_competition?.businesses || []).slice(0, 40).map((b: any) => ({ lat: b.latitude, lon: b.longitude }))} />
         </div>
-      ) : (
-        <SafeGlobe className="h-[300px] shadow-xl" businesses={(result.business_competition?.businesses || []).slice(0, 40).map((b: any) => ({ lat: b.latitude, lon: b.longitude }))} />
-      )}
-      {/* 7-day forecast for the pinned village */}
-      <WeatherForecast lat={result.location.latitude} lon={result.location.longitude} />
-      <FarmingTips />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <GamificationCard />
-        <ProfileEditor />
-      </div>
+      ) : null}
     </div>
   )
 }
@@ -381,18 +348,18 @@ function WeatherPanel({ weather, lang }: { weather?: any; lang: Language }) {
   return (
     <div className="space-y-2 text-xs text-gray-600">
       {!weather?.available && (
-        <div className="rounded-lg bg-gray-50 p-2">
+        <div className="box-border rounded-lg bg-gray-50 p-3 px-4 break-words whitespace-normal">
           {tr('noWeatherWithin5km', lang)}
         </div>
       )}
-      {latestRow && <div className="rounded-lg bg-gray-50 p-2">{latestRow}</div>}
+      {latestRow && <div className="box-border rounded-lg bg-gray-50 p-3 px-4 break-words whitespace-normal">{latestRow}</div>}
       {!factors && weather?.available && (
-        <div className="rounded-lg bg-green-50 p-2 text-green-700">{tr('noClimateRiskFlags', lang)}</div>
+        <div className="box-border rounded-lg bg-green-50 p-3 px-4 break-words whitespace-normal text-green-700">{tr('noClimateRiskFlags', lang)}</div>
       )}
       {factors && (
         <ul className="space-y-1.5">
           {factors.map((f: any) => (
-            <li key={f.factor} className="flex items-center justify-between rounded-lg bg-gray-50 p-2">
+            <li key={f.factor} className="box-border flex flex-wrap items-center justify-between gap-2 whitespace-normal rounded-lg bg-gray-50 p-3 px-4">
               <span>
                 <Badge color={RISK_COLOR[f.factor] || 'gray'}>{f.factor.replace('_', ' ')}</Badge>{' '}
                 <span className="capitalize">{f.level}</span>
@@ -424,9 +391,9 @@ function Rows({ rows }: { rows: [string, string][] }) {
   return (
     <dl className="divide-y divide-gray-100">
       {rows.map(([k, v]) => (
-        <div key={k} className="flex items-center justify-between py-2 text-sm">
-          <dt className="text-gray-500">{k}</dt>
-          <dd className="font-medium text-gray-900">{v}</dd>
+        <div key={k} className="flex min-w-0 flex-wrap items-center justify-between gap-3 whitespace-normal py-2 text-sm box-border px-1">
+          <dt className="min-w-0 flex-1 break-words whitespace-normal text-gray-500">{k}</dt>
+          <dd className="shrink-0 break-words whitespace-normal text-right font-medium text-gray-900">{v}</dd>
         </div>
       ))}
     </dl>
@@ -435,12 +402,12 @@ function Rows({ rows }: { rows: [string, string][] }) {
 
 function MiniStat({ label, value, symbol, suffix }: { label: string; value?: number; symbol?: string; suffix?: string }) {
   return (
-    <div className="rounded-lg bg-teal-50 p-3">
-      <div className="text-[11px] text-gray-500">{label}</div>
-      <div className="text-base font-bold text-gray-900">
+    <div className="min-w-0 box-border rounded-lg bg-teal-50 p-3 px-4">
+      <div className="break-words whitespace-normal text-[11px] leading-tight text-gray-500">{label}</div>
+      <div className="break-words whitespace-normal text-base font-bold text-gray-900">
         {symbol || ''}
         {value != null ? formatINR(value) : '—'}
-        {suffix ? <span className="text-[10px] font-normal text-gray-500"> {suffix}</span> : null}
+        {suffix ? <span className="break-words whitespace-normal text-[10px] font-normal text-gray-500"> {suffix}</span> : null}
       </div>
     </div>
   )
@@ -448,11 +415,11 @@ function MiniStat({ label, value, symbol, suffix }: { label: string; value?: num
 
 function LedgerRow({ label, value, suffix, bold, highlight }: { label: string; value?: number; suffix?: string; bold?: boolean; highlight?: boolean }) {
   return (
-    <div className="flex items-center justify-between py-1">
-      <span className={`text-gray-500 ${bold ? 'font-semibold text-gray-700' : ''}`}>{label}</span>
-      <span className={`font-medium text-gray-900 ${bold ? 'font-semibold' : ''} ${highlight ? 'text-green-700' : ''}`}>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 whitespace-normal py-1 box-border px-1">
+      <span className={`min-w-0 flex-1 break-words whitespace-normal text-gray-500 ${bold ? 'font-semibold text-gray-700' : ''}`}>{label}</span>
+      <span className={`shrink-0 break-words whitespace-normal text-right font-medium text-gray-900 ${bold ? 'font-semibold' : ''} ${highlight ? 'text-green-700' : ''}`}>
         ₹{formatINR(value)}
-        {suffix ? <span className="text-[10px] font-normal text-gray-500"> {suffix}</span> : null}
+        {suffix ? <span className="break-words whitespace-normal text-[10px] font-normal text-gray-500"> {suffix}</span> : null}
       </span>
     </div>
   )
@@ -484,7 +451,7 @@ function showPins(loc: any, lang: Language): string {
 }
 
 function note(text: string) {
-  return <p className="mt-2 rounded-lg bg-gray-50 p-2 text-xs text-gray-600">{text}</p>
+  return <p className="mt-2 box-border break-words whitespace-normal rounded-lg bg-gray-50 p-3 px-4 text-xs leading-relaxed text-gray-600">{text}</p>
 }
 
 function ConfidenceExplanation({ score, dataConfidence, lang }: { score: any; dataConfidence?: any; lang: Language }) {
@@ -493,34 +460,34 @@ function ConfidenceExplanation({ score, dataConfidence, lang }: { score: any; da
   const positive = confidenceReasons.filter((r) => /recent|point-level|high|complete|current/i.test(r))
   const limitations = confidenceReasons.filter((r) => /old|ageing|approximate|incomplete|missing|insufficient|unknown|low/i.test(r))
   return (
-    <div className="mt-3 rounded-xl border border-teal-100 bg-teal-50/50 p-3 text-xs text-gray-700">
-      <div className="mb-1 flex items-center gap-2">
-        <span className="font-semibold text-gray-800">{tr('whyThisScore', lang)}</span>
+    <div className="mt-3 box-border rounded-xl border border-teal-100 bg-teal-50/50 p-3 px-4 text-xs text-gray-700">
+      <div className="mb-1 flex flex-wrap items-center gap-2 whitespace-normal">
+        <span className="break-words whitespace-normal font-semibold text-gray-800">{tr('whyThisScore', lang)}</span>
         {dataConfidence && (
-          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500">
+          <span className="break-words whitespace-normal rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500">
             {tr('dataConfidenceScore', lang)} {dataConfidence.data_confidence_score ?? '—'}/100 ({dataConfidence.confidence_label || ''})
           </span>
         )}
       </div>
       {(positive.length > 0 || qualityReasons.length > 0) && (
-        <div className="mb-2">
-          <div className="mb-0.5 font-medium text-green-700">{tr('positiveSignals', lang)}</div>
-          <ul className="list-inside list-disc space-y-0.5">
-            {positive.map((r, i) => <li key={i}>{r}</li>)}
-            {qualityReasons.filter((r) => /recent|current|complete|point/i.test(r)).map((r, i) => <li key={`q${i}`}>{r}</li>)}
+        <div className="mb-2 min-w-0">
+          <div className="mb-0.5 whitespace-normal font-medium text-green-700">{tr('positiveSignals', lang)}</div>
+          <ul className="list-inside list-disc space-y-0.5 break-words whitespace-normal">
+            {positive.map((r, i) => <li key={i} className="break-words whitespace-normal">{r}</li>)}
+            {qualityReasons.filter((r) => /recent|current|complete|point/i.test(r)).map((r, i) => <li key={`q${i}`} className="break-words whitespace-normal">{r}</li>)}
           </ul>
         </div>
       )}
       {(limitations.length > 0 || qualityReasons.some((r) => /old|incomplete|approximate|missing/i.test(r))) && (
-        <div>
-          <div className="mb-0.5 font-medium text-amber-700">{tr('limitations', lang)}</div>
-          <ul className="list-inside list-disc space-y-0.5">
-            {limitations.map((r, i) => <li key={i}>{r}</li>)}
-            {qualityReasons.filter((r) => /old|incomplete|approximate|missing|unknown|low|demo/i.test(r)).map((r, i) => <li key={`q${i}`}>{r}</li>)}
+        <div className="min-w-0">
+          <div className="mb-0.5 whitespace-normal font-medium text-amber-700">{tr('limitations', lang)}</div>
+          <ul className="list-inside list-disc space-y-0.5 break-words whitespace-normal">
+            {limitations.map((r, i) => <li key={i} className="break-words whitespace-normal">{r}</li>)}
+            {qualityReasons.filter((r) => /old|incomplete|approximate|missing|unknown|low|demo/i.test(r)).map((r, i) => <li key={`q${i}`} className="break-words whitespace-normal">{r}</li>)}
           </ul>
         </div>
       )}
-      {confidenceReasons.length === 0 && <p className="text-gray-500">{tr('explanationNotAvailable', lang)}</p>}
+      {confidenceReasons.length === 0 && <p className="break-words whitespace-normal text-gray-500">{tr('explanationNotAvailable', lang)}</p>}
     </div>
   )
 }

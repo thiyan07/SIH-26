@@ -1,7 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAnalysis } from '../../lib/analysisStore'
 import { tr, type Language } from '../../lib/i18n'
-import { NotificationsCenter } from '../Notifications'
 import { useEffect, useState } from 'react'
 
 export function TopBar() {
@@ -53,9 +52,6 @@ export function TopBar() {
 
           {result && <span className="hidden rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 sm:inline">● Analysis ready</span>}
           {!result && <span className="hidden rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 sm:inline">No analysis yet</span>}
-
-
-          <NotificationsCenter />
           <button
             onClick={()=>setTheme(theme==='dark'?'light':'dark')}
             aria-label="Toggle theme"
@@ -95,10 +91,7 @@ function CommandPalette({ q, setQ, onClose, nav, lang }: { q:string; setQ:(s:str
     { to: '/finance', label: tr('navFinance', lang), hint: 'Loan schedule', keys: 'finance loan emi' },
     { to: '/schemes', label: tr('navSchemes', lang), hint: 'Eligibility', keys: 'schemes subsidy' },
     { to: '/report', label: tr('navReport', lang), hint: 'Print / PDF', keys: 'report pdf print' },
-    { to: '/map', label: tr('navMap', lang), hint: 'Live map', keys: 'map business' },
     { to: '/simulator', label: tr('navSimulator', lang), hint: 'What-if', keys: 'simulator whatif' },
-    { to: '/community', label: tr('navData', lang), hint: 'Community', keys: 'community stories' },
-    { to: '/vault', label: 'Vault', hint: 'Documents', keys: 'vault docs' },
   ]
   // fuzzy: match if all chars of query appear in order in label/hint/keys
   const fuzzy = (text: string, query: string) => {

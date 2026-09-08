@@ -1,9 +1,8 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { Business, InfrastructurePoint, MapPoint, MSMECluster } from '../types'
 import { businessesToGeoJSON, infrastructureToGeoJSON, pointsToGeoJSON } from '../lib/geo'
 import {
   Map,
-  MapControls,
   MapGeoJSON,
   MapMarker,
   MapClusterLayer,
@@ -147,15 +146,6 @@ function getColorForCategory(categoryCode?: string): string {
 export function BusinessMap({ center, businesses = [], competitors = [], markets = [], infrastructure = [], msmeClusters = [], showRadius = true, zoom = 12, height = '420px', selectedCategory }: BusinessMapProps) {
   const [layer, setLayer] = useState('all')
   const [radiusKm, setRadiusKm] = useState(10)
-  const [heatmap, setHeatmap] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const toggleFullscreen = () => {
-    const el = containerRef.current
-    if (!el) return
-    if (!document.fullscreenElement) { el.requestFullscreen?.(); setIsFullscreen(true) }
-    else { document.exitFullscreen?.(); setIsFullscreen(false) }
-  }
 
   // Determine which category_codes count as competitors for the selected business type.
   const competitorCodes = selectedCategory
@@ -204,7 +194,7 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
     msme: msmeClusters.length,
   }
   return (
-    <div ref={containerRef} style={{ display: 'flex', flexDirection: 'column', height: isFullscreen ? '100vh' : height, width: '100%', background: isFullscreen ? '#fff' : undefined, padding: isFullscreen ? 8 : 0 }} data-testid="business-map">
+    <div style={{ display: 'flex', flexDirection: 'column', height, width: '100%' }} data-testid="business-map">
       <div className="mb-2 flex shrink-0 flex-wrap items-center gap-1">
         {layerOptions.map((l) => (
           <button
@@ -225,18 +215,14 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
             <input data-testid="radius-slider" type="range" min={5} max={20} value={radiusKm} onChange={e=>setRadiusKm(Number(e.target.value))} className="h-1 w-16 accent-brand-600" />
             <span className="w-8 text-right">{radiusKm}km</span>
           </label>
-          <button data-testid="heatmap-toggle" onClick={()=>setHeatmap(v=>!v)} className={`rounded-md px-2 py-1 text-[11px] font-medium ${heatmap ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>🔥 Heatmap</button>
-          <button data-testid="fullscreen-toggle" onClick={toggleFullscreen} className="rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white">{isFullscreen?'Exit':'⛶ Full'}</button>
         </div>
       </div>
       <div style={{ flex: '1 1 auto', minHeight: 0, borderRadius: 12, overflow: 'hidden' }}>
         <Map latitude={center.latitude} longitude={center.longitude} zoom={zoom}>
-          <MapControls navigation />
           {showRadius && <MapGeoJSON id="radius5" data={radius5} fillColor="#16a34a" fillOpacity={0.05} lineColor="#15803d" />}
           {showRadius && <MapGeoJSON id="radius10" data={radius10} fillOpacity={0.03} />}
           <MapMarker latitude={center.latitude} longitude={center.longitude} color="#111827" label="You are here" />
-          {!heatmap && <MapClusterLayer id="businesses" data={businessesToGeoJSON(allShown)} />}
-          {heatmap && <MapGeoJSON id="heatmap-businesses" data={businessesToGeoJSON(allShown)} circleColor="#f59e0b" circleRadius={12} />}
+          <MapClusterLayer id="businesses" data={businessesToGeoJSON(allShown)} />
           {showMarkets && markets.length > 0 && (
             <MapGeoJSON id="markets" data={pointsToGeoJSON(markets)} circleColor="#d97706" circleRadius={7} />
           )}
