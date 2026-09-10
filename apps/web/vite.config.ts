@@ -34,12 +34,14 @@ export default defineConfig({
     },
   },
   build: {
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks: {
           leaflet: ['leaflet', 'react-leaflet', 'react-leaflet-cluster', 'leaflet.markercluster'],
           charts: ['recharts'],
           react: ['react', 'react-dom', 'react-router-dom'],
+          globe: ['three', '@react-three/fiber', '@react-three/drei'],
         },
       },
     },

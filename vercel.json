@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm run build --prefix apps/web",
+  "outputDirectory": "apps/web/dist",
+  "installCommand": "npm ci --prefix apps/web",
+  "framework": "vite",
+  "functions": {
+    "apps/api/**": {
+      "runtime": "python3.11"
+    }
+  }
+}
