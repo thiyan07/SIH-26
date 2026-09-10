@@ -454,17 +454,16 @@ def _upsert_businesses(db, pois: list[dict], category_code: str) -> dict:
         else:
             # Refreshing an already-ingested record: never overwrite a richer
             # phone/website we already stored, but refresh freshness markers.
-            changes = False
             if poi.get("phone") and not existing.phone:
-                existing.phone = poi.get("phone"); changes = True
+                existing.phone = poi.get("phone")
             if poi.get("website") and not existing.website:
-                existing.website = poi.get("website"); changes = True
+                existing.website = poi.get("website")
             if poi.get("opening_hours") and not existing.opening_hours:
-                existing.opening_hours = poi.get("opening_hours"); changes = True
+                existing.opening_hours = poi.get("opening_hours")
             if poi.get("address") and not existing.address:
-                existing.address = poi.get("address"); changes = True
+                existing.address = poi.get("address")
             if poi.get("brand") and not existing.brand:
-                existing.brand = poi.get("brand"); changes = True
+                existing.brand = poi.get("brand")
             existing.last_seen_at = now
             existing.source_updated_at = now
             existing.retrieved_at = now

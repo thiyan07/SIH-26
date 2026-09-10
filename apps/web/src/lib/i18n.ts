@@ -59,6 +59,7 @@ const dict = {
   navReport: { en: 'Report', ta: 'அறிக்கை', hi: 'रिपोर्ट' },
   navSchemes: { en: 'Schemes', ta: 'திட்டங்கள்', hi: 'योजनाएं' },
   navData: { en: 'Data', ta: 'தரவு', hi: 'डेटा' },
+  navBusinessSetup: { en: 'Business Setup', ta: 'தொழில் அமைப்பு', hi: 'व्यवसाय सेटअप' },
   navLoanExplainer: {
     en: 'Loan Explainer',
     ta: 'கடன் விளக்கம்',
@@ -211,9 +212,9 @@ const dict = {
   monthlyEMI: { en: 'Monthly EMI (est.)', ta: 'மாதாந்திர EMI (மதிப்பீடு)', hi: 'मासिक EMI (अनुमानित)' },
   schemeDecision: { en: 'Scheme decision', ta: 'திட்ட முடிவு', hi: 'योजना निर्णय' },
   capitalAvailable: { en: 'Capital available', ta: 'கிடைக்கும் மூலதனம்', hi: 'उपलब्ध पूंजी' },
-  competitors5km: { en: 'Competitors (5 km)', ta: 'போட்டியாளர்கள் (5 கிமீ)', hi: 'प्रतिस्पर्धी (5 किमी)' },
-  competitors5to10km: { en: 'Competitors (5–10 km)', ta: 'போட்டியாளர்கள் (5–10 கிமீ)', hi: 'प्रतिस्पर्धी (5–10 किमी)' },
-  competitors10km: { en: 'Competitors (10 km)', ta: 'போட்டியாளர்கள் (10 கிமீ)', hi: 'प्रतिस्पर्धी (10 किमी)' },
+  competitors5km: { en: 'Mapped competitors (5 km)', ta: 'பதிவு செய்யப்பட்ட போட்டியாளர்கள் (5 கிமீ)', hi: 'मैप किए गए प्रतिस्पर्धी (5 किमी)' },
+  competitors5to10km: { en: 'Mapped competitors (5–10 km)', ta: 'பதிவு செய்யப்பட்ட போட்டியாளர்கள் (5–10 கிமீ)', hi: 'मैप किए गए प्रतिस्पर्धी (5–10 किमी)' },
+  competitors10km: { en: 'Mapped competitors (10 km)', ta: 'பதிவு செய்யப்பட்ட போட்டியாளர்கள் (10 கிமீ)', hi: 'मैप किए गए प्रतिस्पर्धी (10 किमी)' },
   nearestCompetitor: { en: 'Nearest competitor', ta: 'அருகிலுள்ள போட்டியாளர்', hi: 'निकटतम प्रतिस्पर्धी' },
   nearestPrefix: { en: 'Nearest', ta: 'அருகிலுள்ள', hi: 'निकटतम' },
   noNearCompetitor: { en: 'No near competitor', ta: 'அருகில் போட்டியாளர் இல்லை', hi: 'कोई निकट प्रतिस्पर्धी नहीं' },
@@ -453,7 +454,7 @@ const dict = {
     ta: '{district} இல் {category} இன் சமீபத்திய சந்தை விலைகள்',
     hi: '{district} में {category} के ताज़ा बाज़ार भाव',
   },
-  noRelevantPrices: { en: 'No relevant prices available for this category yet.', ta: 'இந்த வகைக்கு இன்னும் தொடர்புடைய விலைகள் இல்லை.', hi: 'इस श्रेणी के लिए अभी तक कोई प्रासंगिक कीमतें उपलब्ध नहीं हैं।' },
+  noRelevantPrices: { en: 'Relevant market data is currently unavailable.', ta: 'தொடர்புடைய சந்தை தரவு தற்போது கிடைக்கவில்லை.', hi: 'प्रासंगिक बाजार डेटा वर्तमान में उपलब्ध नहीं है।' },
   categoryRestaurant: { en: 'Restaurant', ta: 'உணவகம்', hi: 'रेस्टोरेंट' },
   categoryGrocery: { en: 'Grocery', ta: 'மளிகை', hi: 'किराना' },
   categoryVegetableShop: { en: 'Vegetable shop', ta: 'காய்கறி கடை', hi: 'सब्ज़ी की दुकान' },
@@ -996,6 +997,9 @@ const dict = {
   // category names (from backend)
   catDairy: { en: 'Dairy', ta: 'பால்', hi: 'डेयरी' },
 
+  costBreakdownTitle: { en: 'Project Cost Estimate', ta: 'திட்ட செலவு மதிப்பீடு', hi: 'परियोजना लागत अनुमान' },
+  youNeedMore: { en: 'You need more to start this business:', ta: 'இந்த தொழிலைத் தொடங்க உங்களுக்கு மேலும் தேவை:', hi: 'यह व्यवसाय शुरू करने के लिए आपको और चाहिए:' },
+  estimatedFinancingNeeded: { en: 'Estimated financing needed', ta: 'மதிப்பிடப்பட்ட நிதித் தேவை', hi: 'अनुमानित वित्तपोषण आवश्यकता' },
   // misc remaining
   pinsLabel: { en: 'pins', ta: 'பின்கள்', hi: 'पिन' },
   opportunityScore: { en: 'Opportunity Score', ta: 'வாய்ப்பு மதிப்பெண்', hi: 'अवसर स्कोर' },

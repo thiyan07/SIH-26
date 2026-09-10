@@ -18,7 +18,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-
 ERODE_BLOCKS = [
     "erode", "gobichettipalayam", "bhavani", "perundurai",
     "sathyamangalam", "sathy", "nambiyur", "anthiyur",

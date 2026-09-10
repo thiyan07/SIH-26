@@ -111,6 +111,7 @@ class AnalysisRequest(BaseModel):
     existing_equipment: Optional[bool] = None
     family_members: Optional[int] = Field(default=None, ge=0)
     preferred_scale: Optional[str] = None
+    business_model: Optional[str] = Field(default=None, description="Optional business model subtype (e.g. milk_production, takeaway).")
     language: str = Field(default="en", pattern="^(en|ta|hi)$")
     auto_recommend: bool = Field(default=False, description="When true and no category_code, return ranked business suggestions")
 

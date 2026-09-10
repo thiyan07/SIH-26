@@ -55,9 +55,9 @@ def _osm_run(argv: list[str] | None = None):
 
 
 def _hdx_run(argv: list[str] | None = None):
-    from scripts.ingest_hdx.ingest import download_hdx, ingest
-
     import tempfile
+
+    from scripts.ingest_hdx.ingest import download_hdx, ingest
     with tempfile.TemporaryDirectory(prefix="hdx_ingest_") as tmp:
         src = download_hdx(tmp)   # returns extracted .geojson path
         ingest(src, "Erode", None, False)

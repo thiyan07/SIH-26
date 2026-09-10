@@ -18,15 +18,33 @@ export function Finance() {
   const loan = fp?.loan_amount ?? 0
   const rate = fp?.interest_rate ?? 0
 
-  const monthlyEmi = useMemo(
-    () => (result?.repayment?.monthly_emi ?? fp?.emi ?? emi(loan, rate, months)) || 0,
-    [result, fp, loan, rate, months],
-  )
-  const rows = useMemo(() => schedule(loan, rate, months, moratorium), [loan, rate, months, moratorium])
+  // Canonical financial values come from backend unified_financial / loan_explainer — no duplicate frontend formulas.
+  const uf = (result as any)?.unified_financial
+  const le = (result as any)?.loan_explainer
+  const monthlyEmi = (uf?.emi ?? result?.repayment?.monthly_emi ?? fp?.emi ?? emi(loan, rate, months)) || 0
+  const rows = useMemo(() => {
+    if (le?.repayment_schedule?.rows?.length) {
+      return le.repayment_schedule.rows.map((r:any)=>({ month: r.month, payment: r.payment, interest: r.interest, principal: r.principal, balance: r.balance }))
+    }
+    return schedule(loan, rate, months, moratorium)
+  }, [le, loan, rate, months, moratorium])
   const repayHealth = repayment?.health_label || '—'
   const me = result?.monthly_economics as any
 
   if (!result || !fp) return <Empty lang={lang} />
+  const costBreakdown = (result as any).cost_breakdown as {
+    category_code: string
+    scale: string
+    capital_expenditure: Record<string, number>
+    working_capital: Record<string, number>
+    infrastructure: Record<string, number>
+    licensing_compliance: Record<string, number>
+    contingency_pct: number
+    contingency_amount: number
+    total_project_cost: number
+    location_factor: number
+    notes: string[]
+  } | undefined
 
   return (
     <div className="space-y-6">
@@ -36,6 +54,36 @@ export function Finance() {
           {schemeDecisionLabel(fp.scheme_decision, lang)}
         </Badge>
       </div>
+
+      {/* Cost breakdown — business-specific estimator (req 1) */}
+      {costBreakdown && (
+        <Card>
+          <CardHeader title={tr('costBreakdownTitle', lang) as string || 'Project Cost Estimate'} subtitle={`${costBreakdown.category_code} · ${costBreakdown.scale} · location factor ${costBreakdown.location_factor}x`} />
+          <div className="space-y-4">
+            <div className="rounded-lg bg-teal-50 p-3 text-sm text-teal-800">
+              <strong>{tr('youNeedMore', lang) as string || 'You need more to start this business:'}</strong> {`₹${formatINR(costBreakdown.total_project_cost)}`} total
+              {` · ${tr('yourMoney', lang) as string || 'Your own money:'} ₹${formatINR(fp.capital_available)}`}
+              {` · ${tr('estimatedFinancingNeeded', lang) as string || 'Estimated financing needed:'} ₹${formatINR(fp.required_financing ?? 0)}`}
+              {fp.shortfall > 0 && ` · Shortfall ₹${formatINR(fp.shortfall)}`}
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <CostSection title="Shop / Equipment" items={costBreakdown.capital_expenditure} />
+              <CostSection title="Working Capital" items={costBreakdown.working_capital} />
+              <CostSection title="Infrastructure" items={costBreakdown.infrastructure} />
+              <CostSection title="Licensing" items={costBreakdown.licensing_compliance} />
+            </div>
+            <div className="flex items-center justify-between border-t pt-2 text-sm">
+              <span className="text-gray-500">Contingency ({costBreakdown.contingency_pct}%)</span>
+              <span className="font-medium">₹{formatINR(costBreakdown.contingency_amount)}</span>
+            </div>
+            <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
+              <span>Total Project Cost</span>
+              <span>₹{formatINR(costBreakdown.total_project_cost)}</span>
+            </div>
+            {costBreakdown.notes.map((n, i) => <p key={i} className="text-xs text-gray-500">{n}</p>)}
+          </div>
+        </Card>
+      )}
 
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard label={tr('projectCost', lang)} value={`₹${formatINR(fp.project_cost)}`} sub={tr('projectCostSub', lang)} />
@@ -188,6 +236,24 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
     >
       {children}
     </button>
+  )
+}
+
+function CostSection({ title, items }: { title: string; items: Record<string, number> }) {
+  const entries = Object.entries(items)
+  if (entries.length === 0) return null
+  return (
+    <div>
+      <h4 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">{title}</h4>
+      <dl className="divide-y divide-gray-100">
+        {entries.map(([k, v]) => (
+          <div key={k} className="flex items-center justify-between gap-3 py-1.5 text-sm">
+            <dt className="min-w-0 flex-1 break-words text-gray-500">{k}</dt>
+            <dd className="shrink-0 font-medium text-gray-900">₹{formatINR(v)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   )
 }
 

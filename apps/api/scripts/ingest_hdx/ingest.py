@@ -31,7 +31,6 @@ from typing import Optional
 
 import httpx
 
-from app.config import settings
 from app.db.models import Business, DataSnapshot, InfrastructurePoint
 from app.db.session import session_scope
 from app.engines.profit import CATEGORY_OSM_TAGS

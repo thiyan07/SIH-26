@@ -37,17 +37,15 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import math
 import time
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Optional
 
 import httpx
 
 from scripts.erode.geographic_index import (
-    ERODE_BBOX,
     CACHE_DIR,
+    ERODE_BBOX,
     Village,
     index_with_coords,
 )
@@ -381,8 +379,8 @@ def persist(elements: list[dict]) -> tuple[int, int]:
 
     Returns (inserted, matched_existing).
     """
-    from sqlalchemy.orm.exc import NoResultFound
-    from sqlalchemy import func, or_
+    from sqlalchemy import func
+
     from app.db.models import Business, DataSnapshot
     from app.db.session import session_scope
 
@@ -453,7 +451,6 @@ def run_erode_discovery(limit: Optional[int] = None, delay: float = 1.5,
     total_matched = 0
     errors_total = 0
 
-    from app.db.session import session_scope
 
     # One shared DB session for business rows; persist periodically.
     for i, v in enumerate(villages, 1):
@@ -492,7 +489,6 @@ if __name__ == "__main__":
     ap.add_argument("--no-overpass", action="store_true")
     ap.add_argument("--force", action="store_true", help="ignore cached progress")
     args = ap.parse_args()
-    import time as _t
     got = run_erode_discovery(limit=args.limit, delay=args.delay,
                               overpass=not args.no_overpass, force=args.force)
     print(json.dumps(got, indent=2))

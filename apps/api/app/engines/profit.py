@@ -195,7 +195,7 @@ CATEGORY_OSM_TAGS = {
     "poultry": [{"shop": "poultry"}, {"farm": "poultry"}],
     "grocery": [{"shop": "convenience"}, {"shop": "general"}, {"shop": "grocery"}],
     "textile": [{"shop": "tailor"}, {"shop": "clothes"}, {"craft": "textile"}],
-    "food_processing": [{"craft": None, "man_made": None}],  # heuristic; ingest requires a food keyword
+    "food_processing": [{"craft": "confectionery"}, {"craft": "brewery"}, {"shop": "food"}, {"craft": "food"}],
     "restaurant": [{"amenity": "restaurant"}],
     "agriculture": [{"shop": "farm"}, {"landuse": "farmland"}],
     "manufacturing": [{"man_made": "works"}, {"industrial": "factory"}],

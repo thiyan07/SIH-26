@@ -22,7 +22,7 @@ export function History() {
             const one = JSON.parse(raw)
             setRows([{ analysis_id: one.analysis_id || 'local', state: one.location.state, district: one.location.district, block: one.location.block, village: one.location.village, category_code: one.profit_model?.category_code || '—', language: 'en', created_at: new Date().toISOString(), result: one }])
           }
-        } catch {}
+        } catch { void 0 }
       })
       .finally(() => setLoading(false))
   }, [])

@@ -1,24 +1,27 @@
 """Advisory endpoints: NLP parse, scheme match, financial structure, full advisory report."""
 from __future__ import annotations
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.ai.extractor import parse_multilingual_free_text
 from app.db.session import get_db
-from app.engines.cost_templates import get_cost_template, list_categories, get_total_template_cost
-from app.engines.nlp_parser import parse_free_text, to_dict as nlp_to_dict
-from app.engines.scheme_eligibility import BeneficiaryProfile, match_schemes, to_dict as eligibility_to_dict
+from app.engines.cost_templates import get_cost_template, get_total_template_cost, list_categories
 from app.engines.financial_structuring import (
-    build_cost_breakdown, structure_loan, structure_financials, to_dict as financial_to_dict,
+    structure_financials,
 )
-from app.engines.profit import simulate_model, known_categories
+from app.engines.financial_structuring import (
+    to_dict as financial_to_dict,
+)
+from app.engines.nlp_parser import to_dict as nlp_to_dict
+from app.engines.profit import simulate_model
+from app.engines.scheme_eligibility import BeneficiaryProfile, match_schemes
+from app.engines.scheme_eligibility import to_dict as eligibility_to_dict
 from app.limiter import limiter
-from app.services.advisory import run_advisory, report_to_dict
-
-from pydantic import BaseModel, Field
-from typing import Optional
-
+from app.services.advisory import report_to_dict, run_advisory
 
 router = APIRouter(prefix="/advisory", tags=["advisory"])
 

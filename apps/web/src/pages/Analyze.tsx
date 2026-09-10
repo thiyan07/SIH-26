@@ -153,7 +153,6 @@ export function Analyze() {
         .finally(() => setLiveCompLoading(false))
     }, 600)
     return () => window.clearTimeout(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draftProposed, lang, form.category_code, autoRecommend])
 
 

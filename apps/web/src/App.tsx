@@ -13,6 +13,7 @@ import { Schemes } from './pages/Schemes'
 import { DataSources } from './pages/DataSources'
 import { Compare } from './pages/Compare'
 import { ExpenseTracker } from './pages/ExpenseTracker'
+import { BusinessSetup } from './pages/BusinessSetup'
 import { VideoTutorials } from './pages/VideoTutorials'
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/data-sources" element={<Guarded><DataSources /></Guarded>} />
       <Route path="/compare" element={<Guarded><Compare /></Guarded>} />
       <Route path="/expenses" element={<Guarded><ExpenseTracker /></Guarded>} />
+      <Route path="/business-setup" element={<Guarded><BusinessSetup /></Guarded>} />
       <Route path="/videos" element={<Guarded><VideoTutorials /></Guarded>} />
       </Routes>
     </Layout>

@@ -10,7 +10,7 @@ const SEED: Notif[] = [
 ]
 
 function load(): Notif[] {
-  try { const raw = localStorage.getItem('grambiz.notifs'); if (raw) return JSON.parse(raw); } catch {}
+  try { const raw = localStorage.getItem('grambiz.notifs'); if (raw) return JSON.parse(raw); } catch { void 0 }
   return SEED
 }
 

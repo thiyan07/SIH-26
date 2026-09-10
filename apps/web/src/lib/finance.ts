@@ -19,20 +19,27 @@ export function schedule(loan: number, annualRatePct: number, months: number, mo
   const r = annualRatePct / 100 / 12
   const rows: EmiRow[] = []
   let balance = loan
+  const remainingMonths = Math.max(months - moratoriumMonths, 1)
+  // Effective EMI after interest-only moratorium (principal amortised over remaining months)
+  const emiAfter = (() => {
+    if (r === 0) return balance / remainingMonths
+    const factor = Math.pow(1 + r, remainingMonths)
+    return (balance * r * factor) / (factor - 1)
+  })()
   for (let i = 1; i <= months; i++) {
     const interest = balance * r
     let principal: number
     let payment: number
     if (i <= moratoriumMonths) {
-      payment = 0
+      // interest_only_during_moratorium — pay interest each month, principal unchanged
+      payment = Math.round(interest * 100) / 100
       principal = 0
-      balance += interest
-      rows.push({ month: i, payment, interest, principal, balance: Math.round(balance * 100) / 100 })
+      rows.push({ month: i, payment, interest: Math.round(interest * 100) / 100, principal, balance: Math.round(balance * 100) / 100 })
       continue
     }
-    payment = emi(loan, annualRatePct, months)
-    principal = payment - interest
-    balance -= principal
+    payment = emiAfter
+    principal = Math.min(payment - interest, balance)
+    balance = Math.max(0, balance - principal)
     rows.push({
       month: i,
       payment: Math.round(payment * 100) / 100,

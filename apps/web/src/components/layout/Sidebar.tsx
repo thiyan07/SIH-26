@@ -6,6 +6,7 @@ type Item = { to: string; labelKey: string; icon: string; desc: string; group: s
 const ITEMS: Item[] = [
   { to: '/analyze', labelKey: 'navAnalyze', icon: '🧭', desc: 'Feasibility', group: 'Plan' },
   { to: '/dashboard', labelKey: 'navDashboard', icon: '📊', desc: 'Score & ROI', group: 'Plan' },
+  { to: '/business-setup', labelKey: 'navBusinessSetup' as any, icon: '🛠️', desc: 'Setup plan', group: 'Plan' },
   { to: '/market', labelKey: 'navMarket', icon: '🏪', desc: 'Prices & peers', group: 'Discover' },
   { to: '/finance', labelKey: 'navFinance', icon: '💳', desc: 'Loan plan', group: 'Money' },
   { to: '/simulator', labelKey: 'navSimulator', icon: '🎛️', desc: 'What-if', group: 'Money' },

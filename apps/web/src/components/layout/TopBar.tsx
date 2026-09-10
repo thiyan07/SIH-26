@@ -99,7 +99,7 @@ function CommandPalette({ q, setQ, onClose, nav, lang }: { q:string; setQ:(s:str
     let qi=0
     text=text.toLowerCase()
     query=query.toLowerCase()
-    for (let c of text) { if (c===query[qi]) qi++; if (qi===query.length) return true }
+    for (const c of text) { if (c===query[qi]) qi++; if (qi===query.length) return true }
     return query.length<=2 ? text.includes(query) : false
   }
   const items = allItems.filter(i=> !q || fuzzy(`${i.label} ${i.hint} ${i.keys}`, q))

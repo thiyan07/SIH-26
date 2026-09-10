@@ -14,6 +14,7 @@ from app.api import (
     advisory,
     ai,
     analysis,
+    business_setup,
     businesses,
     data_sources,
     financial,
@@ -72,6 +73,7 @@ app.include_router(market.router)
 app.include_router(financial.router)
 app.include_router(advisory.router)
 app.include_router(analysis.router)
+app.include_router(business_setup.router)
 app.include_router(ai.router)
 app.include_router(data_sources.router)
 app.include_router(geo.router)

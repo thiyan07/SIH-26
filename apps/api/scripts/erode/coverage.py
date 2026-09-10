@@ -14,8 +14,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import func, distinct
-
 log = logging.getLogger("erode.coverage")
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -153,7 +151,6 @@ MD_HEADER = """# {title}
 
 
 def _markdown() -> str:
-    from app.catalog.business_categories import catalog
     cats = businesses_by_category()
     comp = category_completeness()
     profile = coords_profile()

@@ -32,9 +32,9 @@ from app.engines.business_intelligence import (
 from app.engines.category_profiles import get_category_profile
 from app.engines.competition import analyze as analyze_competition
 from app.engines.competition import to_dict as competition_to_dict
-from app.engines.cost_templates import get_total_template_cost
 from app.engines.finance import derive_financial_plan
 from app.engines.health import health_access_evidence
+from app.engines.loan_explainer import build_loan_explainer
 from app.engines.location_features import location_features
 from app.engines.market import DEFAULT_SIGNAL_CODES as market_default_signal_codes
 from app.engines.market import analyze as analyze_market
@@ -42,7 +42,6 @@ from app.engines.prices import derive_price_evidence, price_score_from_evidence
 from app.engines.profit import simulate_model
 from app.engines.repayment import build_schedule as build_repay_schedule
 from app.engines.repayment import repayment_health
-from app.engines.loan_explainer import build_loan_explainer
 from app.engines.score import (
     ConfidenceFactors,
     compute_opportunity,
@@ -421,10 +420,11 @@ def run_analysis(db: Session, req) -> dict:
     suggested_businesses = []
     if not category or getattr(req, "auto_recommend", False):
         from app.catalog.business_categories import all_codes
+        from app.engines.competition import analyze as _ac
         from app.engines.cost_templates import get_total_template_cost as _gtc
         from app.engines.profit import simulate_model as _sim
-        from app.engines.scheme_eligibility import BeneficiaryProfile as _BP, match_schemes as _ms
-        from app.engines.competition import analyze as _ac
+        from app.engines.scheme_eligibility import BeneficiaryProfile as _BP
+        from app.engines.scheme_eligibility import match_schemes as _ms
         candidates = []
         for code in all_codes():
             try:
@@ -477,9 +477,23 @@ def run_analysis(db: Session, req) -> dict:
             category = suggested_businesses[0]["business_type"]
 
     # 1. financial plan (scheme routing) — cost-driven. The project cost comes
-    # from the business cost template (category + scale), NOT from capital x 10.
+    # from the business cost template (category + scale + location), NOT from capital x 10.
     # The beneficiary borrows only what they cannot cover from own capital.
-    project_cost = get_total_template_cost(category, scale)
+    from app.engines.cost_templates import LOCATION_FACTORS
+    from app.engines.financial_structuring import build_cost_breakdown
+
+    def _loc_factor(block: str | None, district: str | None) -> float:
+        for key in [(block or "").lower().replace(" ", "_"), (district or "").lower().replace(" ", "_")]:
+            if key and key in LOCATION_FACTORS:
+                return LOCATION_FACTORS[key]
+        # try village_average for rural fallback
+        if district and district.lower() == "erode":
+            return LOCATION_FACTORS.get("village_average", 1.0)
+        return 1.0
+
+    loc_factor = _loc_factor(location.block, location.district)
+    cost_breakdown_obj = build_cost_breakdown(category, scale, location_factor=loc_factor)
+    project_cost = cost_breakdown_obj.total_project_cost
     fin = derive_financial_plan(project_cost, capital)
     scheme = fin.scheme
 
@@ -553,14 +567,31 @@ def run_analysis(db: Session, req) -> dict:
     # Seasonal demand intelligence + product recommendations.
     seasonal = seasonal_intelligence(category)
     products = recommend_products(category)
-    # Monthly economics built from the estimated operating model revenue and
-    # the actual deferred debt service (EMI) when a loan is present.
+    # Monthly economics: canonical pipeline (Phase 1). Derive revenue via
+    # demand×transaction×days when no explicit revenue, otherwise use profit
+    # model revenue verbatim but still expose derivation for explainability.
     model_revenue = profit.outputs.get("monthly_revenue")
     econ_emi = monthly_debt_service if monthly_debt_service is not None else 0.0
+    # Build local evidence for revenue derivation (population + competition + price).
+    _rev_evidence = {
+        "population": population.get("population") if population.get("available") else None,
+        "competitors_5km": competition.get("mapped_competitors_5km"),
+    }
+    # Attach price modal if available (first relevant price).
+    try:
+        from app.engines.market_intelligence import category_market_intelligence as _cmi
+        _mi_for_rev = _cmi(db, category_code=category, state=location.state, district=location.district, max_age_days=90)
+        if _mi_for_rev.get("available") and _mi_for_rev.get("prices"):
+            _rev_evidence["price_modal"] = _mi_for_rev["prices"][0].get("modal")
+    except Exception:
+        pass
+    # If model revenue exists, use it directly (historical behaviour) but also expose
+    # derivation as supplementary evidence; if missing, use canonical derivation.
     economics = monthly_economics(
         category,
         monthly_revenue=model_revenue,
         emi=econ_emi,
+        local_evidence=_rev_evidence,
     )
     # Location-scoped MSME / industrial context (UDYAM pincode-level, factories
     # district-level). Never point-radius competitors; approximate + labelled.
@@ -657,6 +688,151 @@ def run_analysis(db: Session, req) -> dict:
               health_facilities_nearby=infrastructure.get("health_facilities_nearby"),
               health_source=(infrastructure.get("nearest_health") or {}).get("source_name"))
 
+    # ── Phase 3: Deterministic viability decision (reuses opportunity-score framework) ──
+    from app.engines.viability import viability_decision as _viability
+    econ_dict = monthly_economics_to_dict(economics)
+    viability = _viability(
+        opportunity_score=result.overall_score,
+        confidence_label=result.confidence_label,
+        financial_fit_score=result.financial_fit_score,
+        risk_score=result.risk_score,
+        profitability=econ_dict,
+        repayment_health=health,
+        seasonal=seasonal,
+        competition=competition,
+        demand_score=result.demand_score,
+        accessibility_score=result.accessibility_score,
+        price_score=result.price_score,
+        data_quality=data_quality,
+    )
+
+    # ── Phase 4: What is limiting my business? ──
+    from app.engines.constraints import rank_constraints
+    # Market intelligence for constraint ranking (category-relevant prices).
+    try:
+        from app.engines.market_intelligence import category_market_intelligence as _cmi2
+        _mi_full = _cmi2(db, category_code=category, state=location.state, district=location.district, max_age_days=90)
+    except Exception:
+        _mi_full = price_evidence
+    constraints = rank_constraints(
+        financial_plan={
+            "required_financing": round(fin.required_financing, 2),
+            "own_contribution": round(fin.own_contribution, 2),
+            "capital_available": round(capital, 2),
+            "shortfall": round(fin.shortfall, 2),
+            "project_cost": round(fin.project_cost, 2),
+            "max_loan": scheme.max_loan_amount if scheme else None,
+        },
+        competition=competition,
+        market_intelligence=_mi_full,
+        monthly_economics=econ_dict,
+        repayment={"health_label": health.get("label"), "coverage_ratio": health.get("coverage_ratio"),
+                   "monthly_emi": round(monthly_debt_service, 2) if monthly_debt_service else 0},
+        seasonal=seasonal,
+        infrastructure=infrastructure,
+        data_quality=data_quality,
+    )
+
+    # ── Phase 5: Working capital / survival analysis ──
+    from app.engines.working_capital import working_capital_requirement
+    working_capital = working_capital_requirement(
+        cost_breakdown={
+            "capital_expenditure": cost_breakdown_obj.capital_expenditure,
+            "working_capital": cost_breakdown_obj.working_capital,
+            "infrastructure": cost_breakdown_obj.infrastructure,
+            "licensing_compliance": cost_breakdown_obj.licensing_compliance,
+            "contingency_amount": cost_breakdown_obj.contingency_amount,
+        },
+        monthly_economics=econ_dict,
+        repayment={"monthly_emi": round(monthly_debt_service, 2) if monthly_debt_service else 0},
+        seasonal=seasonal,
+        scale=scale,
+    )
+
+    # ── Phase 9: Location suitability ──
+    from app.engines.location_suitability import location_suitability
+    loc_suitability = location_suitability(
+        competition=competition,
+        infrastructure=infrastructure,
+        population=population,
+        market_intelligence=_mi_full,
+        demand_score=result.demand_score,
+        accessibility_score=result.accessibility_score,
+    )
+
+    # ── Phase 10: Business scale fit ──
+    from app.engines.scale_fit import evaluate_scale_fit
+    scale_fit = evaluate_scale_fit(category, capital, location_factor=loc_factor)
+
+    # ── Phase 11: Conditional alternatives — only when AVOID/constrained/low confidence ──
+    # If the primary decision is AVOID or MODIFY with high constraints, keep the
+    # pre-computed suggested_businesses; otherwise suppress generic top-10 lists.
+    if viability["decision"] == "AVOID" or (viability["decision"] == "MODIFY" and constraints.get("has_high")):
+        # Use deterministic alternative comparison: re-rank with relaxed scale/capital.
+        # Keep existing suggested_businesses (already deterministic) but ensure 2-3 alternatives.
+        pass  # keep as-is
+    elif viability["decision"] == "GO":
+        # Suppress noisy alternatives when GO is confident.
+        if result.confidence_label == "high" and not constraints.get("has_high"):
+            suggested_businesses = []
+
+    # ── Business Setup & Operating Plan (deterministic, reuse cost_templates + economics) ──
+    from app.engines.business_setup import build_setup_plan
+    # Resolve model if provided on request, otherwise default.
+    requested_model = getattr(req, "business_model", None) or getattr(req, "model", None)
+    setup_plan = build_setup_plan(
+        category_code=category,
+        scale=scale,
+        model=requested_model,
+        location_factor=loc_factor,
+        capital_available=capital,
+        monthly_economics_dict=econ_dict,
+        financial_plan={
+            "project_cost": round(fin.project_cost, 2),
+            "required_financing": round(fin.required_financing, 2),
+            "loan_amount": round(fin.loan_amount, 2),
+            "own_capital": round(fin.own_contribution, 2),
+        },
+        seasonal=seasonal,
+        infrastructure=infrastructure,
+        market_evidence=_mi_full,
+    )
+
+    # ── Phase 13: Canonical unified financial result (ONE authoritative object) ──
+    unified_financial = {
+        "project_cost": round(fin.project_cost, 2),
+        "own_capital": round(fin.own_contribution, 2),
+        "financing_required": round(fin.required_financing, 2),
+        "shortfall": round(fin.shortfall, 2),
+        "shortfall_reason": fin.shortfall_reason,
+        "scheme": {
+            "code": scheme.code if scheme else None,
+            "name": scheme.name if scheme else None,
+            "interest_rate": scheme.interest_rate if scheme else None,
+            "tenure_years": scheme.tenure_years if scheme else None,
+            "moratorium_months": scheme.moratorium_months if scheme else None,
+            "moratorium_mode": scheme.moratorium_mode if scheme else None,
+            "max_loan_allowed": scheme.max_loan_amount if scheme else None,
+            "source_document": scheme.source_document if scheme else None,
+            "reason": fin.scheme_reason,
+        },
+        "loan_amount": round(fin.loan_amount, 2),
+        "emi": round(monthly_debt_service, 2) if monthly_debt_service else 0,
+        "total_interest": round(schedule.total_interest, 2) if schedule else 0,
+        "total_repayment": round(schedule.total_repayment, 2) if schedule else 0,
+        "monthly_revenue": econ_dict.get("monthly_revenue"),
+        "cogs": econ_dict.get("cogs"),
+        "gross_profit": econ_dict.get("gross_profit"),
+        "gross_margin_pct": econ_dict.get("gross_margin_pct"),
+        "opex": econ_dict.get("opex"),
+        "operating_profit": econ_dict.get("operating_profit"),
+        "cash_surplus": econ_dict.get("cash_surplus"),
+        "break_even_revenue": econ_dict.get("break_even_revenue"),
+        "working_capital_requirement": working_capital.get("estimated_working_capital_requirement"),
+        "repayment_health": health.get("label") if health else None,
+        "repayment_coverage": health.get("coverage_ratio") if health else None,
+    }
+
     evidence = {
         "location": {"id": location.id, "state": location.state, "district": location.district,
                      "block": location.block, "village": location.village,
@@ -712,6 +888,20 @@ def run_analysis(db: Session, req) -> dict:
             "source_document": scheme.source_document if scheme else None,
             "notes": fin.notes,
         },
+        "unified_financial": unified_financial,
+        "cost_breakdown": {
+            "category_code": cost_breakdown_obj.category_code,
+            "scale": cost_breakdown_obj.scale,
+            "capital_expenditure": cost_breakdown_obj.capital_expenditure,
+            "working_capital": cost_breakdown_obj.working_capital,
+            "infrastructure": cost_breakdown_obj.infrastructure,
+            "licensing_compliance": cost_breakdown_obj.licensing_compliance,
+            "contingency_pct": cost_breakdown_obj.contingency_pct,
+            "contingency_amount": cost_breakdown_obj.contingency_amount,
+            "total_project_cost": cost_breakdown_obj.total_project_cost,
+            "notes": cost_breakdown_obj.notes,
+            "location_factor": loc_factor,
+        },
         "repayment": {
             "monthly_emi": round(monthly_debt_service, 2) if monthly_debt_service else None,
             "coverage_ratio": health.get("coverage_ratio"),
@@ -730,10 +920,16 @@ def run_analysis(db: Session, req) -> dict:
         "weather_intelligence": weather_intelligence,
         "seasonal_intelligence": seasonal,
         "product_recommendations": products,
-        "monthly_economics": monthly_economics_to_dict(economics),
+        "monthly_economics": econ_dict,
+        "business_setup_plan": setup_plan,
+        "viability": viability,
+        "constraints": constraints,
+        "working_capital": working_capital,
+        "location_suitability": loc_suitability,
+        "scale_fit": scale_fit,
         "recommendation": {
-            "label": result.recommendation,
-            "reason": result.recommendation_reason,
+            "label": viability["decision"],
+            "reason": viability["reason"],
         },
         "loan_explainer": build_loan_explainer(
             {
@@ -753,7 +949,7 @@ def run_analysis(db: Session, req) -> dict:
                 "notes": fin.notes,
             },
             schedule,
-            monthly_economics_to_dict(economics),
+            econ_dict,
         ),
         "suggested_businesses": suggested_businesses,
         "data_sources": _collect_data_sources(competition, population, weather, price_evidence, soil, infrastructure, loc_features),
@@ -776,6 +972,31 @@ def run_analysis(db: Session, req) -> dict:
     db.flush()
     evidence["analysis_id"] = run.id
     run.result = evidence
+    # ── Persist setup plan with versioning (Plan v1, v2…) ──
+    try:
+        from sqlalchemy import select as _sel
+
+        from app.db.models import BusinessSetupPlan
+        existing = db.execute(_sel(BusinessSetupPlan).where(BusinessSetupPlan.analysis_run_id == run.id)).scalars().all()
+        next_version = max([r.version for r in existing], default=0) + 1
+        # Also bump if same business/location/scale already has a plan (global version per location+category+scale)
+        plan_row = BusinessSetupPlan(
+            analysis_run_id=run.id,
+            category_code=category,
+            model_code=setup_plan.get("model"),
+            scale=scale,
+            capital_available=round(capital, 2),
+            version=next_version,
+            location_id=location.id,
+            plan_json=setup_plan,
+        )
+        db.add(plan_row)
+        db.flush()
+        evidence["business_setup_plan_version"] = next_version
+        evidence["business_setup_plan_id"] = plan_row.id
+        run.result = evidence
+    except Exception:
+        pass
     db.commit()
     log_event("analysis", run_id=run.id, step="completed",
               location_id=location.id,

@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import logging
 import re
 import time
 import urllib.request
-from pathlib import Path
 
 from bs4 import BeautifulSoup
 from sqlalchemy import select
@@ -23,7 +23,6 @@ from sqlalchemy import select
 from app.db.models import Location
 from app.db.session import session_scope
 
-import logging
 log = logging.getLogger("scrape.nearby")
 
 STATE = "Tamil Nadu"
@@ -170,7 +169,6 @@ def scrape_district(district: str, *, dry_run: bool = False) -> dict:
 
 def main(argv=None) -> int:
     argv = argv if argv is not None else sys.argv[1:]
-    import argparse
     ap = argparse.ArgumentParser(description="Scrape nearby districts villages")
     ap.add_argument("--district", help="Single district e.g. Coimbatore")
     ap.add_argument("--all", action="store_true", help="All nearby districts")

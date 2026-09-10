@@ -114,6 +114,128 @@ def apply_weather_risk(category_code: str, weather: Optional[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Canonical revenue derivation: Demand × Transaction × Operating Days
+# ---------------------------------------------------------------------------
+# Per-category operating days (realistic days business is open per month).
+_OPERATING_DAYS: dict[str, int] = {
+    "grocery": 30, "dairy": 30, "poultry": 26, "restaurant": 26,
+    "food_processing": 26, "agriculture": 22, "manufacturing": 26,
+    "textile": 26, "tailoring": 26, "handicrafts": 22, "other": 26,
+    "mobile_shop": 26, "pharmacy": 30, "tea_shop": 30, "bakery": 26, "salon": 26,
+}
+
+# Per-category baseline customers/day and transaction value (ESTIMATED).
+# These are conservative fallbacks when no local evidence exists.
+_REVENUE_ASSUMPTIONS: dict[str, dict] = {
+    "grocery":      {"customers_per_day": 40, "transaction_value": 50,  "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "dairy":        {"customers_per_day": 25, "transaction_value": 55,  "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "poultry":      {"customers_per_day": 15, "transaction_value": 90,  "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "textile":      {"customers_per_day": 8,  "transaction_value": 150, "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "tailoring":    {"customers_per_day": 5,  "transaction_value": 180, "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "restaurant":   {"customers_per_day": 35, "transaction_value": 80,  "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "food_processing": {"customers_per_day": 20, "transaction_value": 100, "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "agriculture":  {"customers_per_day": 12, "transaction_value": 140, "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "manufacturing":{"customers_per_day": 10, "transaction_value": 300, "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "handicrafts":  {"customers_per_day": 6,  "transaction_value": 140, "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+    "other":        {"customers_per_day": 15, "transaction_value": 70,  "confidence": "low", "source": "Category baseline (ESTIMATED)"},
+}
+
+
+@dataclass
+class RevenueDerivation:
+    customers_per_day: float
+    transaction_value: float
+    operating_days: int
+    estimated_revenue: float
+    is_estimate: bool
+    confidence: str
+    provenance: str
+    assumptions: list[str]
+    fallback_reason: str | None = None
+
+
+def derive_revenue(
+    category_code: str,
+    *,
+    customers_per_day: float | None = None,
+    transaction_value: float | None = None,
+    operating_days: int | None = None,
+    local_evidence: dict | None = None,
+) -> RevenueDerivation:
+    """Canonical revenue derivation: demand × transaction × operating days.
+
+    Evidence-aware: when local_evidence contains population / competition /
+    price signals they adjust the baseline assumptions.  When evidence is
+    absent we fall back to the conservative category baseline and label the
+    result ESTIMATED with explicit provenance.
+
+    Returns a RevenueDerivation that explains every assumption.
+    """
+    defaults = _REVENUE_ASSUMPTIONS.get(category_code, _REVENUE_ASSUMPTIONS["other"])
+    base_customers = float(defaults["customers_per_day"])
+    base_txn = float(defaults["transaction_value"])
+    base_days = _OPERATING_DAYS.get(category_code, 26)
+
+    # Resolve inputs or fall back to baseline.
+    cpd = float(customers_per_day) if customers_per_day is not None else base_customers
+    txn = float(transaction_value) if transaction_value is not None else base_txn
+    days = int(operating_days) if operating_days is not None else base_days
+
+    assumptions: list[str] = []
+    is_estimate = True
+    confidence = defaults["confidence"]
+    provenance = defaults["source"]
+    fallback_reason = None
+
+    # Evidence adjustments (deterministic, never fabricates).
+    if local_evidence:
+        pop = local_evidence.get("population")
+        comp_5km = local_evidence.get("competitors_5km")
+        price_modal = local_evidence.get("price_modal")
+        # Population evidence: larger catchment -> modest demand uplift.
+        if pop and pop > 0:
+            # +10% customers if population >5000, capped at +30%.
+            pop_factor = min(0.30, max(0, (pop - 3000) / 20000))
+            if pop_factor > 0 and customers_per_day is None:
+                cpd = round(cpd * (1 + pop_factor), 1)
+                assumptions.append(f"Population-adjusted demand: {pop:,} catchment → customers/day adjusted by +{pop_factor*100:.0f}% (ESTIMATED).")
+        # Competition: high density reduces customers.
+        if comp_5km is not None and comp_5km >= 5 and customers_per_day is None:
+            comp_factor = min(0.30, comp_5km * 0.02)
+            cpd = round(max(1, cpd * (1 - comp_factor)), 1)
+            assumptions.append(f"Competition-adjusted demand: {comp_5km} mapped competitors within 5km → customers/day reduced by {comp_factor*100:.0f}% (ESTIMATED).")
+        # Price evidence: if a relevant modal price exists, use it as transaction anchor.
+        if price_modal and transaction_value is None:
+            # Treat modal price as evidence for transaction value only when within 0.5x-2x of baseline.
+            if 0.5 * base_txn <= price_modal <= 2 * base_txn:
+                old_txn = txn
+                txn = float(price_modal)
+                is_estimate = False
+                confidence = "medium"
+                provenance = "Local market price evidence (modal price)"
+                assumptions.append(f"Transaction value anchored to local market modal price ₹{price_modal:.0f} (was baseline ₹{old_txn:.0f}).")
+
+    if not assumptions:
+        fallback_reason = "No sufficient local evidence; using conservative category baseline (ESTIMATED)."
+        assumptions.append(fallback_reason)
+        assumptions.append(f"Baseline: {cpd:.0f} customers/day × ₹{txn:.0f} × {days} operating days.")
+
+    estimated_revenue = round(cpd * txn * days, 2)
+
+    return RevenueDerivation(
+        customers_per_day=cpd,
+        transaction_value=txn,
+        operating_days=days,
+        estimated_revenue=estimated_revenue,
+        is_estimate=is_estimate,
+        confidence=confidence,
+        provenance=provenance,
+        assumptions=assumptions,
+        fallback_reason=fallback_reason,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Monthly economics (deterministic cash-flow chain)
 # ---------------------------------------------------------------------------
 @dataclass
@@ -134,6 +256,11 @@ class MonthlyEconomics:
     break_even_state: str  # "surplus" | "deficit" | "insufficient_data"
     is_estimate: bool = True
     notes: list[str] = field(default_factory=list)
+    revenue_derivation: dict | None = None
+    assumption: str | None = None
+    confidence: str = "low"
+    source: str | None = None
+    fallback_reason: str | None = None
 
 
 def _num(value, default=0.0):
@@ -159,23 +286,66 @@ def monthly_economics(
     cogs_pct: Optional[float] = None,
     opex: Optional[float] = None,
     emi: Optional[float] = 0.0,
+    customers_per_day: Optional[float] = None,
+    transaction_value: Optional[float] = None,
+    operating_days: Optional[int] = None,
+    local_evidence: Optional[dict] = None,
 ) -> MonthlyEconomics:
     """Compute the full monthly cash-flow chain.
 
-    Chain (deterministic, in order):
-        gross_profit       = revenue - cogs
-        gross_margin_pct   = gross_profit / revenue
-        operating_profit   = gross_profit - opex
-        cash_surplus       = operating_profit - emi
-        break_even_revenue = revenue needed so operating_profit covers EMI.
+    Canonical pipeline (Phase 1):
+        demand / customer estimate × expected transaction value × operating days
+        → estimated revenue
 
-    Defaults are ESTIMATED demo assumptions per category (mirroring the profit
-    engine) and are always labelled as such. A zero/negative revenue case never
-    divides by zero: margins become 0 and break-even returns INSUFFICIENT DATA.
+        Revenue − COGS/raw material → gross profit
+        Gross profit − opex → operating profit
+        Operating profit − EMI → cash surplus
+
+    Revenue derivation:
+        When monthly_revenue is provided explicitly it is used verbatim.
+        Otherwise it is derived via the canonical demand×price×days pipeline
+        (derive_revenue) which is evidence-aware and always labelled ESTIMATED
+        when falling back to category baselines.
+
+    Defaults are ESTIMATED demo assumptions per category and are always
+    labelled as such. A zero/negative revenue case never divides by zero:
+    margins become 0 and break-even returns INSUFFICIENT DATA.
     """
     defaults = _ECON_DEFAULTS.get(category_code, _ECON_DEFAULTS["other"])
-    revenue = _num(monthly_revenue, defaults["monthly_revenue"])
-    revenue = max(0.0, revenue)
+    derivation: RevenueDerivation | None = None
+    is_estimate = True
+    confidence = "low"
+    source: str | None = None
+    fallback_reason: str | None = None
+
+    if monthly_revenue is not None:
+        revenue = _num(monthly_revenue, defaults["monthly_revenue"])
+        revenue = max(0.0, revenue)
+        # Still produce derivation for explainability when evidence available.
+        if local_evidence or customers_per_day or transaction_value:
+            try:
+                derivation = derive_revenue(
+                    category_code,
+                    customers_per_day=customers_per_day,
+                    transaction_value=transaction_value,
+                    operating_days=operating_days,
+                    local_evidence=local_evidence,
+                )
+            except Exception:
+                derivation = None
+    else:
+        derivation = derive_revenue(
+            category_code,
+            customers_per_day=customers_per_day,
+            transaction_value=transaction_value,
+            operating_days=operating_days,
+            local_evidence=local_evidence,
+        )
+        revenue = derivation.estimated_revenue
+        is_estimate = derivation.is_estimate
+        confidence = derivation.confidence
+        source = derivation.provenance
+        fallback_reason = derivation.fallback_reason
 
     if cogs is not None:
         cogs_val = _num(cogs, 0.0)
@@ -214,6 +384,26 @@ def monthly_economics(
         "Monthly economics are ESTIMATED demo assumptions, not guaranteed figures.",
         "Cash surplus = operating profit minus monthly debt service (EMI).",
     ]
+    if derivation:
+        notes.append(
+            f"Revenue derived via: {derivation.customers_per_day} customers/day × ₹{derivation.transaction_value:.0f} × {derivation.operating_days} days = ₹{derivation.estimated_revenue:,.0f} (confidence: {derivation.confidence}, source: {derivation.provenance})."
+        )
+        for a in derivation.assumptions:
+            notes.append(a)
+
+    rev_deriv_dict = None
+    if derivation:
+        rev_deriv_dict = {
+            "customers_per_day": derivation.customers_per_day,
+            "transaction_value": derivation.transaction_value,
+            "operating_days": derivation.operating_days,
+            "estimated_revenue": derivation.estimated_revenue,
+            "is_estimate": derivation.is_estimate,
+            "confidence": derivation.confidence,
+            "provenance": derivation.provenance,
+            "assumptions": derivation.assumptions,
+            "fallback_reason": derivation.fallback_reason,
+        }
 
     return MonthlyEconomics(
         category_code=category_code,
@@ -230,7 +420,13 @@ def monthly_economics(
         cash_surplus_pct=_pct(surplus, revenue),
         break_even_revenue=round(break_even, 2) if break_even else None,
         break_even_state=state,
+        is_estimate=is_estimate,
         notes=notes,
+        revenue_derivation=rev_deriv_dict,
+        assumption=rev_deriv_dict["assumptions"][0] if rev_deriv_dict and rev_deriv_dict.get("assumptions") else None,
+        confidence=confidence,
+        source=source,
+        fallback_reason=fallback_reason,
     )
 
 
@@ -273,6 +469,11 @@ def monthly_economics_to_dict(e: MonthlyEconomics) -> dict:
         "break_even_revenue": e.break_even_revenue,
         "break_even_state": e.break_even_state,
         "notes": e.notes,
+        "revenue_derivation": e.revenue_derivation,
+        "assumption": e.assumption,
+        "confidence": e.confidence,
+        "source": e.source,
+        "fallback_reason": e.fallback_reason,
     }
 
 

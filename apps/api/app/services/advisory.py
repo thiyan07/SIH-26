@@ -307,11 +307,12 @@ def _recommend_businesses(
     Returns top 5 with reasons and full financial_structure for the best.
     """
     from app.catalog.business_categories import all_codes
+    from app.db.models import Location
+    from app.engines.competition import analyze as analyze_competition
     from app.engines.cost_templates import get_total_template_cost
     from app.engines.profit import simulate_model
-    from app.engines.scheme_eligibility import BeneficiaryProfile as BP, match_schemes
-    from app.engines.competition import analyze as analyze_competition
-    from app.db.models import Location
+    from app.engines.scheme_eligibility import BeneficiaryProfile as BP
+    from app.engines.scheme_eligibility import match_schemes
 
     capital = parsed.capital_available or 0
     scale = parsed.scale or "micro"

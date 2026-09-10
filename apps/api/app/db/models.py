@@ -694,6 +694,19 @@ class Report(PG, Base):
     html = Column(Text, nullable=True)
 
 
+class BusinessSetupPlan(PG, Base):
+    __tablename__ = "business_setup_plans"
+    analysis_run_id = Column(String(36), ForeignKey("analysis_runs.id"), nullable=True, index=True)
+    category_code = Column(String(50), nullable=False, index=True)
+    model_code = Column(String(50), nullable=True)
+    scale = Column(String(20), nullable=True)
+    capital_available = Column(Numeric(16, 2), nullable=True)
+    version = Column(Integer, default=1)
+    location_id = Column(String(36), nullable=True)
+    plan_json = Column(JSONB, nullable=False)
+    is_demo = Column(Boolean, default=False)
+
+
 class User(PG, Base):
     __tablename__ = "users"
     email = Column(String(200), unique=True, nullable=True)
@@ -729,6 +742,7 @@ __all__ = [
     "DataSyncRun",
     "CompetitorCache",
     "AnalysisRun",
+    "BusinessSetupPlan",
     "Report",
     "User",
     "ProvenanceMixin",

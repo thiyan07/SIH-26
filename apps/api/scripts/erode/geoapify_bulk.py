@@ -19,7 +19,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -31,7 +30,7 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 dotenv.load_dotenv(BASE_DIR / ".env")
 
 PLACES_URL = "https://api.geoapify.com/v2/places"
-_UA = "GramBizAI/1.1 (erode bulk discovery; geoapify)" 
+_UA = "GramBizAI/1.1 (erode bulk discovery; geoapify)"
 RADIUS_M = 2500  # ~ radius matching a village bbox sweep
 LIMIT = 100
 
@@ -223,7 +222,7 @@ def run_geoapify_sweep(limit: Optional[int] = None, delay: float = 0.5,
         return {"skipped": "no GEOAPIFY_API_KEY in .env"}
     villages = index_with_coords()
 
-    from scripts.erode.discovery import _load_state, _save_state, _idx_key
+    from scripts.erode.discovery import _idx_key, _load_state, _save_state
     state = {} if force else _load_state()
     done = set(state.get("geoapify_done", []))
     total_found = 0

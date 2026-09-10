@@ -20,7 +20,8 @@ export function Simulator() {
   // persist scenario
   useEffect(()=>{
     const raw = localStorage.getItem('grambiz.simulator')
-    if (raw) try { const p = JSON.parse(raw); setLoan(p.loan ?? loan); setRate(p.rate ?? rate); setYears(p.years ?? years) } catch {}
+    if (raw) try { const p = JSON.parse(raw); setLoan(p.loan ?? loan); setRate(p.rate ?? rate); setYears(p.years ?? years) } catch { void 0 }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   },[])
   useEffect(()=>{ localStorage.setItem('grambiz.simulator', JSON.stringify({ loan, rate, years, moratorium })) }, [loan, rate, years, moratorium])
 

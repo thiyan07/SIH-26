@@ -79,6 +79,77 @@ export function Dashboard() {
         </div>
       </Spotlight>
 
+      {/* 1. FINAL DECISION — deterministic GO/MODIFY/AVOID */}
+      {(() => {
+        const v = (result as any).viability
+        if (!v) return null
+        const color = v.decision === 'GO' ? 'green' : v.decision === 'AVOID' ? 'red' : 'amber'
+        return (
+          <Card className={`border-2 ${v.decision === 'GO' ? 'border-green-200 bg-green-50/40' : v.decision === 'AVOID' ? 'border-red-200 bg-red-50/40' : 'border-amber-200 bg-amber-50/40'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Final Decision</div>
+                <div className={`mt-1 text-3xl font-black tracking-tight ${v.decision === 'GO' ? 'text-green-700' : v.decision === 'AVOID' ? 'text-red-700' : 'text-amber-700'}`}>{v.decision}</div>
+                <div className="mt-1 text-xs text-gray-500">Score {v.score}/100 · confidence {v.confidence} ({v.confidence_score}/100)</div>
+              </div>
+              <Badge color={color}>{v.decision}</Badge>
+            </div>
+            <p className="mt-3 text-sm text-gray-700">{v.reason}</p>
+            {/* 2. WHY — top 3 reasons */}
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg bg-white p-3">
+                <div className="text-xs font-semibold text-green-700">Top positives</div>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-gray-700">
+                  {(v.top_positive_factors || []).slice(0,3).map((f:string,i:number)=><li key={i}>{f}</li>)}
+                </ul>
+              </div>
+              <div className="rounded-lg bg-white p-3">
+                <div className="text-xs font-semibold text-red-700">Top negatives</div>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-gray-700">
+                  {(v.top_negative_factors || []).slice(0,3).map((f:string,i:number)=><li key={i}>{f}</li>)}
+                </ul>
+              </div>
+            </div>
+            {v.recommended_actions?.length ? (
+              <div className="mt-3 rounded-lg bg-white p-3">
+                <div className="text-xs font-semibold text-gray-700">Recommended actions</div>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-gray-700">
+                  {v.recommended_actions.slice(0,3).map((a:string,i:number)=><li key={i}>{a}</li>)}
+                </ul>
+              </div>
+            ): null}
+            <p className="mt-2 text-[11px] italic text-gray-500">Evidence indicates this assessment; it is not a guarantee of success.</p>
+          </Card>
+        )
+      })()}
+
+      {/* 3. LOCATION — exact point + competition + accessibility */}
+      {(() => {
+        const ls = (result as any).location_suitability
+        if (!ls) return null
+        return (
+          <Card>
+            <CardHeader title="Location Suitability" subtitle={`${ls.suitability_score}/100 · confidence ${ls.confidence}`} />
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-lg bg-green-50 p-3">
+                <div className="text-xs font-semibold text-green-800">Strengths</div>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-700">
+                  {ls.strengths.map((s:string,i:number)=><li key={i}>{s}</li>)}
+                </ul>
+              </div>
+              <div className="rounded-lg bg-amber-50 p-3">
+                <div className="text-xs font-semibold text-amber-800">Concerns</div>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-700">
+                  {ls.concerns.map((s:string,i:number)=><li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-gray-500">{result.location.village || result.location.block} · {result.location.district} · {result.location.uses_proposed_location ? `Exact: ${Number(result.location.proposed_latitude).toFixed(4)}, ${Number(result.location.proposed_longitude).toFixed(4)} (uses exact proposed location)` : `Centroid: ${Number(result.location.latitude).toFixed(4)}, ${Number(result.location.longitude).toFixed(4)}` } · {result.location.geo_precision}</div>
+            <p className="mt-1 text-[11px] italic text-gray-500">{ls.note}</p>
+          </Card>
+        )
+      })()}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card3D>
           <Card className="h-full border-teal-100 shadow-md">
@@ -168,6 +239,30 @@ export function Dashboard() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Cost breakdown — business-specific estimator (req 1) */}
+      {(result as any).cost_breakdown && (
+        <Card>
+          <CardHeader title={tr('costBreakdownTitle', lang) as string || 'Project Cost Breakdown'} subtitle={`${(result as any).cost_breakdown.category_code} · ${(result as any).cost_breakdown.scale} · location factor ${(result as any).cost_breakdown.location_factor}x`} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <CostSection title="Shop / Equipment" items={(result as any).cost_breakdown.capital_expenditure} />
+            <CostSection title="Working Capital" items={(result as any).cost_breakdown.working_capital} />
+            <CostSection title="Infrastructure" items={(result as any).cost_breakdown.infrastructure} />
+            <CostSection title="Licensing" items={(result as any).cost_breakdown.licensing_compliance} />
+          </div>
+          <div className="mt-3 flex items-center justify-between border-t pt-2 text-sm">
+            <span className="text-gray-500">Contingency ({(result as any).cost_breakdown.contingency_pct}%)</span>
+            <span className="font-medium">₹{formatINR((result as any).cost_breakdown.contingency_amount)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
+            <span>Total Project Cost</span>
+            <span>₹{formatINR((result as any).cost_breakdown.total_project_cost)}</span>
+          </div>
+          <div className="mt-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-800">
+            <strong>{tr('youNeedMore', lang) as string || 'You need:'}</strong> ₹{formatINR((result as any).cost_breakdown.total_project_cost)} total · {tr('yourMoney', lang) as string || 'Your money:'} ₹{formatINR(fp.capital_available)} · {tr('estimatedFinancingNeeded', lang) as string || 'Financing needed:'} ₹{formatINR(fp.required_financing ?? 0)}
+          </div>
+        </Card>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -299,6 +394,82 @@ export function Dashboard() {
         </Card>
       </div>
 
+      {/* 6. FINANCING — already shown above; working capital & scale fit */}
+      {(() => {
+        const wc = (result as any).working_capital
+        if (!wc) return null
+        return (
+          <Card>
+            <CardHeader title="Working Capital / Survival Buffer" subtitle={`Modelled estimate: ₹${formatINR(wc.estimated_working_capital_requirement)}`} />
+            <ul className="space-y-1 text-xs text-gray-600">
+              {wc.reasons.map((r:string,i:number)=><li key={i}>• {r}</li>)}
+            </ul>
+            <p className="mt-2 text-[11px] italic text-gray-500">{wc.disclaimer}</p>
+          </Card>
+        )
+      })()}
+
+      {(() => {
+        const sf = (result as any).scale_fit
+        if (!sf) return null
+        return (
+          <Card>
+            <CardHeader title="Business Scale Fit" subtitle={sf.reason || ''} />
+            <div className="grid gap-2 md:grid-cols-3">
+              {sf.scales.map((s:any)=>(
+                <div key={s.scale} className={`rounded-lg p-3 text-xs ${s.scale===sf.recommended_scale?'bg-teal-50 border border-teal-200':'bg-gray-50'}`}>
+                  <div className="font-bold capitalize">{s.scale} {s.scale===sf.recommended_scale?'★':''}</div>
+                  <div>Project ₹{formatINR(s.project_cost)}</div>
+                  <div>Gap ₹{formatINR(s.required_financing)}</div>
+                  <div>EMI ₹{formatINR(s.emi)} · {s.repayment_health}</div>
+                  {s.cash_surplus!=null && <div>Cash surplus ₹{formatINR(s.cash_surplus)}</div>}
+                  <div className="mt-1 text-[10px] text-gray-500">Fit {s.fit_score}/100</div>
+                </div>
+              ))}
+            </div>
+            {sf.recommended_scale && <p className="mt-2 text-sm font-semibold text-teal-700">Recommended scale: {sf.recommended_scale}</p>}
+          </Card>
+        )
+      })()}
+
+      {/* 7. RISK / CONSTRAINTS — what is limiting */}
+      {(() => {
+        const c = (result as any).constraints
+        if (!c || !c.constraints?.length) return null
+        return (
+          <Card>
+            <CardHeader title="What Is Limiting My Business?" subtitle={`${c.count} constraint(s) · top is ${c.top_constraint?.severity || ''}`} />
+            <div className="space-y-2">
+              {c.constraints.slice(0,5).map((con:any,i:number)=>(
+                <div key={i} className="rounded-lg bg-gray-50 p-3">
+                  <div className="flex items-center gap-2">
+                    <Badge color={con.severity==='HIGH'?'red':con.severity==='MEDIUM'?'amber':'gray'}>{con.severity}</Badge>
+                    <span className="text-sm font-semibold text-gray-800">{con.factor}</span>
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600">{con.detail}</div>
+                  {con.evidence && <div className="text-[11px] italic text-gray-500">Evidence: {con.evidence}</div>}
+                  {con.action && <div className="mt-1 text-xs text-teal-700">→ {con.action}</div>}
+                </div>
+              ))}
+            </div>
+          </Card>
+        )
+      })()}
+
+      {/* 8. EVIDENCE — sources + freshness + confidence */}
+      <Card>
+        <CardHeader title="Evidence & Data Quality" subtitle={`${result.data_confidence?.confidence_label || ''} · ${result.opportunity_score.confidence_label} confidence`} />
+        <div className="text-xs text-gray-600">
+          {result.data_sources?.slice(0,6).map((s:any,i:number)=>(
+            <div key={i} className="flex justify-between py-1 border-b border-gray-50">
+              <span>{s.name}</span>
+              <span className="text-gray-500">{s.confidence || s.dataset || ''}</span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] italic text-gray-500">Historical Census 2011 is used as a baseline and is not presented as current population. Mapped competitor counts are minimums, not exhaustive. Missing evidence lowers confidence and is reported transparently.</p>
+      </Card>
+
       {wi?.relevant ? (
         <div className="grid gap-6 lg:grid-cols-1">
           <Card>
@@ -383,6 +554,24 @@ function NoResult({ lang }: { lang: Language }) {
       <a href="/analyze" className="mt-4 inline-block rounded-lg bg-teal-600 px-5 py-2 text-sm font-medium text-white hover:bg-teal-700">
         {tr('analyzeBusiness', lang)}
       </a>
+    </div>
+  )
+}
+
+function CostSection({ title, items }: { title: string; items: Record<string, number> }) {
+  const entries = Object.entries(items)
+  if (entries.length === 0) return null
+  return (
+    <div>
+      <h4 className="mb-2 break-words whitespace-normal text-xs font-semibold uppercase tracking-widest text-slate-500">{title}</h4>
+      <dl className="divide-y divide-gray-100">
+        {entries.map(([k, v]) => (
+          <div key={k} className="flex min-w-0 flex-wrap items-center justify-between gap-3 whitespace-normal py-1.5 text-sm box-border px-1">
+            <dt className="min-w-0 flex-1 break-words whitespace-normal text-gray-500">{k}</dt>
+            <dd className="shrink-0 break-words whitespace-normal font-medium text-gray-900">₹{formatINR(v)}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   )
 }

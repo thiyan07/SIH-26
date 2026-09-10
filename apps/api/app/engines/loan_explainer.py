@@ -14,7 +14,6 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-
 # Deterministic affordability thresholds (documented here and in tests).
 # Based on the ratio of estimated monthly operating surplus remaining AFTER
 # the loan payment to the loan payment itself, plus an absolute minimum.

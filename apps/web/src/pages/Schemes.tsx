@@ -73,6 +73,7 @@ export function Schemes() {
         capital_available: result.financial_plan?.capital_available,
       }).then((r) => setMatches(r.matches || [])).catch(() => {})
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result?.location?.block, result?.location?.village, projectCost])
 
   const routed = schemes.length > 0 && projectCost != null ? route(projectCost, schemes, lang) : null

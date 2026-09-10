@@ -170,10 +170,10 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
     schemes = list(db.execute(
         select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True))
     ).scalars())
-    
+
     if not schemes:
         return []
-    
+
     results = []
     for scheme in schemes:
         matching = []
@@ -184,7 +184,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
         missing_count = 0
         has_fail = False
         all_info = True
-        
+
         # 1. Project cost (highest priority)
         cost_ok, cost_match, cost_fail = _check_project_cost(scheme, profile.project_cost)
         if cost_ok:
@@ -199,7 +199,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
                 mismatching.append(cost_fail)
                 fails += 1
                 has_fail = True
-        
+
         # 2. Business type
         biz_ok, biz_match, biz_fail = _check_business_type(scheme.eligible_business_types, profile.business_type)
         if biz_ok:
@@ -214,7 +214,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
                 mismatching.append(biz_fail)
                 fails += 1
                 has_fail = True
-        
+
         # 3. Location
         loc_ok, loc_match, loc_fail = _check_location(
             scheme.eligible_states, scheme.eligible_districts,
@@ -232,7 +232,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
                 mismatching.append(loc_fail)
                 fails += 1
                 has_fail = True
-        
+
         # 4. Beneficiary category
         cat_ok, cat_match, cat_fail = _check_category_beneficiary(
             scheme.target_beneficiary_categories, profile.beneficiary_category,
@@ -249,7 +249,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
                 mismatching.append(cat_fail)
                 fails += 1
                 has_fail = True
-        
+
         # 5. Age
         if scheme.min_age is not None or scheme.max_age is not None:
             age_ok, age_match, age_fail = _check_age(scheme.min_age, scheme.max_age, profile.age)
@@ -265,7 +265,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
                     mismatching.append(age_fail)
                     fails += 1
                     has_fail = True
-        
+
         # 6. Income
         if scheme.min_annual_income is not None or scheme.max_annual_income is not None:
             inc_ok, inc_match, inc_fail = _check_income(
@@ -285,7 +285,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
                     mismatching.append(inc_fail)
                     fails += 1
                     has_fail = True
-        
+
         # 7. Existing business requirement
         if scheme.requires_existing_business is not None:
             if profile.has_existing_business is None:
@@ -299,11 +299,11 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
             else:
                 matching.append("Existing business: requirement satisfied")
                 passes += 1
-        
+
         total_checks = passes + fails + missing_count
         score = _compute_score(passes, fails, missing_count, total_checks)
         status = _status_from_score(score, has_fail, all_info)
-        
+
         # Build scheme details for the response — full requirement set for eligibility transparency
         details = {
             "code": scheme.code,
@@ -338,7 +338,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
             "source_url": scheme.scheme_url,
             "confidence_level": scheme.confidence_level,
         }
-        
+
         results.append(EligibilityResult(
             scheme_code=scheme.code,
             scheme_name=scheme.name,
@@ -349,7 +349,7 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
             missing_information=missing,
             scheme_details=details,
         ))
-    
+
     results.sort(key=lambda r: r.match_score, reverse=True)
     return results
 

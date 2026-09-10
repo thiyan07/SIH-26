@@ -24,7 +24,7 @@ market stack.
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any, Optional
+from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session

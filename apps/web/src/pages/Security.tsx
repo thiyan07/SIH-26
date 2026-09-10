@@ -7,6 +7,7 @@ import { useAnalysis } from '../lib/analysisStore'
 export function Security() {
   const [twoFA, setTwoFA] = useState(()=> localStorage.getItem('grambiz.2fa')==='1')
   const [shareData, setShareData] = useState(()=> localStorage.getItem('grambiz.share')!=='0')
+  const [otp] = useState(()=> Math.floor(100000 + Math.random()*900000))
   const { result } = useAnalysis()
   useEffect(()=> localStorage.setItem('grambiz.2fa', twoFA?'1':'0'), [twoFA])
   useEffect(()=> localStorage.setItem('grambiz.share', shareData?'1':'0'), [shareData])
@@ -49,7 +50,7 @@ export function Security() {
         {twoFA && (
           <div data-testid="2fa-code" className="mt-3 rounded-xl bg-slate-50 p-3 text-center dark:bg-slate-800">
             <div className="text-xs text-slate-500">Demo OTP</div>
-            <div className="text-2xl font-mono font-bold tracking-widest text-slate-900 dark:text-white">{Math.floor(100000 + Math.random()*900000)}</div>
+            <div className="text-2xl font-mono font-bold tracking-widest text-slate-900 dark:text-white">{otp}</div>
             <div className="text-[11px] text-slate-500">Valid for 5 min • demo only</div>
           </div>
         )}

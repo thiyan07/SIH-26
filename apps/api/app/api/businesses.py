@@ -2,14 +2,19 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import distinct, func, select, text
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from app.db.models import Business, UdyamUnit
 from app.db.session import get_db
 from app.geo import find_nearby_with_distance
 from app.limiter import limiter
-from app.schemas import CompetitorDiscoveryQuery, CompetitorQuery, MSMEClustersQuery, NearbyBusinessQuery
+from app.schemas import (
+    CompetitorDiscoveryQuery,
+    CompetitorQuery,
+    MSMEClustersQuery,
+    NearbyBusinessQuery,
+)
 
 router = APIRouter(prefix="/businesses", tags=["businesses"])
 

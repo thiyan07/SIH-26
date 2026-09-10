@@ -44,15 +44,17 @@ def test_acceptance_vertical_slice(client):
     assert "confidence_label" in score
 
     # deterministic financials (cost-driven): the project cost comes from the
-    # dairy cost template (micro), not from capital x 10. 1L capital -> the
-    # beneficiary borrows only what they can't cover: 1,68,300 - 1,00,000.
+    # dairy cost template (micro) with location factor (Sathyamangalam 0.78x),
+    # not from capital x 10. 1L capital -> the beneficiary borrows only what
+    # they can't cover: 1,31,274 - 1,00,000.
     fin = ev["financial_plan"]
-    assert fin["project_cost"] == pytest.approx(168_300, rel=1e-6)
-    assert fin["loan_amount"] == pytest.approx(68_300, rel=1e-6)
-    assert fin["required_financing"] == pytest.approx(68_300, rel=1e-6)
+    # dairy micro base 168300 * 0.78 (Sathyamangalam) = 131274
+    assert fin["project_cost"] == pytest.approx(131_274, rel=1e-6)
+    assert fin["loan_amount"] == pytest.approx(31_274, rel=1e-6)
+    assert fin["required_financing"] == pytest.approx(31_274, rel=1e-6)
 
-    # scheme routed to Term Loan
-    assert fin["scheme_code"] == "term_loan"
+    # scheme routed to Micro Finance (project cost 131k with location factor 0.78, within micro 0-140k)
+    assert fin["scheme_code"] == "micro_finance"
 
     # repayment present
     assert "repayment" in ev

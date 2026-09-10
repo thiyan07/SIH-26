@@ -7,9 +7,6 @@ These are demo estimates for advisory purposes — never guaranteed costs.
 """
 from __future__ import annotations
 
-from typing import Optional
-
-
 # ──────────────────────────────────────────────────────────────────────
 # Template structure:
 # {

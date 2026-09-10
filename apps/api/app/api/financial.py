@@ -221,6 +221,7 @@ def schemes_recommend(req: SchemeRecommendRequest, db: Session = Depends(get_db)
 def schemes(db: Session = Depends(get_db)):
     # Return full GovernmentScheme rows with all requirement fields for transparency
     from sqlalchemy import select
+
     from app.db.models import GovernmentScheme
     rows = list(db.execute(select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True))).scalars())
     if rows:
