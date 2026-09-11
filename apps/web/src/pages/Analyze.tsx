@@ -637,12 +637,36 @@ export function Analyze() {
 }
 
 function speak(text: string, lang: Language) {
-  if (!('speechSynthesis' in window)) return
+  if (!('speechSynthesis' in window)) {
+    alert('Text-to-speech not supported in this browser. Try Chrome.')
+    return
+  }
+  // If already speaking, stop (toggle)
+  if (speechSynthesis.speaking) {
+    speechSynthesis.cancel()
+    return
+  }
   const utter = new SpeechSynthesisUtterance(text)
   utter.lang = lang === 'ta' ? 'ta-IN' : lang === 'hi' ? 'hi-IN' : 'en-IN'
   utter.rate = 0.9
+  // Pick best available voice for language
+  const voices = speechSynthesis.getVoices()
+  const preferred = voices.find((v) => v.lang.toLowerCase().startsWith(utter.lang.toLowerCase().slice(0, 2)))
+    || voices.find((v) => v.lang.toLowerCase().includes('en'))
+  if (preferred) utter.voice = preferred
+  utter.onerror = () => speechSynthesis.cancel()
   speechSynthesis.cancel()
-  speechSynthesis.speak(utter)
+  // Some browsers need voices loaded async
+  if (voices.length === 0) {
+    speechSynthesis.addEventListener('voiceschanged', () => {
+      const vs = speechSynthesis.getVoices()
+      const pv = vs.find((v) => v.lang.toLowerCase().startsWith(utter.lang.toLowerCase().slice(0, 2)))
+      if (pv) utter.voice = pv
+      speechSynthesis.speak(utter)
+    }, { once: true })
+  } else {
+    speechSynthesis.speak(utter)
+  }
 }
 
 function AdvisoryReportView({ report, lang }: { report: AdvisoryReport; lang: Language }) {

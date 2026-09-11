@@ -8,15 +8,43 @@ import { LoanComparison } from '../components/LoanComparison'
 import { CalendarReminders } from '../components/CalendarReminders'
 
 export function Finance() {
-  const { result, lang } = useAnalysis()
-  const fp = result?.financial_plan
-  const repayment = result?.repayment
+  const { result, setResult, form, lang, selectedSchemeCode, selectedSchemeName } = useAnalysis()
+  const fp = result?.financial_plan as any
+  const repayment = result?.repayment as any
   const [tabs, setTabs] = useState<'plan' | 'schedule' | 'compare'>('plan')
+  const [recalcLoading, setRecalcLoading] = useState(false)
 
   const months = fp?.tenure_years != null ? fp.tenure_years * 12 : 0
   const moratorium = fp?.moratorium_months ?? 0
   const loan = fp?.loan_amount ?? 0
   const rate = fp?.interest_rate ?? 0
+  const fundingGap = fp ? Math.max(0, fp.project_cost - fp.capital_available) : 0
+  const isSchemeDriven = selectedSchemeCode && fp?.scheme_code === selectedSchemeCode
+  const needsRecalc = selectedSchemeCode && fp?.scheme_code !== selectedSchemeCode
+
+  const handleApplyScheme = async () => {
+    if (!selectedSchemeCode || !form || !result) return
+    setRecalcLoading(true)
+    try {
+      const { api } = await import('../lib/api')
+      const payload: any = {
+        ...form,
+        preferred_scheme_code: selectedSchemeCode,
+        state: (form as any).state || result.location.state,
+        district: (form as any).district || result.location.district,
+        block: (form as any).block || result.location.block,
+        village: (form as any).village || result.location.village,
+        capital_available: (form as any).capital_available || result.financial_plan.capital_available,
+        category_code: (form as any).category_code || (result as any).profit_model?.category_code,
+      }
+      if ((result as any).location?.proposed_latitude) {
+        payload.proposed_latitude = (result as any).location.proposed_latitude
+        payload.proposed_longitude = (result as any).location.proposed_longitude
+      }
+      const res = await api.post<any>('/analysis', payload)
+      setResult(res)
+    } finally { setRecalcLoading(false) }
+  }
 
   // Canonical financial values come from backend unified_financial / loan_explainer — no duplicate frontend formulas.
   const uf = (result as any)?.unified_financial
@@ -50,10 +78,52 @@ export function Finance() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-gray-900">{tr('financeTitle', lang)}</h1>
+        <div className="flex items-center gap-2">
+          {selectedSchemeCode && (
+            <Badge color={isSchemeDriven ? 'green' : 'amber'}>{isSchemeDriven ? `Scheme: ${selectedSchemeName}` : `Selected: ${selectedSchemeCode}`}</Badge>
+          )}
           <Badge color={fp.scheme_decision === 'Go' || fp.scheme_decision === 'GO' ? 'green' : fp.scheme_decision === 'NO' ? 'red' : 'amber'}>
-          {schemeDecisionLabel(fp.scheme_decision, lang)}
-        </Badge>
+            {schemeDecisionLabel(fp.scheme_decision, lang)}
+          </Badge>
+        </div>
       </div>
+
+      {/* Selected scheme drives finance — show BEFORE vs AFTER */}
+      {selectedSchemeCode && (
+        <Card>
+          <CardHeader title="Financing — Before vs After Scheme" subtitle="The selected scheme's actual terms (interest, tenure, moratorium, eligible loan) are applied to your funding gap" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Before Scheme (Generic)</div>
+              <dl className="mt-2 space-y-1 text-sm text-gray-600">
+                <div className="flex justify-between"><dt>Project requirement</dt><dd className="font-medium text-gray-900">₹{formatINR(fp.project_cost)}</dd></div>
+                <div className="flex justify-between"><dt>Own capital</dt><dd className="font-medium text-gray-900">₹{formatINR(fp.capital_available)}</dd></div>
+                <div className="flex justify-between"><dt>Funding gap</dt><dd className="font-medium text-gray-900">₹{formatINR(fundingGap)}</dd></div>
+                <div className="flex justify-between"><dt>Assumption</dt><dd className="text-xs text-gray-500">Micro Finance default 6.5% / 3yr (if no scheme)</dd></div>
+              </dl>
+            </div>
+            <div className="rounded-xl border border-brand-200 bg-brand-50 p-4">
+              <div className="text-xs font-bold uppercase tracking-widest text-brand-700">After Scheme {isSchemeDriven ? '✓ Applied' : '— Not yet applied'}</div>
+              <dl className="mt-2 space-y-1 text-sm">
+                <div className="flex justify-between"><dt className="text-brand-700">Selected scheme</dt><dd className="font-bold text-brand-900">{selectedSchemeName || selectedSchemeCode}</dd></div>
+                <div className="flex justify-between"><dt>Eligible financing</dt><dd className="font-medium text-gray-900">₹{formatINR(fp.loan_amount)} {fp.max_loan != null && <span className="text-xs text-gray-500">(max ₹{formatINR(fp.max_loan)})</span>}</dd></div>
+                <div className="flex justify-between"><dt>Interest</dt><dd className="font-medium text-gray-900">{fp.interest_rate != null ? `${fp.interest_rate}%` : 'Unknown'} {fp.is_assumed && <span className="text-[10px] text-amber-600">(assumed)</span>}</dd></div>
+                <div className="flex justify-between"><dt>Tenure</dt><dd className="font-medium text-gray-900">{fp.tenure_years != null ? `${fp.tenure_years} yr` : 'Unknown'} {fp.moratorium_months ? `· ${fp.moratorium_months} mo moratorium (${fp.moratorium_mode})` : ''}</dd></div>
+                <div className="flex justify-between"><dt>Monthly EMI</dt><dd className="font-bold text-brand-700">₹{formatINR((result as any)?.unified_financial?.emi || (result as any)?.repayment?.monthly_emi || 0)}</dd></div>
+                {fp.shortfall > 0 && <div className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-800">Shortfall: ₹{formatINR(fp.shortfall)} additional own funding required — loan capped by scheme limit</div>}
+                {fp.moratorium_months > 0 && <div className="text-xs text-gray-600">Moratorium: {fp.moratorium_months} months — {fp.moratorium_mode === 'interest_only_during_moratorium' ? 'interest-only during moratorium, principal repayment after' : fp.moratorium_mode}</div>}
+              </dl>
+              {needsRecalc && (
+                <button onClick={handleApplyScheme} disabled={recalcLoading} className="mt-3 w-full rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white hover:bg-brand-700 disabled:opacity-50">
+                  {recalcLoading ? 'Recalculating…' : `Apply ${selectedSchemeCode} to Finance → Recalculate`}
+                </button>
+              )}
+              {!isSchemeDriven && !needsRecalc && <div className="mt-2 text-xs text-gray-500">Finance currently shows generic terms. Select a scheme on Schemes page to apply its real terms.</div>}
+            </div>
+          </div>
+          <p className="mt-3 text-xs text-gray-500">Financing = min(funding gap ₹{formatINR(fundingGap)}, scheme max ₹{fp.max_loan != null ? formatINR(fp.max_loan) : '∞'}). Never borrows the maximum allowed — only what you actually need.</p>
+        </Card>
+      )}
 
       {/* Cost breakdown — business-specific estimator (req 1) */}
       {costBreakdown && (
@@ -174,7 +244,7 @@ export function Finance() {
                 {repayment?.coverage_ratio != null ? `${(repayment.coverage_ratio * 100).toFixed(0)}%` : '—'}
               </p>
               <ul className="list-disc space-y-1 pl-5">
-                {(fp.notes || []).map((n, i) => (
+                {(fp.notes || []).map((n: any, i: number) => (
                   <li key={i}>{n}</li>
                 ))}
               </ul>

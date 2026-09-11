@@ -492,10 +492,46 @@ def run_analysis(db: Session, req) -> dict:
         return 1.0
 
     loc_factor = _loc_factor(location.block, location.district)
-    cost_breakdown_obj = build_cost_breakdown(category, scale, location_factor=loc_factor)
+    # Resolve business model early so cost breakdown and setup share same model
+    requested_model = getattr(req, "business_model", None) or getattr(req, "model", None)
+    cost_breakdown_obj = build_cost_breakdown(category, scale, location_factor=loc_factor, model=requested_model)
     project_cost = cost_breakdown_obj.total_project_cost
-    fin = derive_financial_plan(project_cost, capital)
-    scheme = fin.scheme
+    # If user selected a specific scheme, use THAT scheme's actual rules for finance
+    preferred_code = getattr(req, "preferred_scheme_code", None)
+    if preferred_code:
+        from app.db.models import GovernmentScheme
+        from app.engines.finance import SchemeRule
+        row = db.execute(select(GovernmentScheme).where(GovernmentScheme.code == preferred_code, GovernmentScheme.is_active.is_(True))).scalars().first()
+        if row:
+            # Build SchemeRule from DB row, preserving actual scheme details (no invented defaults except where null)
+            def _safe(v, fallback):
+                return fallback if v is None else float(v) if isinstance(v, (int, float)) else v
+            scheme_rule = SchemeRule(
+                code=row.code,
+                name=row.name,
+                min_project_cost=float(row.min_project_cost) if row.min_project_cost is not None else 0.0,
+                max_project_cost=float(row.max_project_cost) if row.max_project_cost is not None else None,
+                max_loan_amount=float(row.max_loan_amount) if row.max_loan_amount is not None else None,
+                interest_rate=float(row.interest_rate) if row.interest_rate is not None else 10.0,
+                tenure_years=float(row.tenure_years) if row.tenure_years is not None else 5.0,
+                moratorium_months=int(row.moratorium_months) if row.moratorium_months is not None else 0,
+                margin_pct=float(row.margin_pct) if row.margin_pct is not None else 10.0,
+                moratorium_mode=row.moratorium_mode or "interest_only_during_moratorium",
+                source_document=row.source_document or row.scheme_url or "Government scheme registry",
+                source_date=str(row.source_date) if row.source_date else None,
+            )
+            # Check if scheme is actually eligible for this profile; if not, mark but still use its financial terms as requested
+            fin = derive_financial_plan(project_cost, capital, schemes=(scheme_rule,))
+            # Preserve source_document as honest provenance
+            if scheme_rule.source_document:
+                fin.scheme.source_document = scheme_rule.source_document
+            scheme = fin.scheme
+        else:
+            fin = derive_financial_plan(project_cost, capital)
+            scheme = fin.scheme
+    else:
+        fin = derive_financial_plan(project_cost, capital)
+        scheme = fin.scheme
 
     # 2. profit model (estimated)
     model_inputs = getattr(req, "model_inputs", None) or {}
@@ -585,14 +621,65 @@ def run_analysis(db: Session, req) -> dict:
             _rev_evidence["price_modal"] = _mi_for_rev["prices"][0].get("modal")
     except Exception:
         pass
-    # If model revenue exists, use it directly (historical behaviour) but also expose
-    # derivation as supplementary evidence; if missing, use canonical derivation.
-    economics = monthly_economics(
-        category,
+    # Handle user-editable assumptions: preserve DEFAULT and OVERRIDE
+    assumption_overrides = getattr(req, "assumption_overrides", None) or getattr(req, "model_inputs", None) or {}
+    # Extract overrides for monthly_economics
+    override_revenue = assumption_overrides.get("monthly_revenue") if isinstance(assumption_overrides, dict) else None
+    override_customers = assumption_overrides.get("customers_per_day") if isinstance(assumption_overrides, dict) else None
+    override_avg_ticket = assumption_overrides.get("avg_transaction_value") if isinstance(assumption_overrides, dict) else None
+    override_days = assumption_overrides.get("operating_days") if isinstance(assumption_overrides, dict) else None
+    override_cogs_pct = assumption_overrides.get("cogs_pct") if isinstance(assumption_overrides, dict) else None
+    override_opex = assumption_overrides.get("monthly_fixed_expenses") if isinstance(assumption_overrides, dict) else None
+
+    # If user provided direct revenue override, use it; otherwise try customers*ticket*days
+    if override_revenue is not None:
+        model_revenue = float(override_revenue)
+    elif override_customers is not None and override_avg_ticket is not None and override_days is not None:
+        model_revenue = float(override_customers) * float(override_avg_ticket) * int(override_days)
+    elif override_customers is not None and override_avg_ticket is not None:
+        # Use default operating days if not overridden
+        from app.engines.business_intelligence import _OPERATING_DAYS as _OD
+        days = _OD.get(category, 26)
+        model_revenue = float(override_customers) * float(override_avg_ticket) * days
+
+    # Build economics with overrides
+    economics_kwargs = dict(
+        category_code=category,
         monthly_revenue=model_revenue,
         emi=econ_emi,
         local_evidence=_rev_evidence,
     )
+    if override_days is not None:
+        economics_kwargs["operating_days"] = int(override_days)
+    if override_cogs_pct is not None:
+        economics_kwargs["cogs_pct"] = float(override_cogs_pct) / 100.0 if float(override_cogs_pct) > 1 else float(override_cogs_pct)
+    if override_opex is not None:
+        economics_kwargs["opex"] = float(override_opex)
+    if override_customers is not None:
+        economics_kwargs["customers_per_day"] = float(override_customers)
+    if override_avg_ticket is not None:
+        economics_kwargs["transaction_value"] = float(override_avg_ticket)
+
+    economics = monthly_economics(**economics_kwargs)
+    # Attach assumption tracking
+    economics_dict = monthly_economics_to_dict(economics)
+    # Record DEFAULT vs OVERRIDE for frontend
+    from app.engines.business_intelligence import _REVENUE_ASSUMPTIONS as _RA, _OPERATING_DAYS as _OD2, _ECON_DEFAULTS as _ED
+    defaults = {
+        "operating_days": _OD2.get(category, 26),
+        "customers_per_day": _RA.get(category, {}).get("customers_per_day", 30) if isinstance(_RA.get(category), dict) else 30,
+        "avg_transaction_value": _RA.get(category, {}).get("transaction_value", 50) if isinstance(_RA.get(category), dict) else 50,
+        "cogs_pct": _ED.get(category, {}).get("cogs_pct", 0.5) * 100 if isinstance(_ED.get(category), dict) else 50,
+    }
+    economics_dict["assumptions"] = {
+        "defaults": defaults,
+        "overrides": {k: v for k, v in assumption_overrides.items() if k in defaults or k in ["monthly_revenue", "monthly_fixed_expenses"]} if isinstance(assumption_overrides, dict) else {},
+        "effective": {
+            "operating_days": economics.operating_days if hasattr(economics, 'operating_days') else defaults["operating_days"],
+            "customers_per_day": override_customers if override_customers is not None else defaults["customers_per_day"],
+            "avg_transaction_value": override_avg_ticket if override_avg_ticket is not None else defaults["avg_transaction_value"],
+        }
+    }
     # Location-scoped MSME / industrial context (UDYAM pincode-level, factories
     # district-level). Never point-radius competitors; approximate + labelled.
     loc_features = location_features(

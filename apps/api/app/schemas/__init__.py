@@ -114,6 +114,11 @@ class AnalysisRequest(BaseModel):
     business_model: Optional[str] = Field(default=None, description="Optional business model subtype (e.g. milk_production, takeaway).")
     language: str = Field(default="en", pattern="^(en|ta|hi)$")
     auto_recommend: bool = Field(default=False, description="When true and no category_code, return ranked business suggestions")
+    # User-editable assumptions: preserve both DEFAULT and OVERRIDE
+    assumption_overrides: Optional[dict[str, Any]] = Field(default=None, description="User overrides for operating assumptions (e.g. operating_days, customers_per_day, avg_transaction_value, cogs_pct, monthly_fixed_expenses, initial_inventory)")
+    model_inputs: Optional[dict[str, Any]] = Field(default=None, description="Legacy alias for assumption_overrides")
+    # Selected scheme drives finance calculation (Scheme → Finance flow)
+    preferred_scheme_code: Optional[str] = Field(default=None, description="Selected government scheme code to drive finance calculation")
 
     @field_validator("capital_available")
     @classmethod

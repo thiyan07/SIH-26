@@ -10,15 +10,20 @@ interface Store {
   setResult: (r: AnalysisResult) => void
   form: Record<string, unknown> | null
   setForm: (f: Record<string, unknown>) => void
+  selectedSchemeCode: string | null
+  setSelectedSchemeCode: (code: string | null) => void
+  selectedSchemeName: string | null
 }
 
 const Ctx = createContext<Store | null>(null)
 const KEY = 'grambiz.last.analysis'
+const KEY_SCHEME = 'grambiz.selectedScheme'
 
 export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Language>('en')
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [form, setForm] = useState<Record<string, unknown> | null>(null)
+  const [selectedSchemeCode, setSelectedSchemeCodeRaw] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -34,6 +39,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           console.warn('[analysisStore] cleared stale cached analysis')
         }
       }
+      const savedScheme = localStorage.getItem(KEY_SCHEME)
+      if (savedScheme) setSelectedSchemeCodeRaw(savedScheme)
     } catch (e) {
       localStorage.removeItem(KEY)
       console.warn('[analysisStore] failed to parse cached analysis', e)
@@ -49,7 +56,24 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  return <Ctx.Provider value={{ lang, setLang, result, setResult: persist, form, setForm }}>{children}</Ctx.Provider>
+  const setSelectedSchemeCode = (code: string | null) => {
+    setSelectedSchemeCodeRaw(code)
+    try {
+      if (code) localStorage.setItem(KEY_SCHEME, code)
+      else localStorage.removeItem(KEY_SCHEME)
+    } catch { /* ignore */ }
+  }
+
+  const selectedSchemeName = (() => {
+    if (!selectedSchemeCode || !result) return null
+    // Try to find name in result's financial_plan or alternatives
+    const fpName = (result as any)?.financial_plan?.scheme_name
+    const fpCode = (result as any)?.financial_plan?.scheme_code
+    if (fpCode === selectedSchemeCode) return fpName || selectedSchemeCode
+    return selectedSchemeCode
+  })()
+
+  return <Ctx.Provider value={{ lang, setLang, result, setResult: persist, form, setForm, selectedSchemeCode, setSelectedSchemeCode, selectedSchemeName }}>{children}</Ctx.Provider>
 }
 
 export function useAnalysis(): Store {

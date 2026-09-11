@@ -60,9 +60,9 @@ def test_fallback_term_loan_is_assumed():
     assert loan.is_assumed is True
     assert loan.scheme_code == "term_loan"
     assert "interest_rate" in loan.assumed_fields
-    # The framework fallback must be clearly labelled as a demo/assumed source,
+    # The framework fallback must be clearly labelled as an assumed source,
     # never presented as an official verified scheme.
-    assert "assumed demo" in (loan.scheme_source or "").lower()
+    assert "assumed" in (loan.scheme_source or "").lower()
     assert any("ASSUMED" in n for n in loan.notes)
 
 

@@ -3,7 +3,7 @@ import { tr, type Language } from '../lib/i18n'
 import { useAnalysis } from '../lib/analysisStore'
 import { lazy, Suspense } from 'react'
 import { ErrorBoundary } from '../components/ErrorBoundary'
-const Globe = lazy(() => import('../components/three/Globe'))
+const WorldMap = lazy(() => import('../components/WorldMap'))
 
 
 
@@ -30,7 +30,6 @@ export function Landing() {
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white font-extrabold text-slate-900 shadow">G</span>
           <span className="text-sm font-extrabold tracking-tight text-white">GramBiz AI</span>
-          <span className="hidden rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold tracking-widest text-white/70 ring-1 ring-white/10 sm:inline">SIH 26091</span>
         </div>
         <LangSwitcher lang={lang} />
       </header>
@@ -71,9 +70,9 @@ export function Landing() {
 
           <div className="relative [contain:layout_paint]">
             <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.06] p-3 shadow-2xl [transform:translateZ(0)]">
-              <ErrorBoundary fallback={<div className="flex h-[380px] items-center justify-center rounded-2xl bg-white/5 p-6 text-center text-xs text-white/60">3D globe unavailable — continue to Analyze</div>}>
+              <ErrorBoundary fallback={<div className="flex h-[380px] items-center justify-center rounded-2xl bg-white/5 p-6 text-center text-xs text-white/60">Map unavailable — continue to Analyze</div>}>
                 <Suspense fallback={<div className="h-[380px] animate-pulse rounded-2xl bg-white/5" />}>
-                  <Globe className="h-[380px] rounded-2xl" businesses={[{ lat: 11.34, lon: 77.72 }, { lat: 11.28, lon: 77.58 }, { lat: 11.5, lon: 77.43 }, { lat: 11.3, lon: 77.9 }]} />
+                  <WorldMap className="h-[380px]" />
                 </Suspense>
               </ErrorBoundary>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
@@ -90,12 +89,9 @@ export function Landing() {
       {/* FEATURE GRID */}
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-6 py-10">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-extrabold tracking-tight text-slate-900">Everything aligned. Nothing invented.</h2>
-              <p className="mt-1 max-w-2xl text-sm text-slate-500">Deterministic engines compute every number. AI only explains. Historical baselines are labelled, never presented as current.</p>
-            </div>
-            <Link to="/analyze" className="hidden rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white sm:inline">Start analysis →</Link>
+          <div>
+            <h2 className="text-lg font-extrabold tracking-tight text-slate-900">Everything aligned. Nothing invented.</h2>
+            <p className="mt-1 max-w-2xl text-sm text-slate-500">Deterministic engines compute every number. AI only explains. Historical baselines are labelled, never presented as current.</p>
           </div>
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {features.map(f=>(
@@ -121,11 +117,10 @@ export function Landing() {
               </ol>
             </div>
             <div className="rounded-2xl bg-slate-900 p-6 text-white">
-              <div className="text-xs font-bold uppercase tracking-widest text-white/50">Built for SIH 26091</div>
+              <div className="text-xs font-bold uppercase tracking-widest text-white/50">Enterprise Ready</div>
               <div className="mt-2 text-lg font-bold leading-tight">Know your market before you take the loan.</div>
-              <p className="mt-2 text-xs leading-relaxed text-white/60">Evidence-based feasibility for rural micro-entrepreneurs. Scores, prices & loan guidance are estimates — verified with the agency before you commit.</p>
-              <div className="mt-4 flex gap-2">
-                <Link to="/analyze" className="rounded-xl bg-white px-4 py-2 text-xs font-bold text-slate-900">Analyze now</Link>
+              <p className="mt-2 text-xs leading-relaxed text-white/60">Evidence-based feasibility for small businesses and growing enterprises. Scores, prices & loan guidance are estimates — verified with the agency before you commit.</p>
+              <div className="mt-4">
                 <Link to="/data-sources" className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white">Provenance</Link>
               </div>
             </div>

@@ -9,7 +9,7 @@ import { downloadCSV, downloadJSON, printElement } from '../lib/export'
 import { TTSButton } from '../components/TTS'
 
 export function Report() {
-  const { result, lang } = useAnalysis()
+  const { result, lang, selectedSchemeCode, selectedSchemeName } = useAnalysis()
   const [aiText, setAiText] = useState<string | null>(null)
   const [loadingAi, setLoadingAi] = useState(false)
 
@@ -186,6 +186,17 @@ export function Report() {
 
           <Card>
             <CardHeader title={tr('financialPlan', lang)} subtitle={fp.scheme_name || tr('conceptLoan', lang)} />
+            {selectedSchemeCode && (
+              <div className="mb-3 rounded-lg border border-brand-200 bg-brand-50 p-3 text-xs text-brand-800">
+                <div className="font-bold">Selected Scheme: {selectedSchemeName || selectedSchemeCode} {fp.scheme_code === selectedSchemeCode ? '✓ Applied' : ''}</div>
+                <div className="mt-1 grid gap-1 md:grid-cols-2">
+                  <span>Financing: ₹{formatINR(fp.loan_amount)} (max ₹{fp.max_loan != null ? formatINR(fp.max_loan) : '—'})</span>
+                  <span>Rate: {fp.interest_rate != null ? `${fp.interest_rate}%` : 'Unknown'} · Tenure: {fp.tenure_years ?? '—'} yr {fp.moratorium_months ? `· Moratorium ${fp.moratorium_months} mo` : ''}</span>
+                </div>
+                {fp.shortfall > 0 && <div className="mt-1 text-amber-700">Shortfall ₹{formatINR(fp.shortfall)} additional own funding required</div>}
+                <div className="mt-1 text-[11px] text-brand-600">Source: {fp.source_document || '—'}</div>
+              </div>
+            )}
             <Rows rows={[
               [tr('availableCapital', lang), `₹${formatINR(fp.capital_available)}`],
               [tr('projectCost', lang), `₹${formatINR(fp.project_cost)}`],
@@ -194,7 +205,9 @@ export function Report() {
               [tr('monthlyEMI', lang), `₹${formatINR(result.repayment?.monthly_emi ?? fp.emi)}`],
               [tr('repayHealth', lang), result.repayment?.health_label || '—'],
               [tr('schemeRouted', lang), fp.scheme_name || '—'],
+              ...(fp.moratorium_months ? [[`Moratorium (${fp.moratorium_mode})`, `${fp.moratorium_months} months`]] as any : []),
             ]} />
+            {fp.shortfall_reason && <p className="mt-2 rounded bg-amber-50 p-2 text-xs text-amber-800">{fp.shortfall_reason}</p>}
           </Card>
         </div>
 

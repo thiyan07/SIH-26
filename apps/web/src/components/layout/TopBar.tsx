@@ -39,7 +39,6 @@ export function TopBar() {
               <div className="text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">GramBiz AI</div>
               <div className="text-[10px] font-medium text-slate-500 dark:text-slate-500">{tr('subtitle', lang)}</div>
             </div>
-            <span className="hidden rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 lg:inline">SIH 26091</span>
           </Link>
           {loc.pathname!=='/' && <span className="hidden items-center gap-1.5 text-xs text-slate-500 sm:flex"><span className="h-3 w-px bg-slate-200"/> {breadcrumb}</span>}
         </div>

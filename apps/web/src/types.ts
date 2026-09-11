@@ -91,7 +91,7 @@ export interface MapLayersResponse {
   note?: string
 }
 
-// ── SIH26092 Category-aware Market Intelligence ──
+// ── Category-aware Market Intelligence ──
 export interface MarketIntelligencePrice {
   item: string
   unit?: string | null
@@ -241,6 +241,93 @@ export interface Recommendation {
   reason: string
 }
 
+export interface UnifiedFinancial {
+  project_cost: number
+  own_capital: number
+  financing_required: number
+  shortfall: number
+  shortfall_reason?: string | null
+  scheme: {
+    code?: string | null
+    name?: string | null
+    interest_rate?: number | null
+    tenure_years?: number | null
+    moratorium_months?: number | null
+    moratorium_mode?: string | null
+    max_loan_allowed?: number | null
+    source_document?: string | null
+    reason?: string | null
+  }
+  loan_amount: number
+  emi: number
+  total_interest: number
+  total_repayment: number
+  monthly_revenue?: number | null
+  cogs?: number | null
+  gross_profit?: number | null
+  gross_margin_pct?: number | null
+  opex?: number | null
+  operating_profit?: number | null
+  cash_surplus?: number | null
+  break_even_revenue?: number | null
+  working_capital_requirement?: number | null
+  repayment_health?: string | null
+  repayment_coverage?: number | null
+}
+
+export interface CostBreakdown {
+  category_code: string
+  scale: string
+  capital_expenditure: Array<{ name: string; amount: number }>
+  working_capital: Array<{ name: string; amount: number }>
+  infrastructure: Array<{ name: string; amount: number }>
+  licensing_compliance: Array<{ name: string; amount: number }>
+  contingency_pct: number
+  contingency_amount: number
+  total_project_cost: number
+  notes?: string[]
+  location_factor: number
+}
+
+export interface Viability {
+  decision: 'GO' | 'MODIFY' | 'AVOID'
+  reason: string
+  top_positive_factors: string[]
+  top_negative_factors: string[]
+  recommended_actions: string[]
+  confidence_label?: string
+}
+
+export interface BusinessSetupPlan {
+  category_code: string
+  scale: string
+  model?: string | null
+  model_name?: string | null
+  location_factor: number
+  items: Array<{
+    name: string
+    amount: number
+    category: string
+    required_level: 'REQUIRED' | 'RECOMMENDED' | 'OPTIONAL'
+    notes?: string
+  }>
+  startup_cost: number
+  initial_inventory: number
+  working_capital: number
+  contingency_amount: number
+  total_initial_requirement: number
+  lean_option?: {
+    total: number
+    financing_needed: number
+    items: any[]
+  } | null
+  operating_targets?: any
+  inventory_plan?: any
+  sourcing_needs?: any
+  kpis?: any[]
+  planned_values?: any
+}
+
 export interface AnalysisResult {
   analysis_id?: string
   location: {
@@ -267,25 +354,85 @@ export interface AnalysisResult {
     data_completeness: string
     note?: string
     businesses?: Business[]
+    live_discovery?: any
   }
   market?: any
   infrastructure: any
   weather: any
+  soil?: any
+  price?: any
+  location_features?: any
+  industry_context?: any
   data_confidence?: any
   opportunity_score: OpportunityScore
   financial_plan: FinancialPlan
+  unified_financial: UnifiedFinancial
+  cost_breakdown: CostBreakdown
   repayment: Repayment
+  repayment_detail?: any
   profit_model: ProfitModel
-  recommendation: Recommendation
-  data_sources: any[]
-  monthly_economics?: any
+  category_profile?: any
+  weather_intelligence?: any
   seasonal_intelligence?: any
   product_recommendations?: any
-  weather_intelligence?: any
-  loan_explainer?: any
+  monthly_economics: {
+    monthly_revenue: number
+    cogs: number
+    gross_profit: number
+    gross_margin_pct: number
+    opex: number
+    operating_profit: number
+    emi: number
+    cash_surplus: number
+    break_even_revenue: number
+    customers_per_day?: number
+    avg_transaction_value?: number
+    operating_days?: number
+    opex_pct?: number
+    operating_margin_pct?: number
+    cash_surplus_pct?: number
+    break_even_state?: string
+    notes?: string[]
+  }
+  business_setup_plan: BusinessSetupPlan
+  business_setup_plan_version?: number
+  business_setup_plan_id?: string
+  viability: Viability
+  constraints: {
+    constraints: Array<{
+      id: string
+      level: 'high' | 'medium' | 'low'
+      title: string
+      why: string
+      what_to_do: string[]
+    }>
+    has_high: boolean
+  }
+  working_capital: {
+    startup_investment: number
+    initial_inventory: number
+    operating_reserve: number
+    recurring_opex: number
+    debt_service: number
+    estimated_working_capital_requirement: number
+    recommended_buffer: number
+    buffer_months: number
+  }
+  location_suitability: {
+    score: number
+    label: string
+    factors: string[]
+  }
+  scale_fit: {
+    recommended_scale: string
+    scales: Array<{ scale: string; total_cost: number; fit_score: number; reason: string }>
+  }
+  recommendation: Recommendation
+  loan_explainer: any
+  data_sources: any[]
 }
 
-// ── SIH26091 Multilingual NLP Advisory ──
+// ── Multilingual NLP Advisory ──
 // Mirrors the backend /advisory/* endpoints (app/api/advisory.py).
 
 export interface AdvisoryParseOutput {

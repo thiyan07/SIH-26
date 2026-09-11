@@ -2,9 +2,9 @@ export type Language = 'en' | 'ta' | 'hi'
 
 const dict = {
   analyzeBusiness: {
-    en: 'Analyze My Business',
-    ta: 'என் தொழிலை பகுப்பாய்வு செய்',
-    hi: 'मेरे व्यवसाय का विश्लेषण करें',
+    en: 'Analyse Your Business',
+    ta: 'உங்கள் தொழிலை பகுப்பாய்வு செய்யுங்கள்',
+    hi: 'अपने व्यवसाय का विश्लेषण करें',
   },
   exploreDemo: {
     en: 'Explore Demo',
@@ -80,7 +80,7 @@ const dict = {
     ta: '© OpenStreetMap பங்களிப்பாளர்கள் · GramBiz AI டெமோ — மதிப்பெண்கள் மற்றும் கடன் வழிகாட்டி மதிப்பீடுகள், உத்தரவாதங்கள் அல்ல.',
     hi: '© OpenStreetMap योगदानकर्ता · GramBiz AI डेमो — स्कोर और ऋण मार्गदर्शन अनुमान हैं, गारंटी नहीं।',
   },
-  // ── Advisory (SIH26091 NLP) ──
+  // ── Advisory (NLP) ──
   advisoryTitle: {
     en: 'Describe your business in plain words (Multilingual)',
     ta: 'உங்கள் தொழிலை எளிய வார்த்தைகளில் விவரிக்கவும் (பல மொழி)',
@@ -117,7 +117,7 @@ const dict = {
     hi: 'ऋण लें।',
   },
   landingTagline: {
-    en: 'AI-powered hyper-local business feasibility and financial planning for rural entrepreneurs.',
+    en: 'AI-powered business feasibility and financial planning for enterprises and growing businesses.',
     ta: 'கிராமப்புற தொழில்முனைவோருக்கு AI-அடிப்படையிலான உள்ளூர் வணிக சாத்தியக்கூறு மற்றும் நிதி திட்டமிடல்.',
     hi: 'ग्रामीण उद्यमियों के लिए AI-संचालित हाइपर-लोकल व्यवसाय व्यवहार्यता और वित्तीय योजना।',
   },

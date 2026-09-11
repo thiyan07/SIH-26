@@ -151,4 +151,5 @@ def test_repayment_health_labels():
 
 
 def test_scheme_defaults_are_demo():
-    assert MICRO_FINANCE.source_document == "Problem Statement 26091 (assumed demo config)"
+    assert "assumed" in MICRO_FINANCE.source_document.lower()
+    assert "verify" in MICRO_FINANCE.source_document.lower()

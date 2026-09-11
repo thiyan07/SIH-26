@@ -54,7 +54,7 @@ MICRO_FINANCE = SchemeRule(
     tenure_years=3,
     moratorium_months=3,
     moratorium_mode="interest_only_during_moratorium",
-    source_document="Problem Statement 26091 (assumed demo config)",
+    source_document="Enterprise financing configuration (assumed — verify with lending agency)",
     source_date="contest brief",
     note="Assumed demo parameters; verify with channelizing agency.",
 )
@@ -69,7 +69,7 @@ TERM_LOAN = SchemeRule(
     tenure_years=7,
     moratorium_months=6,
     moratorium_mode="interest_only_during_moratorium",
-    source_document="Problem Statement 26091 (assumed demo config)",
+    source_document="Enterprise financing configuration (assumed — verify with lending agency)",
     source_date="contest brief",
     note="Assumed demo parameters; verify with channelizing agency.",
 )

@@ -19,7 +19,7 @@ export function AppShell({ children, hideChrome }: { children: ReactNode; hideCh
       </div>
       <footer className="border-t border-white/20 bg-gradient-to-r from-slate-900 via-brand-900 to-slate-900 py-5 text-center">
         <div className="text-xs font-medium text-white/80">{tr('footer', lang)}</div>
-        <div className="mt-1 text-[10px] tracking-widest text-white/50">7,060 villages • 15 districts • 24 schemes • Voice + Compare • SIH 2026</div>
+        <div className="mt-1 text-[10px] tracking-widest text-white/50">7,060 villages • 15 districts • 24 schemes • Voice + Compare</div>
       </footer>
     </div>
   )
