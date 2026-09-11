@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAnalysis } from '../lib/analysisStore'
 import { api } from '../lib/api'
 import { Card, CardHeader, Badge } from '../components/ui'
+import { tr } from '../lib/i18n'
 
 type Plan = any
 
@@ -11,7 +12,7 @@ function INR(n: number | undefined | null): string {
 }
 
 export function BusinessSetup() {
-  const { result, setResult } = useAnalysis()
+  const { result, setResult, lang } = useAnalysis()
   const [plan, setPlan] = useState<Plan | null>(null)
   const [loading, setLoading] = useState(false)
   const [model, setModel] = useState<string | undefined>(undefined)
@@ -63,14 +64,14 @@ export function BusinessSetup() {
   if (!result) {
     return (
       <div className="py-20 text-center text-gray-500">
-        <p>Run an analysis first to see your setup plan.</p>
+        <p>{tr("runAnalysisFirstSetup", lang)}</p>
         <a href="/analyze" className="mt-2 inline-block text-brand-600">Analyze now</a>
       </div>
     )
   }
 
   const p: Plan = plan || (result as any)?.business_setup_plan
-  if (!p) return <div className="p-6 text-sm text-gray-500">No setup plan available.</div>
+  if (!p) return <div className="p-6 text-sm text-gray-500">{tr("runAnalysisFirstSetup", lang)}</div>
 
   const requiredItems = p.items?.filter((i:any)=> i.status==='REQUIRED') || []
   const recommendedItems = p.items?.filter((i:any)=> i.status==='RECOMMENDED') || []
@@ -79,13 +80,13 @@ export function BusinessSetup() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Business Setup & Operating Plan</h1>
-        <p className="text-sm text-gray-500">What you need to start and operate — all numbers from deterministic engines, labelled ESTIMATED when not from real local evidence.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{tr("businessFeasibilityTitle", lang)}</h1>
+        <p className="text-sm text-gray-500">{tr("businessFeasibilitySub", lang)}</p>
       </div>
 
       {/* Your Business */}
       <Card>
-        <CardHeader title="Your Business" subtitle={`${p.category_code} · ${p.model} · ${p.scale} · location factor ${p.location_factor}x`} />
+        <CardHeader title={tr("yourBusiness", lang)} subtitle={`${p.category_code} · ${p.model} · ${p.scale} · location factor ${p.location_factor}x`} />
         <div className="flex flex-wrap gap-2 text-xs">
           {p.available_models?.map((m:any)=> (
             <button key={m.code} onClick={()=> setModel(m.code)} className={`rounded-full px-3 py-1.5 font-semibold ${p.model===m.code ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{m.label}</button>
@@ -99,10 +100,10 @@ export function BusinessSetup() {
 
       {/* What You Need */}
       <Card>
-        <CardHeader title="What You Need to Start" subtitle="Required / Recommended / Optional — trim optional to lower cost" />
+        <CardHeader title={tr("whatYouNeedToStart", lang)} subtitle={tr("requiredRecommendedOptional", lang)} />
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <div className="text-xs font-bold uppercase tracking-widest text-green-700">Required</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-green-700">{tr("required", lang)}</div>
             <ul className="mt-2 space-y-1.5">
               {requiredItems.map((it:any,i:number)=> (
                 <li key={i} className="flex justify-between rounded-lg bg-green-50 px-3 py-2 text-xs">
@@ -113,7 +114,7 @@ export function BusinessSetup() {
             </ul>
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-widest text-amber-700">Recommended</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-amber-700">{tr("recommended", lang)}</div>
             <ul className="mt-2 space-y-1.5">
               {recommendedItems.map((it:any,i:number)=> (
                 <li key={i} className="flex justify-between rounded-lg bg-amber-50 px-3 py-2 text-xs">
@@ -123,7 +124,7 @@ export function BusinessSetup() {
             </ul>
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">Optional</div>
+            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">{tr("optional", lang)}</div>
             <ul className="mt-2 space-y-1.5">
               {optionalItems.map((it:any,i:number)=> (
                 <li key={i} className="flex justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs text-gray-600">
@@ -138,12 +139,12 @@ export function BusinessSetup() {
 
       {/* Startup Requirement */}
       <Card>
-        <CardHeader title="Startup Requirement" subtitle="Setup + inventory + working capital — same total as Finance" />
+        <CardHeader title={tr("startupRequirement", lang)} subtitle={tr("setupInventoryWorkingSubtitle", lang)} />
         <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-          <Stat label="Setup cost" value={`₹${INR(p.startup_cost)}`} />
-          <Stat label="Initial inventory" value={`₹${INR(p.initial_inventory)}`} />
-          <Stat label="Working capital" value={`₹${INR(p.working_capital)}`} />
-          <Stat label="Contingency" value={`${p.contingency_pct}% · ₹${INR(p.contingency)}`} />
+          <Stat label={tr("setupCost", lang)} value={`₹${INR(p.startup_cost)}`} />
+          <Stat label={tr("initialInventory", lang)} value={`₹${INR(p.initial_inventory)}`} />
+          <Stat label={tr("workingCapital", lang)} value={`₹${INR(p.working_capital)}`} />
+          <Stat label={tr("contingency", lang)} value={`${p.contingency_pct}% · ₹${INR(p.contingency)}`} />
         </div>
         <div className="mt-3 rounded-xl bg-slate-900 px-4 py-3 text-white">
           <div className="text-xs uppercase tracking-widest text-white/60">Estimated initial requirement</div>
@@ -158,14 +159,14 @@ export function BusinessSetup() {
           </div>
         )}
         <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-          <div className="rounded-lg bg-gray-50 p-3">Your capital <b>₹{INR((result as any)?.financial_plan?.capital_available)}</b></div>
-          <div className="rounded-lg bg-gray-50 p-3">Financing gap <b>₹{INR((result as any)?.financial_plan?.required_financing)}</b> · scheme {(result as any)?.financial_plan?.scheme_name || '—'}</div>
+          <div className="rounded-lg bg-gray-50 p-3">{tr("yourCapital", lang)} <b>₹{INR((result as any)?.financial_plan?.capital_available)}</b></div>
+          <div className="rounded-lg bg-gray-50 p-3">{tr("financingGap", lang)} <b>₹{INR((result as any)?.financial_plan?.required_financing)}</b> · scheme {(result as any)?.financial_plan?.scheme_name || '—'}</div>
         </div>
       </Card>
 
       {/* How to Operate */}
       <Card>
-        <CardHeader title="How to Operate" subtitle="Monthly costs and targets — same as Finance & Profit" />
+        <CardHeader title={tr("howToOperate", lang)} subtitle={tr("monthlyCostsTargets", lang)} />
         <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
           {p.monthly_operating_requirements?.slice(0,4).map((r:any,i:number)=> (
             <div key={i} className="rounded-lg bg-gray-50 p-3"><div className="text-[11px] text-gray-500">{r.name}</div><div className="font-bold">₹{INR(r.estimated_cost)}</div><div className="text-[10px] text-gray-500">{r.unit} · ESTIMATED</div></div>
@@ -199,14 +200,14 @@ export function BusinessSetup() {
         </div>
         {/* Working capital buffer */}
         <div className="mt-4 rounded-lg bg-amber-50 p-3 text-xs">
-          <div className="font-semibold">Recommended working-capital reserve: ₹{INR(p.planned_values?.planned_working_capital || p.working_capital)}</div>
+          <div className="font-semibold">{tr("workingCapitalReserve", lang)}: ₹{INR(p.planned_values?.planned_working_capital || p.working_capital)}</div>
           <div className="text-gray-600">Covers first months of operating costs + EMI and seasonal buffer. Modelled estimate, not government requirement.</div>
         </div>
       </Card>
 
       {/* What to Sell */}
       <Card>
-        <CardHeader title="What to Sell / Offer" subtitle="Priorities from seasonal intelligence & market evidence" />
+        <CardHeader title={tr("whatToSell", lang)} subtitle="Priorities from seasonal intelligence & market evidence" />
         <ul className="space-y-2">
           {p.product_mix?.map((pr:any,i:number)=> (
             <li key={i} className="flex items-start justify-between rounded-lg bg-gray-50 p-3">
@@ -223,7 +224,7 @@ export function BusinessSetup() {
 
       {/* Risks */}
       <Card>
-        <CardHeader title="Operating Risks & Actions" subtitle="Tied to detected risks only" />
+        <CardHeader title={tr("operatingRisks", lang)} subtitle="Tied to detected risks only" />
         {p.risks?.length ? (
           <ul className="space-y-2">
             {p.risks.map((r:any,i:number)=> (
@@ -242,7 +243,7 @@ export function BusinessSetup() {
 
       {/* KPIs */}
       <Card>
-        <CardHeader title="Track After Launch — KPIs" subtitle="Compare plan vs actual; future ExpenseTracker will populate actuals" />
+        <CardHeader title={tr("trackAfterLaunch", lang)} subtitle="Compare plan vs actual; future ExpenseTracker will populate actuals" />
         <div className="grid gap-2 md:grid-cols-2">
           {p.kpis?.map((k:any,i:number)=> (
             <div key={i} className="rounded-lg bg-white border p-3 text-xs"><div className="font-semibold">{k.kpi} <span className="text-gray-500">({k.unit})</span></div><div className="text-gray-600">{k.why}</div></div>
