@@ -3,9 +3,5 @@
   "outputDirectory": "apps/web/dist",
   "installCommand": "npm ci --prefix apps/web",
   "framework": "vite",
-  "functions": {
-    "apps/api/**": {
-      "runtime": "python3.11"
-    }
-  }
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
