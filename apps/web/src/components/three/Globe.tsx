@@ -76,17 +76,6 @@ function Atmosphere() {
   )
 }
 
-function GlowRing() {
-  // Static ring — no per-frame scaling (was useFrame every frame)
-  const p = toPos(FOCUS.lat, FOCUS.lon, 1.03)
-  return (
-    <mesh position={p}>
-      <ringGeometry args={[0.025, 0.045, 24]} />
-      <meshBasicMaterial color="#22d3ee" transparent opacity={0.55} side={THREE.DoubleSide} />
-    </mesh>
-  )
-}
-
 function BusinessPoints({ businesses }: { businesses: { lat: number; lon: number }[] }) {
   // Static — no group rotation per-frame (prev rotated entire group every frame)
   const points = businesses.length ? businesses.slice(0, 60) : [
@@ -113,19 +102,78 @@ function BusinessPoints({ businesses }: { businesses: { lat: number; lon: number
   )
 }
 
+function WorldCountryBorders({ radius = 1.006 }: { radius?: number }) {
+  // Simplified world country outlines (major countries + India focus) — visible borders while spinning
+  const WORLD_BORDERS: [number, number][][] = [
+    // India (detailed)
+    INDIA_BORDER,
+    // Pakistan
+    [[37, 67], [35, 72], [31, 74], [28, 73], [24, 68], [30, 65], [35, 67]],
+    // Bangladesh
+    [[26, 88], [24, 90], [22, 90], [22, 88], [26, 88]],
+    // China (approx)
+    [[42, 75], [42, 92], [38, 105], [32, 110], [28, 108], [22, 100], [28, 90], [32, 80], [38, 75], [42, 75]],
+    // USA (approx)
+    [[49, -125], [49, -66], [25, -80], [25, -125], [49, -125]],
+    // Russia (approx)
+    [[60, 30], [70, 60], [68, 120], [60, 170], [50, 30], [60, 30]],
+    // Brazil
+    [[5, -60], [0, -50], [-10, -48], [-20, -45], [-25, -55], [-15, -65], [5, -60]],
+    // Africa outline (approx)
+    [[35, -15], [30, 30], [-30, 35], [-35, 15], [-10, -10], [35, -15]],
+    // Australia
+    [[-12, 113], [-12, 154], [-28, 154], [-28, 113], [-12, 113]],
+    // Europe (approx)
+    [[45, -10], [55, 10], [50, 30], [40, 20], [35, 0], [45, -10]],
+  ]
+  return (
+    <>
+      {WORLD_BORDERS.map((border, idx) => {
+        const pts = border.map(([lat, lon]) => toPos(lat, lon, radius))
+        const pos = new Float32Array(pts.flatMap(p => [p.x, p.y, p.z]))
+        const isIndia = idx === 0
+        return (
+          <line key={idx}>
+            <bufferGeometry>
+              <bufferAttribute attach="attributes-position" args={[pos, 3]} />
+            </bufferGeometry>
+            <lineBasicMaterial color={isIndia ? "#facc15" : "#93c5fd"} transparent opacity={isIndia ? 0.95 : 0.35} linewidth={isIndia ? 1.5 : 1} />
+          </line>
+        )
+      })}
+    </>
+  )
+}
+
+function TamilNaduMarker() {
+  const p = toPos(FOCUS.lat, FOCUS.lon, 1.03)
+  return (
+    <group position={p}>
+      <mesh>
+        <sphereGeometry args={[0.022, 12, 12]} />
+        <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={1.4} />
+      </mesh>
+      <mesh>
+        <ringGeometry args={[0.03, 0.05, 24]} />
+        <meshBasicMaterial color="#22d3ee" transparent opacity={0.65} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Label billboard - always faces camera via text handled by overlay */}
+    </group>
+  )
+}
+
 function Earth({ businesses = [] as { lat: number; lon: number }[], paused = false }) {
-  const meshRef = useRef<THREE.Mesh>(null!)
-  // Throttle rotation — skip frames and pause when offscreen
+  const groupRef = useRef<THREE.Group>(null!)
   let tick = 0
   useFrame(() => {
     if (paused) return
     tick++
-    if (tick % 2 === 0 && meshRef.current) meshRef.current.rotation.y += 0.001
+    if (tick % 2 === 0 && groupRef.current) groupRef.current.rotation.y += 0.0012
   })
 
   return (
-    <>
-      <mesh ref={meshRef}>
+    <group ref={groupRef}>
+      <mesh>
         <sphereGeometry args={[1, 40, 40]} />
         <meshStandardMaterial color="#0e4266" roughness={0.68} metalness={0.18} />
       </mesh>
@@ -136,11 +184,12 @@ function Earth({ businesses = [] as { lat: number; lon: number }[], paused = fal
       </mesh>
 
       <Graticule />
+      <WorldCountryBorders />
       <IndiaBorder />
       <Atmosphere />
-      <GlowRing />
+      <TamilNaduMarker />
       <BusinessPoints businesses={businesses} />
-    </>
+    </group>
   )
 }
 

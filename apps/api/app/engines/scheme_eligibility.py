@@ -166,9 +166,10 @@ def match_schemes(db: Session, profile: BeneficiaryProfile) -> list[EligibilityR
     
     Returns list of EligibilityResult sorted by match_score descending.
     Never fabricates — missing info is reported as missing_information.
+    Only real (non-demo) schemes are considered — demo rows are filtered out.
     """
     schemes = list(db.execute(
-        select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True))
+        select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True), GovernmentScheme.is_demo.is_(False))
     ).scalars())
 
     if not schemes:

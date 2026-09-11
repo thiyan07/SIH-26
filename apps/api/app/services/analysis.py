@@ -492,20 +492,16 @@ def run_analysis(db: Session, req) -> dict:
         return 1.0
 
     loc_factor = _loc_factor(location.block, location.district)
-    # Resolve business model early so cost breakdown and setup share same model
     requested_model = getattr(req, "business_model", None) or getattr(req, "model", None)
-    cost_breakdown_obj = build_cost_breakdown(category, scale, location_factor=loc_factor, model=requested_model)
+    cost_breakdown_obj = build_cost_breakdown(category, scale, location_factor=loc_factor)
     project_cost = cost_breakdown_obj.total_project_cost
-    # If user selected a specific scheme, use THAT scheme's actual rules for finance
+    # If user selected a specific scheme, use THAT scheme's actual rules for finance (real data only)
     preferred_code = getattr(req, "preferred_scheme_code", None)
     if preferred_code:
         from app.db.models import GovernmentScheme
         from app.engines.finance import SchemeRule
-        row = db.execute(select(GovernmentScheme).where(GovernmentScheme.code == preferred_code, GovernmentScheme.is_active.is_(True))).scalars().first()
+        row = db.execute(select(GovernmentScheme).where(GovernmentScheme.code == preferred_code, GovernmentScheme.is_active.is_(True), GovernmentScheme.is_demo.is_(False))).scalars().first()
         if row:
-            # Build SchemeRule from DB row, preserving actual scheme details (no invented defaults except where null)
-            def _safe(v, fallback):
-                return fallback if v is None else float(v) if isinstance(v, (int, float)) else v
             scheme_rule = SchemeRule(
                 code=row.code,
                 name=row.name,
@@ -517,21 +513,77 @@ def run_analysis(db: Session, req) -> dict:
                 moratorium_months=int(row.moratorium_months) if row.moratorium_months is not None else 0,
                 margin_pct=float(row.margin_pct) if row.margin_pct is not None else 10.0,
                 moratorium_mode=row.moratorium_mode or "interest_only_during_moratorium",
-                source_document=row.source_document or row.scheme_url or "Government scheme registry",
+                source_document=getattr(row, "source_document", None) or row.scheme_url or row.source_url or "Government scheme registry",
                 source_date=str(row.source_date) if row.source_date else None,
             )
-            # Check if scheme is actually eligible for this profile; if not, mark but still use its financial terms as requested
             fin = derive_financial_plan(project_cost, capital, schemes=(scheme_rule,))
-            # Preserve source_document as honest provenance
             if scheme_rule.source_document:
                 fin.scheme.source_document = scheme_rule.source_document
             scheme = fin.scheme
         else:
+            # Preferred code not found among real schemes — fall back to auto-routing among real schemes
+            from app.db.models import GovernmentScheme
+            from app.engines.finance import SchemeRule
+            real_rows = list(db.execute(select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True), GovernmentScheme.is_demo.is_(False))).scalars())
+            if real_rows:
+                real_rules = []
+                for r in real_rows:
+                    if r.min_project_cost is not None and r.max_project_cost is not None:
+                        if float(r.min_project_cost) <= project_cost <= float(r.max_project_cost):
+                            real_rules.append(SchemeRule(
+                                code=r.code, name=r.name,
+                                min_project_cost=float(r.min_project_cost), max_project_cost=float(r.max_project_cost),
+                                max_loan_amount=float(r.max_loan_amount) if r.max_loan_amount is not None else None,
+                                interest_rate=float(r.interest_rate) if r.interest_rate is not None else 10.0,
+                                tenure_years=float(r.tenure_years) if r.tenure_years is not None else 5.0,
+                                moratorium_months=int(r.moratorium_months) if r.moratorium_months is not None else 0,
+                                margin_pct=float(r.margin_pct) if r.margin_pct is not None else 10.0,
+                                moratorium_mode=r.moratorium_mode or "interest_only_during_moratorium",
+                                source_document=getattr(r, "source_document", None) or r.scheme_url or r.source_url or "Government scheme registry",
+                            ))
+                if real_rules:
+                    fin = derive_financial_plan(project_cost, capital, schemes=tuple(real_rules))
+                    scheme = fin.scheme
+                else:
+                    fin = derive_financial_plan(project_cost, capital)
+                    scheme = fin.scheme
+            else:
+                fin = derive_financial_plan(project_cost, capital)
+                scheme = fin.scheme
+    else:
+        # No preferred scheme — try to auto-route among real schemes first (no demo fallback if possible)
+        from app.db.models import GovernmentScheme
+        from app.engines.finance import SchemeRule
+        real_rows = list(db.execute(select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True), GovernmentScheme.is_demo.is_(False))).scalars())
+        if real_rows:
+            real_rules = []
+            for r in real_rows:
+                # Only consider schemes with defined range that could cover this project_cost
+                lo = float(r.min_project_cost) if r.min_project_cost is not None else 0
+                hi = float(r.max_project_cost) if r.max_project_cost is not None else float('inf')
+                if lo <= project_cost <= hi:
+                    real_rules.append(SchemeRule(
+                        code=r.code, name=r.name,
+                        min_project_cost=float(r.min_project_cost) if r.min_project_cost is not None else 0.0,
+                        max_project_cost=float(r.max_project_cost) if r.max_project_cost is not None else None,
+                        max_loan_amount=float(r.max_loan_amount) if r.max_loan_amount is not None else None,
+                        interest_rate=float(r.interest_rate) if r.interest_rate is not None else 10.0,
+                        tenure_years=float(r.tenure_years) if r.tenure_years is not None else 5.0,
+                        moratorium_months=int(r.moratorium_months) if r.moratorium_months is not None else 0,
+                        margin_pct=float(r.margin_pct) if r.margin_pct is not None else 10.0,
+                        moratorium_mode=r.moratorium_mode or "interest_only_during_moratorium",
+                        source_document=getattr(r, "source_document", None) or r.scheme_url or r.source_url or "Government scheme registry",
+                    ))
+            if real_rules:
+                fin = derive_financial_plan(project_cost, capital, schemes=tuple(real_rules))
+                scheme = fin.scheme
+            else:
+                # No real scheme covers this cost — fall back to generic but mark clearly as no real scheme
+                fin = derive_financial_plan(project_cost, capital)
+                scheme = fin.scheme
+        else:
             fin = derive_financial_plan(project_cost, capital)
             scheme = fin.scheme
-    else:
-        fin = derive_financial_plan(project_cost, capital)
-        scheme = fin.scheme
 
     # 2. profit model (estimated)
     model_inputs = getattr(req, "model_inputs", None) or {}

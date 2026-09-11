@@ -31,7 +31,13 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       if (saved) {
         const parsed = JSON.parse(saved) as any
         // Guard against stale / incompatible shapes from older builds
-        if (parsed && parsed.location && parsed.opportunity_score && parsed.financial_plan) {
+        // Also clear if cached analysis contains old SIH/demo source_document (real data only now)
+        const hasOldDemo = parsed?.financial_plan?.source_document?.includes('Problem Statement') || parsed?.financial_plan?.source_document?.includes('26091')
+        const hasOldScheme = parsed?.financial_plan?.scheme_name?.includes('Problem Statement')
+        if (hasOldDemo || hasOldScheme) {
+          localStorage.removeItem(KEY)
+          console.warn('[analysisStore] cleared cached analysis with old demo source_document')
+        } else if (parsed && parsed.location && parsed.opportunity_score && parsed.financial_plan) {
           setResult(parsed as AnalysisResult)
         } else {
           // Old shape — clear to avoid render crashes

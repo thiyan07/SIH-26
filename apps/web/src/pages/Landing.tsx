@@ -3,7 +3,7 @@ import { tr, type Language } from '../lib/i18n'
 import { useAnalysis } from '../lib/analysisStore'
 import { lazy, Suspense } from 'react'
 import { ErrorBoundary } from '../components/ErrorBoundary'
-const WorldMap = lazy(() => import('../components/WorldMap'))
+const Globe = lazy(() => import('../components/three/Globe'))
 
 
 
@@ -70,11 +70,12 @@ export function Landing() {
 
           <div className="relative [contain:layout_paint]">
             <div className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.06] p-3 shadow-2xl [transform:translateZ(0)]">
-              <ErrorBoundary fallback={<div className="flex h-[380px] items-center justify-center rounded-2xl bg-white/5 p-6 text-center text-xs text-white/60">Map unavailable — continue to Analyze</div>}>
+              <ErrorBoundary fallback={<div className="flex h-[380px] items-center justify-center rounded-2xl bg-white/5 p-6 text-center text-xs text-white/60">3D globe unavailable — continue to Analyze</div>}>
                 <Suspense fallback={<div className="h-[380px] animate-pulse rounded-2xl bg-white/5" />}>
-                  <WorldMap className="h-[380px]" />
+                  <Globe className="h-[380px] rounded-2xl" businesses={[{ lat: 11.34, lon: 77.72 }, { lat: 11.28, lon: 77.58 }, { lat: 11.5, lon: 77.43 }, { lat: 11.3, lon: 77.9 }]} />
                 </Suspense>
               </ErrorBoundary>
+              <div className="absolute bottom-3 left-3 rounded-lg bg-slate-900/80 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur">● Tamil Nadu — GramBiz operating region</div>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-xl bg-white px-2 py-2.5"><div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Coverage</div><div className="text-sm font-extrabold text-slate-900">10 km</div></div>
                 <div className="rounded-xl bg-white px-2 py-2.5"><div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Confidence</div><div className="text-sm font-extrabold text-emerald-600">High</div></div>
