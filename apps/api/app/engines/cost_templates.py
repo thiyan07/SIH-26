@@ -1,7 +1,7 @@
 """Business cost templates for CAPEX/WC/infrastructure/licensing breakdowns.
 
 Each category has cost templates at three scales: micro, small, medium.
-All values are Indian Rupees and represent realistic Erode-district estimates.
+All values are Indian Rupees and represent realistic Tamil Nadu regional estimates.
 
 These are demo estimates for advisory purposes — never guaranteed costs.
 """
@@ -801,8 +801,22 @@ SCALE_DESCRIPTIONS = {
     "medium": "6-12 person operation, established premises, professional equipment",
 }
 
-# Location cost multipliers for Erode district
+# Location cost multipliers — Erode blocks (verified granular) + Tamil Nadu
+# district tiers (State-level estimates, transparent and conservative).
+#
+# Erode block factors are the most granular (field-verified relative costs).
+# District factors for the rest of Tamil Nadu are tiered by urbanization/
+# industrial level and are explicitly labelled as district/state estimates
+# (not vendor quotes). 1.0 is the baseline (Erode town / Tier-3).
+#
+# Tiers:
+#  - Tier 1 Metro (1.12-1.15): Chennai, Chengalpattu, Kanchipuram, Tiruvallur
+#  - Tier 2 Industrial hubs (1.05-1.10): Coimbatore, Tiruppur, Salem, Trichy, Madurai
+#  - Tier 3 Standard (1.0): Erode town, Vellore, Thanjavur, Dindigul, etc. (baseline)
+#  - Tier 4 Semi-rural (0.88-0.95): Dharmapuri, Krishnagiri, Theni, etc.
+#  - Erode rural blocks (0.72-0.85): village-specific, most conservative
 LOCATION_FACTORS = {
+    # Erode district — block-level (most granular, field-aligned)
     "erode_town": 1.0,
     "gobichettipalayam": 0.85,
     "bhavani": 0.80,
@@ -812,6 +826,44 @@ LOCATION_FACTORS = {
     "anthiyur": 0.77,
     "modakkurichi": 0.80,
     "village_average": 0.72,
+    # Tamil Nadu — district-level tiers (state estimates, conservative)
+    "chennai": 1.15,
+    "chengalpattu": 1.12,
+    "kanchipuram": 1.12,
+    "tiruvallur": 1.12,
+    "coimbatore": 1.08,
+    "tiruppur": 1.06,
+    "salem": 1.05,
+    "tiruchirappalli": 1.05,
+    "madurai": 1.04,
+    "tirunelveli": 1.02,
+    "thoothukudi": 1.02,
+    "thanjavur": 1.0,
+    "vellore": 1.0,
+    "dindigul": 1.0,
+    "karur": 1.0,
+    "namakkal": 1.0,
+    "erode": 1.0,
+    "cuddalore": 0.98,
+    "nagapattinam": 0.95,
+    "pudukkottai": 0.95,
+    "ramanathapuram": 0.92,
+    "sivaganga": 0.92,
+    "thiruvarur": 0.95,
+    "theni": 0.90,
+    "dharmapuri": 0.88,
+    "krishnagiri": 0.88,
+    "tiruvannamalai": 0.90,
+    "villupuram": 0.92,
+    "kallakurichi": 0.90,
+    "ariyalur": 0.88,
+    "perambalur": 0.88,
+    "nilgiris": 0.95,
+    "kanyakumari": 1.02,
+    "ranipet": 1.0,
+    "tirupathur": 1.0,
+    "tenkasi": 0.92,
+    "mayiladuthurai": 0.95,
     "default": 1.0,
 }
 

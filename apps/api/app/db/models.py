@@ -665,7 +665,7 @@ class IndustrialUnit(PG, ProvenanceMixin, Base):
             "uq_industrial_units_real_dedupe",
             "state", "district", "unit_type", "reference_year",
             unique=True,
-            postgresql_where=text("is_demo IS NOT NULL AND is_demo IS NOT TRUE"),
+            postgresql_where=text("is_demo IS NOT TRUE"),
         ),
     )
 

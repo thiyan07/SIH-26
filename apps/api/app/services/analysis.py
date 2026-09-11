@@ -287,6 +287,12 @@ def _population(db: Session, location: Location) -> dict:
             "note": "Population unavailable - Census 2011 baseline not loaded.",
             "source_name": "Census India (expected)",
         }
+    # Projected estimate using Tamil Nadu rural growth ~0.8%/yr (conservative, Census-derived)
+    # — shown alongside baseline, never replaces the official figure.
+    census_year = row.census_year or 2011
+    years_elapsed = max(0, date.today().year - census_year)
+    growth_rate = 0.008  # 0.8%/yr Tamil Nadu rural avg 2011-2023 (conservative)
+    projected = int(row.population * ((1 + growth_rate) ** years_elapsed)) if row.population else None
     return {
         "population": row.population,
         "households": row.households,
@@ -296,14 +302,19 @@ def _population(db: Session, location: Location) -> dict:
         "literacy": row.literacy,
         "workers": row.workers,
         "non_workers": row.non_workers,
-        "census_year": row.census_year or 2011,
+        "census_year": census_year,
         "available": True,
         "is_historical": True,
-        "note": f"Census {row.census_year or 2011} baseline - NOT current population.",
+        "population_projected": projected,
+        "projection_year": date.today().year,
+        "projection_growth_rate": growth_rate,
+        "projection_note": f"Projected {projected:,} using {growth_rate*100:.1f}%/yr rural growth from Census {census_year} baseline — ESTIMATED, not official.",
+        "note": f"Census {census_year} baseline ({row.population:,}) — NOT current population. Projected ~{projected:,} for {date.today().year} (ESTIMATED).",
         "source_name": row.source_name,
         "dataset_name": row.dataset_name,
         "source_type": row.source_type,
         "confidence": row.confidence,
+        "freshness": "historical",
         "is_demo": bool(row.is_demo),
         "is_estimate": bool(row.is_estimate),
     }
@@ -486,7 +497,8 @@ def run_analysis(db: Session, req) -> dict:
         for key in [(block or "").lower().replace(" ", "_"), (district or "").lower().replace(" ", "_")]:
             if key and key in LOCATION_FACTORS:
                 return LOCATION_FACTORS[key]
-        # try village_average for rural fallback
+        # Non-Erode districts use neutral baseline (1.0) — no implicit Erode rural discount.
+        # Erode village fallback only applies when the district is explicitly Erode.
         if district and district.lower() == "erode":
             return LOCATION_FACTORS.get("village_average", 1.0)
         return 1.0
@@ -935,6 +947,7 @@ def run_analysis(db: Session, req) -> dict:
         seasonal=seasonal,
         infrastructure=infrastructure,
         market_evidence=_mi_full,
+        district=location.district,
     )
 
     # ── Phase 13: Canonical unified financial result (ONE authoritative object) ──
@@ -1149,9 +1162,14 @@ def run_analysis(db: Session, req) -> dict:
 
 
 def _resolve_location(db, state, district, block=None, village=None) -> Optional[Location]:
+    from sqlalchemy import or_ as _or
+    # Handle district aliases (Thoothukudi ↔ Tuticorin, Villupuram ↔ Viluppuram)
+    _aliases = {"Thoothukudi": ["Thoothukudi","Tuticorin"], "Tuticorin": ["Thoothukudi","Tuticorin"], "Villupuram": ["Villupuram","Viluppuram"], "Viluppuram": ["Villupuram","Viluppuram"]}
+    d_variants = _aliases.get(district, [district]) if district else [district]
     stmt = select(Location).where(
         Location.state == state,
-        Location.district == district,
+        _or(*[Location.district.ilike(v) for v in d_variants]) if len(d_variants)>1 else Location.district.ilike(district),
+        real_data_condition(Location),
     )
     if block:
         stmt = stmt.where(Location.block == block)

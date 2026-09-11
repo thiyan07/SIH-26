@@ -41,7 +41,7 @@ export function Landing() {
         <div className="relative mx-auto grid max-w-6xl gap-8 py-10 lg:grid-cols-[1.15fr_0.85fr] lg:py-14">
           <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/80">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" /> Live • Tamil Nadu demo ready
+              <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" /> Live • Tamil Nadu • Enterprise Business Advisory
             </div>
             <h1 className="mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-[52px]">
               {tr('landingHero1', lang)} <span className="bg-gradient-to-r from-amber-300 to-yellow-100 bg-clip-text text-transparent">{tr('landingHero2', lang)}</span>

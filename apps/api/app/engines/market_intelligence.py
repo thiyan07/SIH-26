@@ -51,11 +51,17 @@ RELEVANT_COMMODITIES: dict[str, tuple[str, ...]] = {
     "vegetable_shop": ("tomato", "onion", "potato", "brinjal", "bottle", "bitter", "pumpkin", "cabbage", "cauliflower", "beans", "carrot", "chilli", "vegetable"),
     "food_processing": ("rice", "wheat", "pulses", "oil", "milk", "sugarcane", "groundnut", "maize", "paddy"),
     "agriculture": ("paddy", "rice", "maize", "sugarcane", "cotton", "groundnut", "coconut", "banana", "turmeric"),
-    "textile": ("cotton", "turf", "raw cotton"),
+    "textile": ("cotton",),
+    "tailoring": ("cotton",),
+    "clothing": ("cotton",),
     "poultry": ("chicken", "egg", "maize", "poultry"),
     "sweet_shop": ("sugar", "ghee", "milk", "cashew", "almond"),
     "animal_feed": ("maize", "wheat", "feed", "bran"),
     "fertilizer": ("urea", "fertilizer", "dap", "potash"),
+    "seed_shop": ("paddy", "maize", "cotton", "groundnut", "seed"),
+    "agricultural_equipment": ("tractor", "pump"),
+    "manufacturing": ("steel", "cotton"),
+    "handicrafts": (),
 }
 
 

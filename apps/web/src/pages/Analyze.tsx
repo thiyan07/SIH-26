@@ -77,13 +77,13 @@ export function Analyze() {
       .catch(() => setCategories([]))
   }, [])
 
-  // Instant first-letter search: preload Erode villages for client-side filtering
-  const [erodeCache, setErodeCache] = useState<LocationOut[] | null>(null)
+  // Instant search: preload Tamil Nadu villages for client-side filtering (state-wide, not Erode-only)
+  const [tamilCache, setTamilCache] = useState<LocationOut[] | null>(null)
   const searchCache = useRef<Map<string, LocationOut[]>>(new Map())
   const seqRef = useRef(0)
   useEffect(() => {
-    api.get<LocationOut[]>(`/locations/search?district=Erode&limit=600`)
-      .then((r) => setErodeCache(r))
+    api.get<LocationOut[]>(`/locations/search?state=${encodeURIComponent('Tamil Nadu')}&limit=800`)
+      .then((r) => setTamilCache(r))
       .catch(() => {})
   }, [])
 
@@ -94,10 +94,10 @@ export function Analyze() {
       setSearching(false)
       return
     }
-    // Instant for single letter: filter from local Erode cache (no server fetch)
-    if (q.length === 1 && erodeCache) {
+    // Instant for single letter: filter from local Tamil Nadu cache (no server fetch)
+    if (q.length === 1 && tamilCache) {
       const low = q.toLowerCase()
-      const instant = erodeCache.filter(l => (l.village || '').toLowerCase().startsWith(low) || (l.block || '').toLowerCase().startsWith(low)).slice(0, 15)
+      const instant = tamilCache.filter(l => (l.village || '').toLowerCase().startsWith(low) || (l.block || '').toLowerCase().startsWith(low)).slice(0, 15)
       if (instant.length) {
         setLocations(instant)
         setSearching(false)
@@ -128,7 +128,7 @@ export function Analyze() {
         })
     }, q.length === 1 ? 80 : 200)
     return () => window.clearTimeout(timer)
-  }, [form.q, erodeCache])
+  }, [form.q, tamilCache])
 
   useEffect(() => {
     if (!draftProposed) {

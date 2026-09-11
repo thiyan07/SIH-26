@@ -66,11 +66,17 @@ def test_relevance_filter_and_coverage(session):
 
 
 def test_unmapped_category_accepts_any_item(session):
+    # Service/craft categories have no relevant mandi commodity — honest not_applicable
     _add_price(session, item="cobalt")
     session.flush()
     ev = derive_price_evidence(session, "Erode", "handicrafts")
-    assert ev["available"] is True
-    assert ev["coverage"] == 1.0
+    assert ev["available"] is False
+    assert ev.get("not_applicable") is True
+    # Tradeable category with a relevant item should be available (grocery accepts rice)
+    _add_price(session, item="rice", district="Erode", ref="2026-01-15")
+    session.flush()
+    ev2 = derive_price_evidence(session, "Erode", "grocery")
+    assert ev2["available"] is True
 
 
 def test_price_score_from_coverage():

@@ -237,7 +237,8 @@ export function GlobeFallback({ className = "" }: { className?: string }) {
     <div className={`flex items-center justify-center rounded-xl bg-gradient-to-br from-teal-900 via-slate-900 to-slate-950 p-8 text-white ${className}`}>
       <div className="text-center">
         <div className="text-5xl">🌍</div>
-        <div className="mt-2 text-sm opacity-80">Erode District • Interactive 3D</div>
+        <div className="mt-2 text-sm opacity-80">Tamil Nadu • Evidence Coverage Map</div>
+        <div className="mt-1 text-[11px] opacity-60">Strongest evidence in Tamil Nadu; global view is illustrative</div>
       </div>
     </div>
   )

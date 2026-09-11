@@ -21,7 +21,8 @@ router = APIRouter(tags=["financial"])
 
 
 def _scheme_rules(db: Session):
-    rows = list(db.execute(select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True))).scalars())
+    from app.geo import real_data_condition
+    rows = list(db.execute(select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True), real_data_condition(GovernmentScheme))).scalars())
     if rows:
         return tuple(
             SchemeRule(
@@ -223,7 +224,8 @@ def schemes(db: Session = Depends(get_db)):
     from sqlalchemy import select
 
     from app.db.models import GovernmentScheme
-    rows = list(db.execute(select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True))).scalars())
+    from app.geo import real_data_condition
+    rows = list(db.execute(select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True), real_data_condition(GovernmentScheme))).scalars())
     if rows:
         return {
             "schemes": [

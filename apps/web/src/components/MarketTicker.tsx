@@ -7,16 +7,16 @@ interface Price { item: string; modal: number; market: string; trend?: 'up'|'dow
 export function MarketTicker() {
   const { result } = useAnalysis()
   const [prices, setPrices] = useState<Price[]>([
-    { item: 'Paddy', modal: 2150, market: 'Erode', trend: 'up' },
-    { item: 'Coconut', modal: 32, market: 'Perundurai', trend: 'down' },
-    { item: 'Milk', modal: 48, market: 'Erode', trend: 'up' },
-    { item: 'Tomato', modal: 28, market: 'Bhavani', trend: 'up' },
+    { item: 'Paddy', modal: 2150, market: 'Tamil Nadu', trend: 'up' },
+    { item: 'Coconut', modal: 32, market: 'Tamil Nadu', trend: 'down' },
+    { item: 'Milk', modal: 48, market: 'Tamil Nadu', trend: 'up' },
+    { item: 'Tomato', modal: 28, market: 'Tamil Nadu', trend: 'up' },
   ])
   const [index, setIndex] = useState(0)
 
   useEffect(() => {
     if (!result) return
-    const district = result.location.district || 'Erode'
+    const district = result.location.district || result.location.state || 'Tamil Nadu'
     const cat = result.profit_model?.category_code || 'grocery'
     api.post<any>('/market/intelligence', {
       category_code: cat,

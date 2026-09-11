@@ -37,6 +37,7 @@ We report recency honestly and never invent a verification date.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from typing import Optional
 
 from sqlalchemy import select
@@ -97,13 +98,38 @@ def _distance_m(p1: tuple[float, float], p2: tuple[float, float]) -> float:
     return haversine_km(lat1, lon1, lat2, lon2) * 1000.0
 
 
-def dedupe_competitors(pois: list[dict], max_merge_m: float = 60.0) -> list[dict]:
-    """Conservatively merge near-identical POIs (same normalized name + close).
+def _token_set(s: str) -> set[str]:
+    toks = re.split(r"[\s\-_/,.()]+", _norm(s))
+    return {t for t in toks if len(t) >= 2}
 
-    Merging is **conservative**: we only merge when (a) normalized names are
-    identical AND (b) coordinates are within ``max_merge_m``. Different names,
-    or the same name at clearly different places, are never merged. Ties are
-    flagged client-visible via ``possible_duplicate`` rather than guessed.
+def _jaccard(a: set[str], b: set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    inter = len(a & b)
+    union = len(a | b)
+    return inter / union if union else 0.0
+
+def _phones_match(a: Optional[str], b: Optional[str]) -> bool:
+    if not a or not b:
+        return False
+    da = re.sub(r"\D", "", a)
+    db = re.sub(r"\D", "", b)
+    if len(da) < 7 or len(db) < 7:
+        return False
+    return da[-10:] == db[-10:] if len(da) >= 10 and len(db) >= 10 else da == db
+
+def dedupe_competitors(pois: list[dict], max_merge_m: float = 60.0) -> list[dict]:
+    """Conservatively merge near-identical POIs.
+
+    Merge signals (in priority order, all require proximity <= max_merge_m unless noted):
+    1) Exact phone match (strongest — same business, different OSM elements)
+    2) Identical normalized_name + close (original rule)
+    3) Same brand + close (e.g. two 'Reliance Smart' nodes 40m apart)
+    4) High token Jaccard (>=0.6) + close (typo / variant names: 'Sri Lakshmi Stores' vs 'Lakshmi Store')
+
+    Different names at clearly different places are never merged. Possible
+    duplicates beyond 60m but within 150m with name similarity are flagged
+    (not merged) via ``possible_duplicate``.
     """
     merged: list[dict] = []
     used = [False] * len(pois)
@@ -113,24 +139,49 @@ def dedupe_competitors(pois: list[dict], max_merge_m: float = 60.0) -> list[dict
         base = dict(poi)
         base_coord = (poi["latitude"], poi["longitude"])
         base_norm = _norm(poi.get("normalized_name"))
-        merged_dists = []
+        base_tokens = _token_set(poi.get("normalized_name") or poi.get("name") or "")
+        base_brand = _norm(poi.get("brand"))
+        base_phone = poi.get("phone")
+        merged_dists: list[float] = []
+        flagged_dup = False
         for j in range(i + 1, len(pois)):
             if used[j]:
                 continue
             other = pois[j]
-            if _norm(other.get("normalized_name")) != base_norm or base_norm == "":
-                continue
             other_coord = (other["latitude"], other["longitude"])
             d = _distance_m(base_coord, other_coord)
-            if d <= max_merge_m:
+            should_merge = False
+            # Signal 1: phone match (any distance up to 150m, phone is strong id)
+            if _phones_match(base_phone, other.get("phone")):
+                if d <= 150.0:
+                    should_merge = True
+            # Signal 2: identical normalized_name + close
+            elif base_norm and _norm(other.get("normalized_name")) == base_norm and d <= max_merge_m:
+                should_merge = True
+            # Signal 3: same brand + close
+            elif base_brand and _norm(other.get("brand")) == base_brand and d <= max_merge_m:
+                should_merge = True
+            # Signal 4: high token overlap + close
+            else:
+                other_tokens = _token_set(other.get("normalized_name") or other.get("name") or "")
+                if base_tokens and other_tokens and _jaccard(base_tokens, other_tokens) >= 0.6 and d <= max_merge_m:
+                    should_merge = True
+            if should_merge:
                 used[j] = True
                 merged_dists.append(d)
                 for field in ("phone", "website", "brand", "opening_hours", "address"):
                     if field not in base or not base[field]:
                         if other.get(field):
                             base[field] = other[field]
+            elif d <= 150.0 and d > max_merge_m:
+                # Flag possible duplicate beyond merge radius but still nearby with similar name
+                other_tokens = _token_set(other.get("normalized_name") or other.get("name") or "")
+                if base_tokens and other_tokens and _jaccard(base_tokens, other_tokens) >= 0.5:
+                    flagged_dup = True
+                elif base_norm and _norm(other.get("normalized_name")) == base_norm:
+                    flagged_dup = True
         base["merged_from"] = len(merged_dists) + 1
-        base["possible_duplicate"] = bool(merged_dists)
+        base["possible_duplicate"] = bool(merged_dists) or flagged_dup
         merged.append(base)
     return merged
 

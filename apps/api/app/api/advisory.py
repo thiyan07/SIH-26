@@ -47,8 +47,8 @@ class SchemeMatchRequest(BaseModel):
 
 
 class FinancialStructureRequest(BaseModel):
-    state: Optional[str] = "Tamil Nadu"
-    district: Optional[str] = "Erode"
+    state: Optional[str] = None
+    district: Optional[str] = None
     block: Optional[str] = None
     village: Optional[str] = None
     business_type: str = Field(..., min_length=1)
@@ -99,7 +99,7 @@ def match_scheme(request: Request, req: SchemeMatchRequest, db: Session = Depend
     """Match beneficiary profile against all government schemes."""
     profile = BeneficiaryProfile(
         state=req.state,
-        district=req.district or "Erode",
+        district=req.district,
         block=req.block,
         village=req.village,
         business_type=req.business_type,
@@ -126,7 +126,7 @@ def financial_structure(request: Request, req: FinancialStructureRequest, db: Se
     """Full financial structuring: cost breakdown + loan + EMI schedule."""
     profile = BeneficiaryProfile(
         state=req.state,
-        district=req.district or "Erode",
+        district=req.district,
         block=req.block,
         village=req.village,
         business_type=req.business_type,

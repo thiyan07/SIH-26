@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Location
 from app.db.session import get_db
+from app.geo import real_data_condition
 from app.schemas import LocationInput, LocationOut
 
 router = APIRouter(prefix="/locations", tags=["locations"])
@@ -14,7 +15,7 @@ router = APIRouter(prefix="/locations", tags=["locations"])
 
 @router.get("/search", response_model=list[LocationOut])
 def search_locations(q: str = "", state: str = "", district: str = "", limit: int = 20, db: Session = Depends(get_db)):
-    stmt = select(Location)
+    stmt = select(Location).where(real_data_condition(Location))
     if q:
         q = q.strip()
         orig_q = q
@@ -41,16 +42,30 @@ def search_locations(q: str = "", state: str = "", district: str = "", limit: in
             Location.village,
         )
     if state:
-        stmt = stmt.where(Location.state == state)
+        stmt = stmt.where(Location.state.ilike(state))
     if district:
-        stmt = stmt.where(Location.district == district)
+        # Alias-aware district filter (Thoothukudi ↔ Tuticorin)
+        _aliases = {"Thoothukudi": ["Thoothukudi","Tuticorin"], "Tuticorin": ["Thoothukudi","Tuticorin"], "Villupuram": ["Villupuram","Viluppuram"], "Viluppuram": ["Villupuram","Viluppuram"]}
+        variants = _aliases.get(district, [district])
+        if len(variants) > 1:
+            from sqlalchemy import or_ as _or2
+            stmt = stmt.where(_or2(*[Location.district.ilike(v) for v in variants]))
+        else:
+            stmt = stmt.where(Location.district.ilike(district))
     stmt = stmt.limit(max(1, min(limit, 50)))
     return list(db.execute(stmt).scalars())
 
 
 @router.post("/search-by-input", response_model=list[LocationOut])
 def search_by_input(inp: LocationInput, db: Session = Depends(get_db)):
-    stmt = select(Location).where(Location.state == inp.state, Location.district == inp.district)
+    # Alias-aware for Thoothukudi/Tuticorin
+    _aliases2 = {"Thoothukudi": ["Thoothukudi","Tuticorin"], "Tuticorin": ["Thoothukudi","Tuticorin"], "Villupuram": ["Villupuram","Viluppuram"], "Viluppuram": ["Villupuram","Viluppuram"]}
+    dvars = _aliases2.get(inp.district, [inp.district])
+    stmt = select(Location).where(Location.state.ilike(inp.state), real_data_condition(Location))
+    if len(dvars) > 1:
+        stmt = stmt.where(or_(*[Location.district.ilike(v) for v in dvars]))
+    else:
+        stmt = stmt.where(Location.district.ilike(inp.district))
     if inp.block:
         stmt = stmt.where(Location.block == inp.block)
     if inp.village:

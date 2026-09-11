@@ -125,7 +125,7 @@ def build_cost_breakdown(
 
     notes = []
     if location_factor != 1.0:
-        notes.append(f"Costs adjusted by location factor {location_factor}x (Erode baseline = 1.0).")
+        notes.append(f"Costs adjusted by location factor {location_factor}x (Tamil Nadu baseline = 1.0).")
     if custom_items:
         notes.append(f"Custom overrides applied for: {', '.join(custom_items.keys())}.")
 

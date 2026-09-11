@@ -43,18 +43,23 @@ def resolve_model(category_code: str, requested: Optional[str]) -> str:
 # ── Priority classification helpers ──
 def _classify_item(name: str, category: str, section: str) -> str:
     n = name.lower()
-    # OPTIONAL patterns
-    optional_keywords = ["cctv", "generator", "branding", "display system", "packaging & branding", "e-commerce", "premium", "pos system with inventory", "walk-in cooler (if", "cold storage unit", "delivery vehicle", "mannequin", "interior design", "decor", "security system", "factory license (if", "bis certification"]
-    if any(k in n for k in optional_keywords):
-        return "OPTIONAL"
-    # RECOMMENDED
+    # RECOMMENDED first — so billing/POS is not misclassified as OPTIONAL via
+    # the broader optional pattern "pos system with inventory".
     recommended_keywords = ["billing", "pos", "refrigerator", "refrigeration", "signboard", "lighting", "painting", "overlock", "embroidery", "manure pit", "bore-well", "power backup", "inverter", "quality testing", "storage drums", "packaging machine", "shed with proper", "waste disposal", "cameras", "signage & menu"]
     if any(k in n for k in recommended_keywords):
         return "RECOMMENDED"
+    # OPTIONAL patterns (checked after RECOMMENDED so POS billing is not removed in lean)
+    optional_keywords = ["cctv", "generator", "branding", "display system", "packaging & branding", "e-commerce", "premium", "walk-in cooler (if", "cold storage unit", "delivery vehicle", "mannequin", "interior design", "decor", "security system", "factory license (if", "bis certification"]
+    if any(k in n for k in optional_keywords):
+        return "OPTIONAL"
     return "REQUIRED"
 
-def _provenance_for(category: str) -> dict:
-    return {"status": "ESTIMATED", "source": "cost_templates (Erode-district estimates)", "note": "Demo estimates — verify with local quotes"}
+def _provenance_for(category: str, district: str | None = None, location_factor: float = 1.0) -> dict:
+    if district and district.lower() == "erode" and location_factor != 1.0:
+        return {"status": "ESTIMATED", "source": f"cost_templates (Erode district estimate, factor {location_factor}x)", "note": "District-adjusted estimate — verify with local quotes"}
+    if location_factor != 1.0:
+        return {"status": "ESTIMATED", "source": f"cost_templates (Tamil Nadu regional estimate, factor {location_factor}x)", "note": "Regional estimate — verify with local quotes"}
+    return {"status": "ESTIMATED", "source": "cost_templates (Tamil Nadu state-level estimate)", "note": "State-level estimate — verify with local quotes"}
 
 # ── Inventory / raw material categories per business ──
 INVENTORY_PLAN: dict[str, list[dict]] = {
@@ -149,6 +154,7 @@ def build_setup_plan(
     seasonal: Optional[dict] = None,
     infrastructure: Optional[dict] = None,
     market_evidence: Optional[dict] = None,
+    district: str | None = None,
 ) -> dict:
     model_code = resolve_model(category_code, model)
     template = get_cost_template(category_code, scale)
@@ -166,7 +172,7 @@ def build_setup_plan(
             cost = round(it["amount"] * location_factor, 2)
             priority = _classify_item(it["name"], category_code, section)
             status = priority  # REQUIRED/RECOMMENDED/OPTIONAL
-            prov = _provenance_for(category_code)
+            prov = _provenance_for(category_code, district=district, location_factor=location_factor)
             items.append({
                 "name": it["name"],
                 "category": section,
@@ -186,7 +192,7 @@ def build_setup_plan(
         name_lower = it["name"].lower()
         is_inventory = any(k in name_lower for k in ["stock", "inventory", "feed", "fabric", "raw", "replenishment"])
         priority = "REQUIRED" if is_inventory or "rent" in name_lower or "labour" in name_lower else "RECOMMENDED"
-        prov = _provenance_for(category_code)
+        prov = _provenance_for(category_code, district=district, location_factor=location_factor)
         items.append({
             "name": it["name"],
             "category": "working_capital",
@@ -254,7 +260,7 @@ def build_setup_plan(
     # Monthly operating requirements derived from working_capital items
     monthly_reqs = []
     for it in template.get("working_capital", []):
-        monthly_reqs.append({"name": it["name"], "estimated_cost": round(it["amount"]*location_factor,2), "unit": it["unit"], "provenance": _provenance_for(category_code)})
+        monthly_reqs.append({"name": it["name"], "estimated_cost": round(it["amount"]*location_factor,2), "unit": it["unit"], "provenance": _provenance_for(category_code, district=district, location_factor=location_factor)})
 
     # Operating targets: convert monthly revenue into daily/weekly
     operating_targets: dict = {}
@@ -383,5 +389,5 @@ def build_setup_plan(
         "data_status": "ESTIMATED",
         "provenance": "cost_templates + business_intelligence (ESTIMATED demo)",
         "version": 1,
-        "assumptions": ["All costs are Erode-district demo estimates; verify with local quotes.", "Inventory and working capital are first-month / first-cycle estimates."],
+        "assumptions": ["All costs are regional demo estimates; verify with local quotes.", "Inventory and working capital are first-month / first-cycle estimates."],
     }

@@ -187,6 +187,27 @@ def derive_revenue(
     provenance = defaults["source"]
     fallback_reason = None
 
+    # LEVEL 1: User-provided values are real evidence, not estimates.
+    user_provided = []
+    if customers_per_day is not None:
+        user_provided.append(f"User-provided customers/day: {customers_per_day}")
+        is_estimate = False
+        confidence = "high"
+        provenance = "User-provided"
+    if transaction_value is not None:
+        user_provided.append(f"User-provided transaction value: ₹{transaction_value}")
+        is_estimate = False
+        confidence = "high"
+        provenance = "User-provided"
+    if operating_days is not None:
+        user_provided.append(f"User-provided operating days: {operating_days}/month")
+    if user_provided:
+        assumptions.extend(user_provided)
+        # If all three are user-provided, provenance is fully user-driven.
+        if customers_per_day is not None and transaction_value is not None and operating_days is not None:
+            provenance = "User-provided (all inputs)"
+            fallback_reason = None
+
     # Evidence adjustments (deterministic, never fabricates).
     if local_evidence:
         pop = local_evidence.get("population")
@@ -199,11 +220,14 @@ def derive_revenue(
             if pop_factor > 0 and customers_per_day is None:
                 cpd = round(cpd * (1 + pop_factor), 1)
                 assumptions.append(f"Population-adjusted demand: {pop:,} catchment → customers/day adjusted by +{pop_factor*100:.0f}% (ESTIMATED).")
-        # Competition: high density reduces customers.
-        if comp_5km is not None and comp_5km >= 5 and customers_per_day is None:
-            comp_factor = min(0.30, comp_5km * 0.02)
+        # Competition: high density is treated as risk/confidence evidence.
+        # Where a quantitative scenario adjustment is retained it is kept
+        # conservative and labelled as a scenario assumption, not a precise
+        # lost-customer count.
+        if comp_5km is not None and comp_5km >= 3 and customers_per_day is None:
+            comp_factor = min(0.15, comp_5km * 0.015)
             cpd = round(max(1, cpd * (1 - comp_factor)), 1)
-            assumptions.append(f"Competition-adjusted demand: {comp_5km} mapped competitors within 5km → customers/day reduced by {comp_factor*100:.0f}% (ESTIMATED).")
+            assumptions.append(f"Competition scenario adjustment (conservative): {comp_5km} mapped competitors within 5km → customers/day reduced by {comp_factor*100:.0f}% as a risk scenario (ESTIMATED; not a precise lost-customer count).")
         # Price evidence: if a relevant modal price exists, use it as transaction anchor.
         if price_modal and transaction_value is None:
             # Treat modal price as evidence for transaction value only when within 0.5x-2x of baseline.
@@ -219,6 +243,10 @@ def derive_revenue(
         fallback_reason = "No sufficient local evidence; using conservative category baseline (ESTIMATED)."
         assumptions.append(fallback_reason)
         assumptions.append(f"Baseline: {cpd:.0f} customers/day × ₹{txn:.0f} × {days} operating days.")
+    elif user_provided and len(assumptions) == len(user_provided):
+        # Only user inputs, no local evidence adjustments — still note baseline context.
+        fallback_reason = None
+        assumptions.append(f"Revenue: {cpd:.0f} customers/day × ₹{txn:.0f} × {days} operating days (user-provided, not estimated).")
 
     estimated_revenue = round(cpd * txn * days, 2)
 

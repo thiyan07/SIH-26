@@ -81,7 +81,7 @@ def _build_beneficiary_profile(parsed: ParsedInput) -> BeneficiaryProfile:
     loc_state = parsed.location.get("state") or "Tamil Nadu"
     return BeneficiaryProfile(
         state=loc_state,
-        district=parsed.location.get("district") or "Erode",
+        district=parsed.location.get("district"),  # no Erode fallback — use actual location
         block=parsed.location.get("block"),
         village=parsed.location.get("village"),
         business_type=parsed.business_type,
@@ -230,7 +230,7 @@ def _build_action_plan(
         "dairy": "6. Source animals from verified breeders. Get veterinary check before purchase. Register with local dairy cooperative.",
         "poultry": "6. Set up coop with proper ventilation. Start with vaccinated chicks from hatchery. Get poultry insurance.",
         "grocery": "6. Negotiate wholesale terms with 2-3 distributors. Install POS system from day one.",
-        "textile": "6. Source fabric from Erode textile market. Build portfolio of designs before launch.",
+        "textile": "6. Source fabric from the nearest textile market (e.g., Erode/Tiruppur). Build portfolio of designs before launch.",
         "food_processing": "6. Get FSSAI license BEFORE starting production. Source raw materials during harvest for best prices.",
         "restaurant": "6. Finalize menu with 8-12 items. Source from local mandi. Set up online ordering (Zomato/Swiggy).",
         "agriculture": "6. Get soil test done. Plan crop calendar with agricultural officer. Enroll in crop insurance (PMFBY).",
@@ -324,7 +324,7 @@ def _recommend_businesses(
         if location.get("block") or location.get("village"):
             q = db.query(Location).filter(
                 Location.state == (location.get("state") or "Tamil Nadu"),
-                Location.district == (location.get("district") or "Erode"),
+                Location.district == location.get("district"),  # no hard-coded Erode
             )
             if location.get("block"):
                 q = q.filter(Location.block.ilike(location["block"]))
@@ -433,11 +433,11 @@ def _generate_summary(
     ls = financial.loan_structure
     cb = financial.cost_breakdown
 
-    district = parsed.location.get('district') or parsed.location.get('state') and 'Erode' or 'Erode'
-    # Fallback chain: parsed district → Tamil Nadu implies Erode → Unknown
-    district = parsed.location.get('district') or 'Erode'
+    district = parsed.location.get('district')  # no Erode default
+    # Fallback chain: parsed district → Unknown (no Erode bias)
+    district = parsed.location.get('district')
     if not district or district == 'None':
-        district = 'Erode'
+        district = None  # no hard-coded Erode
     lines = []
     lines.append(f"Business Advisory Report — {district} District")
     lines.append("")
@@ -447,7 +447,7 @@ def _generate_summary(
     scale = parsed.scale or "micro"
     lines.append(f"Proposed venture: {biz_name} ({scale} scale)")
     block = parsed.location.get("block") or parsed.location.get("village") or "Perundurai"
-    district = parsed.location.get("district") or "Erode"
+    district = parsed.location.get("district")
     if block or district:
         lines.append(f"Location: {block}, {district}")
     lines.append("")

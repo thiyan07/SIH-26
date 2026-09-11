@@ -18,11 +18,57 @@ from app.geo import real_data_condition
 from app.provenance import freshness_for
 
 # Category -> relevant-ish commodities (lower-cased substring match).
-# An empty tuple means "any item available in the district" is accepted.
+# Tradeable categories have commodity lists; service/craft categories have
+# an empty tuple meaning "no relevant mandi commodity — price not applicable
+# (not UNAVAILABLE due to missing data)".
 RELEVANT_ITEMS = {
     "dairy": ("milk", "ghee", "curd", "paneer", "butter"),
-    "grocery": ("rice", "wheat", "pulses", "sugar", "tomato", "potato", "onion", "oil"),
+    "grocery": ("rice", "wheat", "pulses", "sugar", "tomato", "potato", "onion", "oil", "salt", "tur", "dal"),
+    "restaurant": ("onion", "potato", "tomato", "oil", "rice", "chicken", "egg", "vegetable", "wheat"),
+    "bakery": ("wheat", "flour", "sugar", "oil", "milk", "butter"),
+    "meat_shop": ("chicken", "mutton", "fish", "egg", "pork"),
+    "fish_shop": ("fish", "prawn", "seafood"),
+    "vegetable_shop": ("tomato", "onion", "potato", "brinjal", "bottle", "bitter", "pumpkin", "cabbage", "cauliflower", "beans", "carrot", "chilli", "vegetable"),
+    "fruit_shop": ("banana", "mango", "apple", "grape", "papaya", "orange", "fruit"),
+    "food_processing": ("rice", "wheat", "pulses", "oil", "milk", "sugarcane", "groundnut", "maize", "paddy"),
+    "agriculture": ("paddy", "rice", "maize", "sugarcane", "cotton", "groundnut", "coconut", "banana", "turmeric"),
+    "textile": ("cotton",),
+    "poultry": ("chicken", "egg", "maize", "poultry"),
+    "sweet_shop": ("sugar", "ghee", "milk", "cashew", "almond"),
+    "animal_feed": ("maize", "wheat", "feed", "bran"),
+    "fertilizer": ("urea", "fertilizer", "dap", "potash"),
+    "seed_shop": ("paddy", "maize", "cotton", "groundnut", "seed"),
+    "agricultural_equipment": ("tractor", "pump", "irrigation"),
+    # Service/craft categories — no relevant mandi commodity (honest, not fabricated)
+    "mobile_shop": (),
+    "electronics": (),
+    "clothing": ("cotton",),
+    "footwear": (),
+    "furniture": (),
+    "pharmacy": (),
+    "salon": (),
+    "tailoring": ("cotton",),
+    "printing": (),
+    "computer_service": (),
+    "mechanic": (),
+    "clinic": (),
+    "hardware": (),
+    "handicrafts": (),
+    "manufacturing": ("steel", "cotton"),
+    "other": (),
 }
+
+# Categories where mandi price relevance is not applicable (service/craft)
+SERVICE_NO_MANDI_CATEGORIES = frozenset({
+    "mobile_shop", "electronics", "salon", "tailoring", "printing",
+    "computer_service", "mechanic", "tyre_shop", "car_service", "laundry",
+    "photography", "internet_centre", "travel_agency", "finance", "welding",
+    "hardware", "building_materials", "steel_products", "plywood",
+    "clinic", "hospital", "diagnostic", "dental_clinic", "optical_shop",
+    "veterinary", "pharmacy", "furniture", "stationery", "home_appliances",
+    "battery_shop", "auto_parts", "hotel", "fast_food", "tea_shop",
+    "handicrafts", "other",
+})
 
 
 def _provenance(row: MarketPrice) -> dict:
@@ -50,12 +96,52 @@ def derive_price_evidence(db: Session, district: str, category_code: str) -> dic
     Reads ONLY real (non-demo) ingested MarketPrice rows so demo/proxy price
     rows can never leak into real scoring. Returns a JSON-serialisable
     evidence dict; never fabricates values.
+
+    For service/craft categories where no mandi commodity is relevant, the
+    result is honestly reported as not_applicable rather than unavailable-
+    due-to-missing-data.
     """
+    # Service categories have no relevant mandi commodity — not a data gap.
+    if category_code in SERVICE_NO_MANDI_CATEGORIES and category_code not in RELEVANT_ITEMS:
+        return {
+            "available": False,
+            "price_score_unavailable": True,
+            "not_applicable": True,
+            "category_code": category_code,
+            "district": district,
+            "item_count": 0,
+            "coverage": 0.0,
+            "unavailable_reason": "Service/craft business — no relevant mandi commodity. Price relevance not applicable (not a data gap).",
+            "note": "Service business — mandi price not applicable. Use local supplier quotes for input costs.",
+            "items": [],
+        }
+
     relevant = tuple(RELEVANT_ITEMS.get(category_code, ()))
+    # Empty tuple for a tradeable category would mean "accept any" — but we
+    # now explicitly list service categories above, so empty here is data gap.
+    is_service_empty = (len(relevant) == 0 and category_code in SERVICE_NO_MANDI_CATEGORIES)
+    if is_service_empty:
+        return {
+            "available": False,
+            "price_score_unavailable": True,
+            "not_applicable": True,
+            "category_code": category_code,
+            "district": district,
+            "item_count": 0,
+            "coverage": 0.0,
+            "unavailable_reason": "Service/craft business — no relevant mandi commodity. Price relevance not applicable.",
+            "note": "Service business — mandi price not applicable. Use local supplier quotes for input costs.",
+            "items": [],
+        }
+
     matched = _real_matched_rows(db, district, relevant)
 
     item_count = len(matched)
     if not item_count:
+        # Attempt live scrape fallback for districts with no DB prices (real data first, then estimate)
+        live = _try_live_price_fallback(district, category_code, relevant)
+        if live and live.get("items"):
+            return live
         return {
             "available": False,
             "price_score_unavailable": True,
@@ -63,9 +149,10 @@ def derive_price_evidence(db: Session, district: str, category_code: str) -> dic
             "district": district,
             "item_count": 0,
             "coverage": 0.0,
-            "unavailable_reason": "No verified (non-demo) market price rows for this district.",
-            "note": "No ingested market price rows for this district.",
+            "unavailable_reason": "No verified (non-demo) market price rows for this district within the freshness window.",
+            "note": "No ingested market price rows for this district — prices show as LIMITED EVIDENCE and confidence is reduced.",
             "items": [],
+            "scrape_attempted": live is not None,
         }
 
     coverage = round(len(matched) / len(relevant), 2) if relevant else 1.0
@@ -123,7 +210,12 @@ def _real_matched_rows(db: Session, district: str, relevant: tuple[str, ...]):
 
 
 def _history_counts(db: Session, district: str, relevant: tuple[str, ...]) -> dict:
-    """Count of stored dated rows per matched item (the price history we hold)."""
+    """Count of stored dated rows per matched item (the price history we hold).
+
+    Uses substring matching (same as _real_matched_rows) so "Rice Basmati"
+    counts toward relevant commodity "rice" rather than requiring an exact
+    item_name == "rice" match.
+    """
     from sqlalchemy import func
 
     stmt = (
@@ -134,9 +226,11 @@ def _history_counts(db: Session, district: str, relevant: tuple[str, ...]) -> di
         )
         .group_by(MarketPrice.item_name)
     )
-    if relevant:
-        stmt = stmt.where(MarketPrice.item_name.in_(relevant))
-    return {name: int(n) for name, n in db.execute(stmt).all()}
+    rows = {name: int(n) for name, n in db.execute(stmt).all()}
+    if not relevant:
+        return rows
+    # Keep only items that substring-match a relevant commodity.
+    return {name: n for name, n in rows.items() if _matches(name or "", relevant)}
 
 
 def _item_deltas(db: Session, district: str, matched) -> dict[str, Optional[float]]:
@@ -173,6 +267,81 @@ def _item_deltas(db: Session, district: str, matched) -> dict[str, Optional[floa
         except (TypeError, ValueError, ZeroDivisionError):
             out[name] = None
     return out
+
+
+def _try_live_price_fallback(district: str, category_code: str, relevant: tuple[str, ...]) -> Optional[dict]:
+    """Best-effort live scrape when DB has no prices for this district.
+
+    Tries the ACROP public mandi mirror (keyless) for Tamil Nadu districts.
+    Returns a live evidence dict if rows are fetched, otherwise None.
+    Never blocks analysis: any network/timeout failure returns None and the
+    caller falls back to UNAVAILABLE with reduced confidence.
+    Skipped in test environment (PYTEST_CURRENT_TEST or app_env=test) to keep
+    tests deterministic and fast.
+    """
+    import os as _os
+    if _os.getenv("PYTEST_CURRENT_TEST") or _os.getenv("PYTEST_XDIST_WORKER"):
+        return None
+    try:
+        from app.config import settings as _settings
+        if getattr(_settings, "app_env", "") == "test":
+            return None
+    except Exception:
+        pass
+    try:
+        from app.providers.mandi_live import fetch_live_prices_for_district
+        live_rows = fetch_live_prices_for_district(district, timeout_s=4)
+        if not live_rows:
+            return None
+        # Filter to relevant commodities (substring match)
+        live_matched = [r for r in live_rows if _matches(r.get("item_name") or "", relevant)] if relevant else live_rows
+        if not live_matched:
+            return None
+        # Build evidence from live rows (same shape as DB evidence but flagged as live scrape)
+        latest = max((r.get("reference_date") for r in live_matched if r.get("reference_date")), default=None)
+        # Parse latest if string
+        import datetime as _dt
+        latest_date = None
+        if latest:
+            try:
+                latest_date = _dt.date.fromisoformat(str(latest)) if isinstance(latest, str) else latest
+            except Exception:
+                latest_date = None
+        coverage = round(len(live_matched) / len(relevant), 2) if relevant else 1.0
+        confidence = "high" if coverage >= 0.5 else ("medium" if coverage > 0 else "low")
+        return {
+            "available": True,
+            "price_score_unavailable": False,
+            "live_scrape": True,
+            "category_code": category_code,
+            "district": district,
+            "item_count": len(live_matched),
+            "coverage": coverage,
+            "confidence": confidence,
+            "reference_dates": sorted({str(r.get("reference_date")) for r in live_matched if r.get("reference_date")}),
+            "latest_reference_date": str(latest) if latest else None,
+            "days_since_latest": ( _dt.date.today() - latest_date).days if latest_date else None,
+            "freshness": freshness_for(source_type="market_price", reference_date=latest_date),
+            "history_rows": {},
+            "source": {"source_name": "ACROP Mandi (live scrape)", "source_type": "market_prices", "confidence": "medium", "is_estimate": False},
+            "note": f"{len(live_matched)} live commodity price(s) scraped from public mandi mirror ({confidence} coverage).",
+            "items": [
+                {
+                    "item_name": r.get("item_name"),
+                    "unit": r.get("unit", "quintal"),
+                    "modal_price": float(r["modal_price"]) if r.get("modal_price") is not None else None,
+                    "min_price": float(r["min_price"]) if r.get("min_price") is not None else None,
+                    "max_price": float(r["max_price"]) if r.get("max_price") is not None else None,
+                    "market_name": r.get("market_name"),
+                    "mandi": r.get("market_name"),
+                    "reference_date": str(r.get("reference_date")) if r.get("reference_date") else None,
+                    "delta_pct": None,
+                }
+                for r in live_matched
+            ],
+        }
+    except Exception:
+        return None
 
 
 def price_score_from_evidence(evidence: dict) -> Optional[float]:
