@@ -1,8 +1,6 @@
 {
-  "rewrites": [
-    {
-      "source": "/:path*",
-      "destination": "/index.html"
-    }
-  ]
+  "buildCommand": "npm run build --prefix apps/web",
+  "outputDirectory": "apps/web/dist",
+  "installCommand": "npm ci --prefix apps/web",
+  "rewrites": [{ "source": "/:path*", "destination": "/index.html" }]
 }
