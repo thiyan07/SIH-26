@@ -87,7 +87,7 @@ def _provenance(row: MarketPrice) -> dict:
 
 def _matches(needle: str, haystack) -> bool:
     n = needle.lower()
-    return any(n in h for h in haystack)
+    return any(h.lower() in n for h in haystack)
 
 
 def derive_price_evidence(db: Session, district: str, category_code: str) -> dict:
@@ -288,18 +288,11 @@ def _try_live_price_fallback(district: str, category_code: str, relevant: tuple[
             return None
     except Exception:
         pass
-    try:
-        from app.providers.mandi_live import fetch_live_prices_for_district
-        live_rows = fetch_live_prices_for_district(district, timeout_s=4)
-        if not live_rows:
-            return None
-        # Filter to relevant commodities (substring match)
-        live_matched = [r for r in live_rows if _matches(r.get("item_name") or "", relevant)] if relevant else live_rows
+    def _build_live_evidence(rows, source_label):
+        live_matched = [r for r in rows if _matches(r.get("item_name") or "", relevant)] if relevant else rows
         if not live_matched:
             return None
-        # Build evidence from live rows (same shape as DB evidence but flagged as live scrape)
         latest = max((r.get("reference_date") for r in live_matched if r.get("reference_date")), default=None)
-        # Parse latest if string
         import datetime as _dt
         latest_date = None
         if latest:
@@ -323,8 +316,8 @@ def _try_live_price_fallback(district: str, category_code: str, relevant: tuple[
             "days_since_latest": ( _dt.date.today() - latest_date).days if latest_date else None,
             "freshness": freshness_for(source_type="market_price", reference_date=latest_date),
             "history_rows": {},
-            "source": {"source_name": "ACROP Mandi (live scrape)", "source_type": "market_prices", "confidence": "medium", "is_estimate": False},
-            "note": f"{len(live_matched)} live commodity price(s) scraped from public mandi mirror ({confidence} coverage).",
+            "source": {"source_name": source_label, "source_type": "market_prices", "confidence": "medium", "is_estimate": False},
+            "note": f"{len(live_matched)} live commodity price(s) scraped from {source_label} ({confidence} coverage).",
             "items": [
                 {
                     "item_name": r.get("item_name"),
@@ -340,8 +333,24 @@ def _try_live_price_fallback(district: str, category_code: str, relevant: tuple[
                 for r in live_matched
             ],
         }
+
+    try:
+        from app.providers.mandi_live import fetch_live_prices_for_district as _acrop
+        live_rows = _acrop(district, timeout_s=4)
+        ev = _build_live_evidence(live_rows, "ACROP Mandi (live scrape)")
+        if ev:
+            return ev
+    except Exception:
+        pass
+    try:
+        from app.providers.mandibhavindia import fetch_live_prices_for_district as _mb
+        live_rows2 = _mb(district, timeout_s=8)
+        ev2 = _build_live_evidence(live_rows2, "Mandibhavindia (live scrape — Agmarknet/eNAM 385 mandis)")
+        if ev2:
+            return ev2
     except Exception:
         return None
+    return None
 
 
 def price_score_from_evidence(evidence: dict) -> Optional[float]:
