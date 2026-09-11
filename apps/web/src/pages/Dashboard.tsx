@@ -288,9 +288,9 @@ export function Dashboard() {
                   <div className="text-xs text-gray-500">{tr('breakEvenInsufficient', lang)}</div>
                 )}
               </div>
-              {me.notes?.length > 0 && (
+              {(me.notes?.length || 0) > 0 && (
                 <div className="mt-1 space-y-0.5">
-                  {me.notes.map((n: string, i: number) => <p key={i} className="text-[11px] italic text-gray-500">{n}</p>)}
+                  {(me.notes || []).map((n: string, i: number) => <p key={i} className="text-[11px] italic text-gray-500">{n}</p>)}
                 </div>
               )}
             </div>
