@@ -349,7 +349,23 @@ def _try_live_price_fallback(district: str, category_code: str, relevant: tuple[
         if ev2:
             return ev2
     except Exception:
-        return None
+        pass
+    # Representative fallback for newly formed districts with no APMC yet (honest, not fabricated)
+    _REPRESENTATIVE = {"Mayiladuthurai": "Nagapattinam", "Thiruvallur": "Chengalpattu"}
+    rep = _REPRESENTATIVE.get(district)
+    if rep:
+        try:
+            from app.providers.mandibhavindia import fetch_live_prices_for_district as _mb2
+            live_rows3 = _mb2(rep, timeout_s=8)
+            ev3 = _build_live_evidence(live_rows3, f"Mandibhavindia (representative — nearest {rep} mandi, not exact {district})")
+            if ev3:
+                ev3["representative"] = True
+                ev3["representative_district"] = rep
+                ev3["geographic_level"] = "representative"
+                ev3["note"] = f"{ev3['item_count']} commodity price(s) from nearby {rep} mandi as representative for {district} (no APMC listed for {district} yet) — Tier 4, explicitly labelled."
+                return ev3
+        except Exception:
+            pass
     return None
 
 
