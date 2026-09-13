@@ -24,16 +24,14 @@ export function Report() {
     setLoadingAi(true)
     try {
       const evidence = result as unknown as Record<string, unknown>
-      // Race LLM against a 1.2s fallback so UI never appears hung on a slow provider
-      const aiPromise = api.post<{ content: string }>('/ai/report', {
+      const res = await api.post<{ content: string }>('/ai/report', {
         evidence,
         language: lang,
         ...(analysisId ? { analysis_id: analysisId } : {}),
       })
-      const fallback = new Promise<{content:string}>(res => setTimeout(() => res({ content: tr('aiUnavailable', lang)}), 1200))
-      const res = await Promise.race([aiPromise, fallback]) as { content: string }
-      cacheRef.set(key, res.content)
-      setAiText(res.content)
+      const content = res.content || tr('aiUnavailable', lang)
+      cacheRef.set(key, content)
+      setAiText(content)
     } catch {
       setAiText(tr('aiUnavailable', lang))
     } finally {
@@ -96,31 +94,8 @@ export function Report() {
           >
             Export JSON
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              const text = `GramBiz AI Report: ${result.location.village}, ${result.location.district} - Score ${s.overall_score}/100 (${rec.label}) - ${window.location.href}`
-              const url = `https://wa.me/?text=${encodeURIComponent(text)}`
-              window.open(url, '_blank')
-            }}
-          >
-            WhatsApp
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              navigator.clipboard.writeText(window.location.href)
-              alert('Link copied')
-            }}
-          >
-            Copy Link
-          </Button>
-          <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(window.location.href)}`}
-            alt="QR"
-            className="h-10 w-10 rounded-lg border border-slate-200 bg-white p-1"
-            title="Scan to open report"
-          />
+
+
         </div>
       </div>
 

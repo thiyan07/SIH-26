@@ -78,12 +78,19 @@ def test_weather_applicable_gates_categories():
 
 
 def test_apply_weather_risk_suppresses_for_low_relevance():
+    # v2: Low relevance now surfaces flags when present (indirect impact), with note
+    # Empty risk without factors remains irrelevant, but risk_delta is preserved for transparency
     low = apply_weather_risk("mobile_shop", {"available": True, "risk": {"risk_delta": 20}})
+    # With no factors, still not relevant (no extreme flags), but risk_delta is preserved (not suppressed to 0)
     assert low["relevant"] is False
-    assert low["risk"]["risk_delta"] == 0
-    assert low["risk"]["factors"] is None
-    # But the availability is still surfaced for transparency
+    assert low["risk"]["risk_delta"] == 20
     assert low["available"] is True
+    assert "note" in low
+
+def test_apply_weather_risk_low_with_flags_becomes_relevant():
+    low_with_flags = apply_weather_risk("mobile_shop", {"available": True, "risk": {"risk_delta": 12, "factors": [{"factor": "heat_stress"}]}})
+    assert low_with_flags["relevant"] is True
+    assert low_with_flags["risk"]["risk_delta"] == 12
 
 
 def test_apply_weather_risk_surfaces_for_high_relevance():

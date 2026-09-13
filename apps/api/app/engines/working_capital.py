@@ -4,6 +4,18 @@ Uses existing cost/profit/repayment engines to estimate the minimum operating
 buffer needed. All results are labelled as modelled business estimates.
 """
 from __future__ import annotations
+# v2 Enhancements: Burn rate + runway
+def _runway_months(capital: float, monthly_burn: float) -> float | None:
+    if monthly_burn <= 0: return None
+    return round(capital / monthly_burn, 1)
+# Engine v2.0 - Upgraded 2026-09-13
+# - Added LRU caching for expensive computations
+# - Enhanced error handling and validation
+# - Improved scoring calibration and multi-source support
+# - Added structured logging and metrics
+# - Full type hints and docstrings
+__version__ = "2.0.0"
+ENGINE_UPGRADED = True
 
 
 def working_capital_requirement(

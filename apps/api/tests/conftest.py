@@ -62,6 +62,9 @@ def _apply_additive_schema(mod):
             s.execute(text("ALTER TABLE document_chunks ADD COLUMN IF NOT EXISTS embedding_json JSONB"))
             s.execute(text("ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS why_used TEXT"))
             s.execute(text("ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS known_limitations JSONB"))
+            # District normalized column for efficient filtering (Phase 9)
+            s.execute(text("ALTER TABLE locations ADD COLUMN IF NOT EXISTS district_normalized VARCHAR(100)"))
+            s.execute(text("CREATE INDEX IF NOT EXISTS ix_locations_district_normalized ON locations (district_normalized)"))
             # Phase 4: market-price dedupe + history indexes (idempotent), mirroring init_schema.
             s.execute(text(
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_market_prices_real_dedupe "
@@ -100,11 +103,11 @@ def seeded(engine):
     with db_session.session_scope() as s:
         for tbl in reversed(Base.metadata.sorted_tables):
             s.execute(tbl.delete())
-        loc1 = Location(id="loc_sathya", state="Tamil Nadu", district="Erode",
+        loc1 = Location(id="loc_sathya", state="Tamil Nadu", district="Erode", district_normalized="erode",
                         block="Sathyamangalam", village="Sathyamangalam",
                         latitude=11.5056, longitude=77.2390, geo_precision="centroid",
                         source_name="test", source_type="test", is_demo=False)
-        loc2 = Location(id="loc_peru", state="Tamil Nadu", district="Erode",
+        loc2 = Location(id="loc_peru", state="Tamil Nadu", district="Erode", district_normalized="erode",
                         block="Perundurai", village="Perundurai",
                         latitude=11.2760, longitude=77.5800, geo_precision="centroid",
                         source_name="test", source_type="test", is_demo=False)
@@ -149,5 +152,40 @@ def seeded(engine):
 
 @pytest.fixture()
 def session(seeded):
+    with db_session.session_scope() as s:
+        yield s
+
+
+@pytest.fixture()
+def tn_38_fixture(engine):
+    """Deterministic 38-district fixture — 1 locality per district, no fake businesses."""
+    from app.discovery.admin import TN_DISTRICTS_CANONICAL, normalize_name
+    with db_session.session_scope() as s:
+        for tbl in reversed(Base.metadata.sorted_tables):
+            s.execute(tbl.delete())
+        locs = []
+        for idx, dist in enumerate(TN_DISTRICTS_CANONICAL):
+            # Use synthetic TEST rows only inside test DB
+            locs.append(Location(
+                id=f"loc_{idx:02d}_{dist.lower().replace(' ', '_')}",
+                state="Tamil Nadu",
+                district=dist,
+                district_normalized=normalize_name(dist),
+                block=f"Block{idx}",
+                village=f"Village{idx}_{dist[:3]}",
+                latitude=11.0 + idx * 0.05,
+                longitude=77.0 + idx * 0.05,
+                geo_precision="village",
+                source_name="test-fixture-38",
+                source_type="test",
+                is_demo=False,
+            ))
+        s.add_all(locs)
+        s.flush()
+        s.add_all([
+            BusinessCategory(id="cat_grocery", code="grocery", name="Grocery"),
+            BusinessCategory(id="cat_pharmacy", code="pharmacy", name="Pharmacy"),
+        ])
+    # Yield a session
     with db_session.session_scope() as s:
         yield s

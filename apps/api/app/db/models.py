@@ -73,6 +73,7 @@ class Location(PG, ProvenanceMixin, Base):
     __tablename__ = "locations"
     state = Column(String(100), nullable=False)
     district = Column(String(100), nullable=False, index=True)
+    district_normalized = Column(String(100), nullable=True, index=True)
     block = Column(String(100), nullable=True, index=True)
     village = Column(String(120), nullable=True, index=True)
     latitude = Column(Float, nullable=False)
@@ -80,7 +81,10 @@ class Location(PG, ProvenanceMixin, Base):
     geo_precision = Column(String(20), default="point")  # point|centroid|village
     metadata_json = Column(JSONB, nullable=True)
 
-    __table_args__ = (UniqueConstraint("state", "district", "block", "village", name="uq_location_admin"),)
+    __table_args__ = (
+        UniqueConstraint("state", "district", "block", "village", name="uq_location_admin"),
+        Index("ix_locations_district_normalized", "district_normalized"),
+    )
 
 
 class AdministrativeBoundary(PG, ProvenanceMixin, Base):
@@ -714,6 +718,79 @@ class User(PG, Base):
     language = Column(String(10), default="en")
     metadata_json = Column(JSONB, nullable=True)
 
+
+class DiscoveryRun(PG, Base):
+    """Auditable discovery run — one per district/scope invocation."""
+
+    __tablename__ = "discovery_runs"
+    district = Column(String(100), nullable=True, index=True)
+    locality = Column(String(120), nullable=True, index=True)
+    category = Column(String(50), nullable=True, index=True)
+    source = Column(String(30), nullable=True, index=True)  # google_maps|osm|both
+    status = Column(String(20), nullable=False, index=True)  # running|ok|partial|error
+    targets_generated = Column(Integer, default=0)
+    targets_scraped = Column(Integer, default=0)
+    observations = Column(Integer, default=0)
+    canonical_businesses = Column(Integer, default=0)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    error_detail = Column(Text, nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+
+class DiscoveryObservationModel(PG, ProvenanceMixin, Base):
+    """Raw observation from any provider — preserves provenance exactly."""
+
+    __tablename__ = "discovery_observations"
+    district = Column(String(100), nullable=True, index=True)
+    locality = Column(String(120), nullable=True, index=True)
+    category_code = Column(String(50), nullable=True, index=True)
+    query = Column(Text, nullable=True)
+    source = Column(String(30), nullable=False, index=True)
+    source_record_id = Column(String(200), nullable=True, index=True)
+    name = Column(String(200), nullable=True)
+    normalized_name = Column(String(200), nullable=True, index=True)
+    latitude = Column(Float, nullable=True, index=True)
+    longitude = Column(Float, nullable=True, index=True)
+    address = Column(Text, nullable=True)
+    phone = Column(String(80), nullable=True)
+    website = Column(String(300), nullable=True)
+    distance_from_target_km = Column(Float, nullable=True)
+    geographic_match_status = Column(String(30), nullable=True, index=True)
+    match_confidence = Column(String(20), nullable=True)
+    raw_payload = Column(JSONB, nullable=True)
+
+    __table_args__ = (
+        Index("ix_discovery_obs_source_source_id", "source", "source_record_id"),
+        Index("ix_discovery_obs_district_locality", "district", "locality"),
+    )
+
+
+class CoverageAudit(PG, Base):
+    """Per (district, locality, category, source) coverage ledger."""
+
+    __tablename__ = "coverage_audits"
+    district = Column(String(100), nullable=False, index=True)
+    locality = Column(String(120), nullable=True, index=True)
+    category_code = Column(String(50), nullable=True, index=True)
+    source = Column(String(30), nullable=False, index=True)
+    queries_attempted = Column(Integer, default=0)
+    queries_successful = Column(Integer, default=0)
+    unique_results = Column(Integer, default=0)
+    google_results = Column(Integer, default=0)
+    osm_results = Column(Integer, default=0)
+    cross_source_matches = Column(Integer, default=0)
+    last_scraped_at = Column(DateTime(timezone=True), nullable=True)
+    search_depth = Column(Integer, default=0)
+    coverage_status = Column(String(20), nullable=True, index=True)  # GOOD|PARTIAL|LOW|NOT_SEARCHED|ERROR|STALE
+    freshness = Column(String(20), nullable=True)
+    metadata_json = Column(JSONB, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("district", "locality", "category_code", "source", name="uq_coverage_scope"),
+    )
+
+
 __all__ = [
     "Base",
     "Location",
@@ -741,6 +818,9 @@ __all__ = [
     "IndustrialUnit",
     "DataSyncRun",
     "CompetitorCache",
+    "DiscoveryRun",
+    "DiscoveryObservationModel",
+    "CoverageAudit",
     "AnalysisRun",
     "BusinessSetupPlan",
     "Report",

@@ -73,7 +73,7 @@ export function AssumptionEditor() {
       <CardHeader title="Edit Assumptions" subtitle="Override default estimates with your local knowledge — all dependent calculations will update" />
       <div className="grid gap-3 md:grid-cols-2">
         <div>
-          <label className="text-xs text-gray-500">Customers / day (default {defaults.customers_per_day ?? '—'} ESTIMATED)</label>
+          <label className="text-xs text-gray-500">Customers / day (default {defaults.customers_per_day ?? '—'} estimated)</label>
           <input
             type="number"
             value={customers}
@@ -135,7 +135,7 @@ export function AssumptionEditor() {
         <button onClick={handleReset} className="rounded-lg border border-slate-200 px-4 py-2 text-sm">Reset</button>
       </div>
       <p className="mt-2 text-[11px] italic text-gray-500">
-        Defaults are ESTIMATED demo assumptions per category. Your overrides are preserved as OVERRIDE and will be shown as such. All dependent values (Revenue → Cash Surplus → Break-even → Viability) update consistently.
+        Defaults are modelled estimates per category. Your overrides are preserved and recalculate all dependent values (Revenue → Cash Surplus → Break-even → Viability).
       </p>
     </Card>
   )

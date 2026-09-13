@@ -23,6 +23,7 @@ from app.api import (
     locations,
     market,
     rag,
+    suppliers,
 )
 from app.config import settings
 from app.limiter import limiter
@@ -79,6 +80,7 @@ app.include_router(data_sources.router)
 app.include_router(geo.router)
 app.include_router(geocoder.router)
 app.include_router(rag.router)
+app.include_router(suppliers.router)
 
 
 @app.get("/")

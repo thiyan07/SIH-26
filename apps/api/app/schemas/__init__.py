@@ -119,6 +119,8 @@ class AnalysisRequest(BaseModel):
     model_inputs: Optional[dict[str, Any]] = Field(default=None, description="Legacy alias for assumption_overrides")
     # Selected scheme drives finance calculation (Scheme → Finance flow)
     preferred_scheme_code: Optional[str] = Field(default=None, description="Selected government scheme code to drive finance calculation")
+    # Demographics needed for scheme eligibility (age-gated schemes)
+    applicant_age: Optional[int] = Field(default=None, ge=0, le=100, description="Applicant age in years for scheme eligibility")
 
     @field_validator("capital_available")
     @classmethod

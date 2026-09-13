@@ -53,7 +53,36 @@ def search_locations(q: str = "", state: str = "", district: str = "", limit: in
         else:
             stmt = stmt.where(Location.district.ilike(district))
     stmt = stmt.limit(max(1, min(limit, 50)))
-    return list(db.execute(stmt).scalars())
+    rows = list(db.execute(stmt).scalars())
+    # Ensure exact town centroid (demo proxy e.g. Perundurai) is surfaced even when
+    # real villages exist in the same block — otherwise "Perundurai" search never
+    # shows the town itself because it is is_demo=true.
+    # For short queries (1 char) we skip the extra lookup to keep instant search fast.
+    if q and len(orig_q.strip()) > 1:
+        # Always try to surface an exact village demo match if it exists and isn't already present
+        fallback = select(Location).where(Location.village.ilike(orig_q))
+        if state:
+            fallback = fallback.where(Location.state.ilike(state))
+        if district:
+            _aliases = {"Thoothukudi": ["Thoothukudi","Tuticorin"], "Tuticorin": ["Thoothukudi","Tuticorin"], "Villupuram": ["Villupuram","Viluppuram"], "Viluppuram": ["Villupuram","Viluppuram"]}
+            variants = _aliases.get(district, [district])
+            if len(variants) > 1:
+                from sqlalchemy import or_ as _or3
+                fallback = fallback.where(_or3(*[Location.district.ilike(v) for v in variants]))
+            else:
+                fallback = fallback.where(Location.district.ilike(district))
+        fallback = fallback.limit(50)
+        demo_rows = list(db.execute(fallback).scalars())
+        exact_demo = [r for r in demo_rows if (r.village or "").strip().lower() == orig_q.strip().lower()]
+        if exact_demo:
+            existing_ids = {r.id for r in rows}
+            new_exact = [r for r in exact_demo if r.id not in existing_ids]
+            if new_exact:
+                rows = new_exact + rows
+                rows = rows[: max(1, min(limit, 50))]
+        elif not rows and demo_rows:
+            rows = demo_rows[: max(1, min(limit, 50))]
+    return rows
 
 
 @router.post("/search-by-input", response_model=list[LocationOut])
@@ -70,7 +99,20 @@ def search_by_input(inp: LocationInput, db: Session = Depends(get_db)):
         stmt = stmt.where(Location.block == inp.block)
     if inp.village:
         stmt = stmt.where(Location.village == inp.village)
-    return list(db.execute(stmt).scalars())
+    rows = list(db.execute(stmt).scalars())
+    if not rows:
+        # Fallback to demo proxy for town centroids like Perundurai
+        fb = select(Location).where(Location.state.ilike(inp.state))
+        if len(dvars) > 1:
+            fb = fb.where(or_(*[Location.district.ilike(v) for v in dvars]))
+        else:
+            fb = fb.where(Location.district.ilike(inp.district))
+        if inp.block:
+            fb = fb.where(Location.block == inp.block)
+        if inp.village:
+            fb = fb.where(Location.village == inp.village)
+        rows = list(db.execute(fb.limit(5)).scalars())
+    return rows
 
 
 @router.get("/{location_id}", response_model=LocationOut)

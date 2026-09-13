@@ -6,13 +6,14 @@ import { BusinessMap } from '../components/BusinessMap'
 import { pointsFromGeoJSON } from '../lib/geo'
 import { tr, type Language } from '../lib/i18n'
 import { SupplierMarketplace } from '../components/SupplierMarketplace'
-import type { AnalysisResult, InfrastructurePoint, LocationOut, MapLayersResponse, MapPoint } from '../types'
+import type { AnalysisResult, Business, InfrastructurePoint, LocationOut, MapLayersResponse, MapPoint } from '../types'
 
 export function Market() {
   const { result, setResult, setForm, lang } = useAnalysis()
   const [markets, setMarkets] = useState<MapPoint[]>([])
   const [infrastructure, setInfrastructure] = useState<InfrastructurePoint[]>([])
   const [layersNote, setLayersNote] = useState('')
+  const [allBusinesses, setAllBusinesses] = useState<Business[]>([])
   const [demoLoading, setDemoLoading] = useState(false)
 
   const loadDemo = async () => {
@@ -61,7 +62,16 @@ export function Market() {
         setMarkets([])
         setInfrastructure([])
       })
-  }, [result])
+    // Fetch all businesses (unfiltered) for "All" layer; bc.businesses is category-filtered competitors
+    api
+      .post<{ businesses: Business[] }>('/businesses/nearby', {
+        latitude: result.location.latitude,
+        longitude: result.location.longitude,
+        radius_km: 10,
+      })
+      .then((r) => setAllBusinesses(r.businesses || []))
+      .catch(() => setAllBusinesses([]))
+  }, [result?.location.latitude, result?.location.longitude])
 
   if (!result) return <Empty lang={lang} onLoadDemo={() => loadDemo()} loadingDemo={demoLoading} />
   const bc = result.business_competition
@@ -90,7 +100,7 @@ export function Market() {
             <CardHeader title={tr('liveMapNearby', lang)} subtitle={tr('liveMapSub', lang)} />
             <BusinessMap
               center={{ latitude: result.location.latitude, longitude: result.location.longitude }}
-              businesses={bc?.businesses || []}
+              businesses={allBusinesses.length ? allBusinesses : (bc?.businesses || [])}
               competitors={bc?.businesses || []}
               markets={markets}
               infrastructure={infrastructure}
@@ -126,7 +136,13 @@ export function Market() {
 
       <Card>
         <CardHeader title="Supplier Marketplace" subtitle="Trusted suppliers near your village — WhatsApp to order" />
-        <SupplierMarketplace />
+        <SupplierMarketplace
+          latitude={result.location.latitude}
+          longitude={result.location.longitude}
+          category={result.profit_model?.category_code}
+          placeName={[result.location.village, result.location.block, result.location.district].filter(Boolean).join(', ')}
+          district={result.location.district}
+        />
       </Card>
 
       {/* Market prices are available via Market Intelligence API and used for demand/seasonality — detailed price table removed per product scope */}

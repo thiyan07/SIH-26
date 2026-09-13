@@ -464,7 +464,8 @@ def run_analysis(db: Session, req) -> dict:
             except Exception:
                 pass
             try:
-                bp = _BP(state=location.state, district=location.district, block=location.block, village=location.village, business_type=code, project_cost=tc, capital_available=capital, preferred_scale=scale)
+                age = getattr(req, "applicant_age", None)
+                bp = _BP(state=location.state, district=location.district, block=location.block, village=location.village, business_type=code, project_cost=tc, capital_available=capital, preferred_scale=scale, age=age)
                 sch = _ms(db, bp)
                 elig = sum(1 for s in sch if s.status == "ELIGIBLE")
                 ss = min(100, elig * 40)
@@ -563,39 +564,10 @@ def run_analysis(db: Session, req) -> dict:
                 fin = derive_financial_plan(project_cost, capital)
                 scheme = fin.scheme
     else:
-        # No preferred scheme — try to auto-route among real schemes first (no demo fallback if possible)
-        from app.db.models import GovernmentScheme
+        # No preferred scheme — do NOT auto-select a scheme; show concept loan and require user to select a scheme before Financial Plan
         from app.engines.finance import SchemeRule
-        real_rows = list(db.execute(select(GovernmentScheme).where(GovernmentScheme.is_active.is_(True), GovernmentScheme.is_demo.is_(False))).scalars())
-        if real_rows:
-            real_rules = []
-            for r in real_rows:
-                # Only consider schemes with defined range that could cover this project_cost
-                lo = float(r.min_project_cost) if r.min_project_cost is not None else 0
-                hi = float(r.max_project_cost) if r.max_project_cost is not None else float('inf')
-                if lo <= project_cost <= hi:
-                    real_rules.append(SchemeRule(
-                        code=r.code, name=r.name,
-                        min_project_cost=float(r.min_project_cost) if r.min_project_cost is not None else 0.0,
-                        max_project_cost=float(r.max_project_cost) if r.max_project_cost is not None else None,
-                        max_loan_amount=float(r.max_loan_amount) if r.max_loan_amount is not None else None,
-                        interest_rate=float(r.interest_rate) if r.interest_rate is not None else 10.0,
-                        tenure_years=float(r.tenure_years) if r.tenure_years is not None else 5.0,
-                        moratorium_months=int(r.moratorium_months) if r.moratorium_months is not None else 0,
-                        margin_pct=float(r.margin_pct) if r.margin_pct is not None else 10.0,
-                        moratorium_mode=r.moratorium_mode or "interest_only_during_moratorium",
-                        source_document=getattr(r, "source_document", None) or r.scheme_url or r.source_url or "Government scheme registry",
-                    ))
-            if real_rules:
-                fin = derive_financial_plan(project_cost, capital, schemes=tuple(real_rules))
-                scheme = fin.scheme
-            else:
-                # No real scheme covers this cost — fall back to generic but mark clearly as no real scheme
-                fin = derive_financial_plan(project_cost, capital)
-                scheme = fin.scheme
-        else:
-            fin = derive_financial_plan(project_cost, capital)
-            scheme = fin.scheme
+        fin = derive_financial_plan(project_cost, capital, schemes=())
+        scheme = None
 
     # 2. profit model (estimated)
     model_inputs = getattr(req, "model_inputs", None) or {}
@@ -1166,17 +1138,24 @@ def _resolve_location(db, state, district, block=None, village=None) -> Optional
     # Handle district aliases (Thoothukudi ↔ Tuticorin, Villupuram ↔ Viluppuram)
     _aliases = {"Thoothukudi": ["Thoothukudi","Tuticorin"], "Tuticorin": ["Thoothukudi","Tuticorin"], "Villupuram": ["Villupuram","Viluppuram"], "Viluppuram": ["Villupuram","Viluppuram"]}
     d_variants = _aliases.get(district, [district]) if district else [district]
-    stmt = select(Location).where(
-        Location.state == state,
-        _or(*[Location.district.ilike(v) for v in d_variants]) if len(d_variants)>1 else Location.district.ilike(district),
-        real_data_condition(Location),
-    )
-    if block:
-        stmt = stmt.where(Location.block == block)
-    if village:
-        stmt = stmt.where(Location.village == village)
-    stmt = stmt.limit(1)
-    return db.execute(stmt).scalars().first()
+    # Try real location first; fallback to demo/proxy (e.g. Perundurai town centroid is demo)
+    for use_real in (True, False):
+        conds = [
+            Location.state == state,
+            _or(*[Location.district.ilike(v) for v in d_variants]) if len(d_variants)>1 else Location.district.ilike(district),
+        ]
+        if use_real:
+            conds.append(real_data_condition(Location))
+        stmt = select(Location).where(*conds)
+        if block:
+            stmt = stmt.where(Location.block == block)
+        if village:
+            stmt = stmt.where(Location.village == village)
+        stmt = stmt.limit(1)
+        row = db.execute(stmt).scalars().first()
+        if row is not None:
+            return row
+    return None
 
 
 def _geo_center_view(location: Location, proposed_lat=None, proposed_lng=None):

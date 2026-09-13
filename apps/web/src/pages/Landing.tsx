@@ -49,7 +49,6 @@ export function Landing() {
             <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-white/70">{tr('landingTagline', lang)}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link to="/analyze" className="inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-slate-900 shadow-lg hover:bg-slate-100"> {tr('analyzeBusiness', lang)} <span>→</span></Link>
-              <Link to="/dashboard" className="inline-flex items-center rounded-xl border border-white/15 bg-white/10 px-6 py-3 text-sm font-semibold text-white hover:bg-white/15">{tr('exploreDemo', lang)}</Link>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-white/50">
               <span className="rounded-full bg-white/10 px-2.5 py-1">295 villages</span>
@@ -121,9 +120,7 @@ export function Landing() {
               <div className="text-xs font-bold uppercase tracking-widest text-white/50">Enterprise Ready</div>
               <div className="mt-2 text-lg font-bold leading-tight">Know your market before you take the loan.</div>
               <p className="mt-2 text-xs leading-relaxed text-white/60">Evidence-based feasibility for small businesses and growing enterprises. Scores, prices & loan guidance are estimates — verified with the agency before you commit.</p>
-              <div className="mt-4">
-                <Link to="/data-sources" className="rounded-xl border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-white">Provenance</Link>
-              </div>
+
             </div>
           </div>
           <p className="mt-6 text-center text-xs text-slate-400">{tr('landingDisclaimer', lang)}</p>

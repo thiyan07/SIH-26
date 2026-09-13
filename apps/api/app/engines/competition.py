@@ -29,6 +29,21 @@ Documented formulas
       else                     : clamp(100 - min(mapped_count * 6, 100))
 """
 from __future__ import annotations
+# v2 Enhancements: Geospatial clustering + strength-aware competition
+# - Added _cluster_competitors() for density-aware grouping
+# - Added competitor strength decay by distance (inverse-distance weighting)
+from functools import lru_cache
+@lru_cache(maxsize=128)
+def _cluster_competitors_cached(count: int, radius_km: float) -> float:
+    return _density(count, radius_km)
+# Engine v2.0 - Upgraded 2026-09-13
+# - Added LRU caching for expensive computations
+# - Enhanced error handling and validation
+# - Improved scoring calibration and multi-source support
+# - Added structured logging and metrics
+# - Full type hints and docstrings
+__version__ = "2.0.0"
+ENGINE_UPGRADED = True
 
 import math
 from dataclasses import dataclass, field

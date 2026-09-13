@@ -7,28 +7,9 @@ import { ShopLocationPicker } from '../components/ShopLocationPicker'
 import { VoiceInput } from '../components/VoiceInput'
 import { BackgroundBeams, Spotlight } from '../components/aceternity/BackgroundBeams'
 import { BentoGrid, BentoCard } from '../components/aceternity/BentoGrid'
-import { Card3D } from '../components/aceternity/Card3D'
+
 import { tr, interpolate, type Language } from '../lib/i18n'
 import type { AnalysisResult, Category, LocationOut, AdvisoryParseOutput, AdvisoryReport } from '../types'
-
-interface DiscoveryResult {
-  data_status: string
-  search_radius_m?: number
-  data?: {
-    primary_source?: string
-    freshness?: string
-    note?: string
-    retrieved_at?: string
-  }
-  confidence?: { score: number; label: string }
-  competitors?: {
-    total_mapped?: number
-    direct?: number
-    indirect?: number
-    nearest_km?: number | null
-    rings?: Record<string, number>
-  }
-}
 
 
 export function Analyze() {
@@ -55,13 +36,11 @@ export function Analyze() {
     existing_equipment: false,
     family_members: 0,
     preferred_scale: 'small',
+    applicant_age: 28,
   })
   const [areaPinned, setAreaPinned] = useState(false)
   const [draftProposed, setDraftProposed] = useState<{ lat: number; lng: number } | null>(null)
   const [confirmedProposed, setConfirmedProposed] = useState<{ lat: number; lng: number } | null>(null)
-  const [liveComp, setLiveComp] = useState<DiscoveryResult | null>(null)
-  const [liveCompLoading, setLiveCompLoading] = useState(false)
-  const [liveCompError, setLiveCompError] = useState<string | null>(null)
 
   const [advisoryText, setAdvisoryText] = useState('')
   const [advisoryLang, setAdvisoryLang] = useState<Language>('en')
@@ -130,30 +109,7 @@ export function Analyze() {
     return () => window.clearTimeout(timer)
   }, [form.q, tamilCache])
 
-  useEffect(() => {
-    if (!draftProposed) {
-      setLiveComp(null)
-      setLiveCompError(null)
-      return
-    }
-    setLiveCompLoading(true)
-    setLiveCompError(null)
-    const timer = window.setTimeout(() => {
-      api
-        .post<DiscoveryResult>('/businesses/discovery', {
-          latitude: draftProposed.lat,
-          longitude: draftProposed.lng,
-          category_code: autoRecommend ? undefined : form.category_code,
-        })
-        .then((r) => setLiveComp(r))
-        .catch((e: any) => {
-          setLiveComp(null)
-          setLiveCompError(e.message || tr('competitorPreviewUnavailable', lang))
-        })
-        .finally(() => setLiveCompLoading(false))
-    }, 600)
-    return () => window.clearTimeout(timer)
-  }, [draftProposed, lang, form.category_code, autoRecommend])
+
 
 
   const pickLocation = (l: LocationOut) => {
@@ -168,42 +124,12 @@ export function Analyze() {
       longitude: l.longitude,
     }))
     setAreaPinned(true)
-    setDraftProposed(null)
+    setDraftProposed({ lat: l.latitude, lng: l.longitude })
     setConfirmedProposed(null)
     setLocations([])
   }
 
-  const loadDemo = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const locs = await api.get<LocationOut[]>(
-        `/locations/search?q=${encodeURIComponent('Perundurai')}&state=${encodeURIComponent('Tamil Nadu')}&limit=5`,
-      )
-      const loc = locs[0]
-      const payload = {
-        state: 'Tamil Nadu',
-        district: 'Erode',
-        block: loc?.block || 'Erode',
-        village: loc?.village || 'Perundurai',
-        capital_available: 100000,
-        category_code: 'restaurant',
-        business_experience: false,
-        existing_shop: false,
-        existing_equipment: false,
-        family_members: 3,
-        auto_recommend: false,
-      }
-      setForm(payload)
-      const res = await api.post<AnalysisResult>('/analysis', payload)
-      setResult(res)
-      navigate('/dashboard')
-    } catch (e: any) {
-      setError(e.message || tr('analysisFailedDemo', lang))
-    } finally {
-      setLoading(false)
-    }
-  }
+
 
   const confirmProposed = () => {
     if (draftProposed) setConfirmedProposed({ lat: draftProposed.lat, lng: draftProposed.lng })
@@ -302,6 +228,7 @@ export function Analyze() {
         existing_equipment: form.existing_equipment,
         family_members: form.family_members,
         preferred_scale: form.preferred_scale,
+        applicant_age: form.applicant_age,
       }
       setForm(payload)
       const res = await api.post<AnalysisResult>('/analysis', payload)
@@ -375,14 +302,7 @@ export function Analyze() {
         </div>
       </BackgroundBeams>
 
-      <Card3D>
-        <div className="rounded-xl border border-teal-200 bg-gradient-to-br from-teal-50 via-cyan-50 to-white p-4 text-sm text-teal-900 shadow-sm">
-          <strong>{tr('quickStart', lang)}</strong> {tr('notSureWhatToEnter', lang)}{' '}
-          <button onClick={loadDemo} disabled={loading} className="font-semibold text-teal-700 underline decoration-teal-300 underline-offset-4 hover:text-teal-900">
-            {loading ? tr('running', lang) : tr('loadDemoWorkspace', lang)}
-          </button>
-        </div>
-      </Card3D>
+
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
@@ -449,61 +369,6 @@ export function Analyze() {
                       setConfirmedProposed(null)
                     }}
                   />
-                  <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-xs text-gray-700">
-                    <div className="mb-1 flex items-center justify-between">
-                      <span className="font-medium text-gray-800">{tr('competitorsAroundPoint', lang)}</span>
-                      {draftProposed && (
-                        <span className="text-[10px] text-gray-500">
-                          {tr('refreshOnMove', lang)} {liveCompLoading ? tr('searching', lang) : ''}
-                        </span>
-                      )}
-                    </div>
-                    {!draftProposed ? (
-                      <p className="text-gray-500">{tr('movePinToPreview', lang)}</p>
-                    ) : liveCompError ? (
-                      <p className="text-red-600">{liveCompError}</p>
-                    ) : liveComp ? (
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <strong className="text-base text-gray-900">
-                            {interpolate(tr('totalMapped', lang), { n: liveComp.competitors?.total_mapped ?? 0 })}
-                          </strong>
-                          <span className="text-emerald-700">{interpolate(tr('directCount', lang), { n: liveComp.competitors?.direct ?? 0 })}</span>
-                          <span className="text-amber-700">{interpolate(tr('indirectCount', lang), { n: liveComp.competitors?.indirect ?? 0 })}</span>
-                          {liveComp.competitors?.nearest_km != null && (
-                            <span>{interpolate(tr('nearestApprox', lang), { n: liveComp.competitors.nearest_km })}</span>
-                          )}
-                          <span className="rounded bg-gray-200 px-1.5 py-0.5 text-[10px] uppercase">
-                            {liveComp.data_status}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
-                          <span>
-                            {interpolate(tr('withinRadiusKm', lang), { n: Math.round((liveComp.search_radius_m || 3000) / 1000) })}
-                            {liveComp.data?.primary_source || 'OSM'}
-                          </span>
-                          {liveComp.confidence?.label && (
-                            <span>{tr('coverageLabel', lang)}{liveComp.confidence.label}</span>
-                          )}
-                          {liveComp.competitors?.rings &&
-                            Object.entries(liveComp.competitors.rings)
-                              .filter(([, v]) => Number(v) > 0)
-                              .slice(0, 4)
-                              .map(([k, v]) => (
-                                <span key={k}>
-                                  {k.replace('m', ' m')}: {v}
-                                </span>
-                              ))}
-                        </div>
-                        <p className="text-[10px] text-gray-500">
-                          {liveComp.data?.note ||
-                            tr('zeroMappedNote', lang)}
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-gray-500">{tr('searchingDots', lang)}</p>
-                    )}
-                  </div>
                   <div className="mt-2 flex items-center justify-between gap-3">
                     {exactConfirmed ? (
                       <span className="text-xs font-medium text-emerald-600">
@@ -611,6 +476,19 @@ export function Analyze() {
                   onChange={(e) => setLocalForm((f) => ({ ...f, family_members: Number(e.target.value) }))}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Applicant Age <span className="text-[11px] text-gray-500">(for scheme eligibility)</span></label>
+                <input
+                  type="number"
+                  min={18}
+                  max={65}
+                  value={form.applicant_age}
+                  onChange={(e) => setLocalForm((f) => ({ ...f, applicant_age: Number(e.target.value) || 0 }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                  placeholder="e.g. 28"
+                />
+                <p className="mt-1 text-[11px] text-gray-500">Required for age-restricted schemes like UYEGP (18-45) and Stand-Up India. If you leave default, analysis assumes 28.</p>
               </div>
             </div>
           </BentoCard>

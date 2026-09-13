@@ -2,12 +2,29 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Resolve .env relative to the app package so the server works regardless of
+# the current working directory (uvicorn --reload, systemd, Docker, etc.).
+# Search order: apps/api/.env -> project root .env -> cwd/.env (fallback).
+_ENV_CANDIDATES = [
+    Path(__file__).resolve().parents[1] / ".env",  # apps/api/.env
+    Path(__file__).resolve().parents[3] / ".env",  # grambiz-ai/.env
+    Path.cwd() / ".env",
+]
+
+
+def _first_existing_env() -> str | None:
+    for p in _ENV_CANDIDATES:
+        if p.is_file():
+            return str(p)
+    return None
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_first_existing_env(), extra="ignore")
 
     app_name: str = "GramBiz AI"
     app_env: str = "development"

@@ -45,16 +45,16 @@ def test_acceptance_vertical_slice(client):
 
     # deterministic financials (cost-driven): the project cost comes from the
     # dairy cost template (micro) with location factor (Sathyamangalam 0.78x),
-    # not from capital x 10. 1L capital -> the beneficiary borrows only what
-    # they can't cover: 1,31,274 - 1,00,000.
+    # not from capital x 10. 1L capital -> with no scheme selected, concept loan is 0
+    # (user must select a scheme before Financial Plan shows loan details).
     fin = ev["financial_plan"]
     # dairy micro base 168300 * 0.78 (Sathyamangalam) = 131274
     assert fin["project_cost"] == pytest.approx(131_274, rel=1e-6)
-    assert fin["loan_amount"] == pytest.approx(31_274, rel=1e-6)
+    assert fin["loan_amount"] == pytest.approx(0, rel=1e-6)
     assert fin["required_financing"] == pytest.approx(31_274, rel=1e-6)
 
-    # scheme routed to Micro Finance (project cost 131k with location factor 0.78, within micro 0-140k)
-    assert fin["scheme_code"] == "micro_finance"
+    # no scheme selected in initial analysis — shows concept loan, not auto-selected Micro Finance
+    assert fin["scheme_code"] is None
 
     # repayment present
     assert "repayment" in ev

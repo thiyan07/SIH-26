@@ -1,29 +1,188 @@
+import { useEffect, useState } from 'react'
+import { api } from '../lib/api'
 
+interface SupplierMarketplaceProps {
+  latitude?: number | null
+  longitude?: number | null
+  category?: string | null
+  placeName?: string | null
+  district?: string | null
+}
 
-const SUPPLIERS = [
-  { name: 'Erode Agro Traders', item: 'Seeds, Fertilizer', dist: '2.3km', phone: '98765 43210', rating: 4.6 },
-  { name: 'Perundurai Milk Union', item: 'Milk cans, Fodder', dist: '4.1km', phone: '98765 43211', rating: 4.8 },
-  { name: 'Bhavani Textile Mills', item: 'Yarn, Fabric', dist: '7.2km', phone: '98765 43212', rating: 4.5 },
-  { name: 'Kongu Packaging', item: 'Boxes, Bags', dist: '5.0km', phone: '98765 43213', rating: 4.7 },
-]
+interface Supplier {
+  id: string
+  name: string
+  category_code?: string
+  subcategory?: string
+  latitude?: number | null
+  longitude?: number | null
+  address?: string
+  phone?: string | null
+  website?: string | null
+  distance_km?: number | null
+  source_name?: string
+  source_type?: string
+  confidence?: string
+  retrieved_at_date?: string | null
+  is_scraped?: boolean
+  is_fresh?: boolean
+  years_in_business?: string | null
+  source_url?: string
+}
 
-export function SupplierMarketplace() {
+interface SupplierResponse {
+  category_code: string
+  district: string
+  place_name?: string
+  count: number
+  scraped_count: number
+  db_count: number
+  suppliers: Supplier[]
+  provenance?: {
+    scraped_source?: string
+    scraped_retrieved_at?: string
+    note?: string
+  }
+}
+
+export function SupplierMarketplace({ latitude, longitude, category, placeName, district }: SupplierMarketplaceProps) {
+  const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [meta, setMeta] = useState<SupplierResponse | null>(null)
+
+  useEffect(() => {
+    if (!latitude || !longitude || !category) {
+      setSuppliers([])
+      setMeta(null)
+      return
+    }
+    setLoading(true)
+    setError(null)
+    api
+      .post<SupplierResponse>('/suppliers/search', {
+        latitude,
+        longitude,
+        category_code: category,
+        district: district || placeName?.split(',').pop()?.trim() || 'Erode',
+        place_name: placeName || undefined,
+        radius_km: 10,
+        limit: 8,
+      })
+      .then((res) => {
+        setSuppliers(res.suppliers || [])
+        setMeta(res)
+      })
+      .catch((e: any) => {
+        setError(e.message || 'Could not load suppliers')
+        setSuppliers([])
+      })
+      .finally(() => setLoading(false))
+  }, [latitude, longitude, category, district, placeName])
+
+  const titlePlace = placeName ? ` • ${placeName}` : ''
+  const titleCat = category ? ` • ${category}` : ''
+
+  if (!latitude || !longitude || !category) {
+    return (
+      <div data-testid="supplier-marketplace" className="space-y-3">
+        <div className="text-sm font-bold text-slate-900 dark:text-white">
+          Supplier Marketplace • Select a location &amp; category to see live suppliers
+        </div>
+        <p className="text-xs text-slate-500">
+          Choose your village and business category in Analyze — suppliers here are live-scraped via Scrapling (ExportersIndia) + verified DB businesses. No fake or old data.
+        </p>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800">
+          No location selected. Run an analysis first to see suppliers near your exact pin.
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div data-testid="supplier-marketplace" className="space-y-3">
-      <div className="text-sm font-bold text-slate-900 dark:text-white">Supplier Marketplace • {SUPPLIERS.length} near you</div>
-      <div className="grid gap-2 md:grid-cols-2">
-        {SUPPLIERS.map(s=>(
-          <div key={s.name} className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
-            <div>
-              <div className="text-sm font-semibold text-slate-900 dark:text-white">{s.name}</div>
-              <div className="text-xs text-slate-500">{s.item} • {s.dist} • ★ {s.rating}</div>
-              <div className="text-xs text-slate-500">{s.phone}</div>
-            </div>
-            <a href={`https://wa.me/91${s.phone.replace(/\s/g,'')}`} target="_blank" rel="noreferrer" data-testid={`supplier-wa-${s.name}`} className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700">WhatsApp</a>
-          </div>
-        ))}
+      <div className="text-sm font-bold text-slate-900 dark:text-white">
+        Supplier Marketplace • {loading ? 'loading…' : `${suppliers.length} near you`}
+        <span className="ml-1 text-xs font-normal text-slate-500">
+          {titleCat}
+          {titlePlace} · 10km
+        </span>
+        {meta && !loading && (
+          <span className="ml-2 text-[10px] font-normal text-emerald-600">
+            {meta.scraped_count} scraped · {meta.db_count} verified DB
+          </span>
+        )}
       </div>
-      <p className="text-[11px] text-slate-500">Mock suppliers — real data via supplier onboarding (P0 for demo)</p>
+
+      {loading && <p className="text-xs text-slate-500">Searching live suppliers via Scrapling for {category} near {placeName || 'your pin'}…</p>}
+      {error && <p className="text-xs text-amber-600">{error}</p>}
+
+      {!loading && suppliers.length === 0 && !error && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          No verified suppliers found for <strong>{category}</strong> within 10km of <strong>{placeName || 'this location'}</strong>. This is live data — no fake or old entries. Try a nearby hub (Erode/Perundurai) or check the DB for mapped businesses.
+        </div>
+      )}
+
+      {!loading && suppliers.length > 0 && (
+        <div className="grid gap-2 md:grid-cols-2">
+          {suppliers.map((s) => (
+            <div
+              key={s.id}
+              className="flex items-start justify-between rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-slate-900 dark:text-white">{s.name}</div>
+                <div className="truncate text-xs text-slate-500">
+                  {s.address ? `${s.address.slice(0, 60)}` : s.subcategory || s.category_code || ''}
+                  {s.distance_km != null ? ` • ${s.distance_km} km` : ''}
+                  {s.years_in_business ? ` • ${s.years_in_business}` : ''}
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${s.is_scraped ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                    {s.source_name || (s.is_scraped ? 'ExportersIndia' : 'Google Maps')}
+                  </span>
+                  {s.is_fresh && <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] text-green-700">Fresh {s.retrieved_at_date ? `• ${s.retrieved_at_date}` : ''}</span>}
+                  {!s.is_fresh && s.retrieved_at_date && <span className="text-[10px] text-slate-400">{s.retrieved_at_date}</span>}
+                </div>
+                {s.website || (s as any).source_url ? (
+                  <a href={s.website || (s as any).source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-blue-600 underline">
+                    View on {s.source_name}
+                  </a>
+                ) : null}
+              </div>
+              <div className="ml-2 flex shrink-0 flex-col items-end gap-1">
+                {s.phone ? (
+                  <a
+                    href={`https://wa.me/91${s.phone.replace(/\s/g, '')}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    data-testid={`supplier-wa-${s.name}`}
+                    className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
+                  >
+                    WhatsApp
+                  </a>
+                ) : s.website || (s as any).source_url ? (
+                  <a
+                    href={s.website || (s as any).source_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
+                  >
+                    Inquiry
+                  </a>
+                ) : (
+                  <span className="rounded-xl bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500">No contact</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="text-[11px] text-slate-500">
+        Suppliers for <strong>{category}</strong> near <strong>{placeName || `${latitude?.toFixed(4)}, ${longitude?.toFixed(4)}`}</strong> — live via Scrapling (ExportersIndia) + verified DB. {suppliers.length > 0 ? `Found ${suppliers.length} real suppliers (fresh, no fake/old).` : 'No invented data.'}
+        {meta?.provenance?.note && <span className="ml-1 italic">{meta.provenance.note}</span>}
+      </p>
     </div>
   )
 }

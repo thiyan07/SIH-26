@@ -9,12 +9,10 @@ import {
 } from 'recharts'
 import { useAnalysis } from '../lib/analysisStore'
 import { LINK_BRAND } from '../lib/theme'
-import { Badge, Card, CardHeader, Disclaimer, ScoreBar, StatCard } from '../components/ui'
-import { ScoreDonut } from '../components/ScoreDonut'
+import { Badge, Card, CardHeader, Disclaimer } from '../components/ui'
 import { Card3D } from '../components/aceternity/Card3D'
 import { Spotlight } from '../components/aceternity/BackgroundBeams'
 import { tr, interpolate, recommendationLabel, type Language } from '../lib/i18n'
-import { downloadCSV, downloadJSON } from '../lib/export'
 
 const RECO_COLOR: Record<string, string> = { GO: 'green', MODIFY: 'amber', AVOID: 'red' }
 
@@ -22,19 +20,13 @@ export function Dashboard() {
   const { result, lang } = useAnalysis()
   if (!result) return <NoResult lang={lang} />
 
-  const { opportunity_score: score, recommendation, financial_plan: fp, profit_model: pm, business_competition: bc } = result
+  const { recommendation, financial_plan: fp, profit_model: pm } = result
   const me = result.monthly_economics
   const si = result.seasonal_intelligence
   const wi = result.weather_intelligence
   const prs = result.product_recommendations
   const suggested = (result as any).suggested_businesses as import('../types').SuggestedBusiness[] | undefined
-  const bars = [
-    { label: tr('demand', lang), value: score.demand_score, hint: tr('demandHint', lang) },
-    { label: tr('competition', lang), value: score.competition_score, hint: tr('competitionHint', lang) },
-    { label: tr('accessibility', lang), value: score.accessibility_score, hint: tr('accessibilityHint', lang) },
-    { label: tr('financialFit', lang), value: score.financial_fit_score, hint: tr('financialFitHint', lang) },
-    { label: tr('risk', lang), value: score.risk_score, hint: tr('riskHint', lang) },
-  ]
+
   return (
     <div className="space-y-6">
       <Spotlight>
@@ -47,31 +39,6 @@ export function Dashboard() {
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <button
-              data-testid="dashboard-export-csv"
-              onClick={()=>{
-                const rows:(string|number)[][] = [
-                  ['Metric','Value'],
-                  ['Score', score.overall_score],
-                  ['Recommendation', recommendation.label],
-                  ['Project Cost', fp.project_cost],
-                  ['Loan', fp.loan_amount],
-                  ['Competitors 5km', bc?.mapped_competitors_5km ?? ''],
-                  ['Competitors 10km', bc?.mapped_competitors_10km ?? ''],
-                ]
-                downloadCSV(`grambiz-dashboard-${Date.now()}.csv`, rows)
-              }}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              Export CSV
-            </button>
-            <button
-              data-testid="dashboard-export-json"
-              onClick={()=>downloadJSON(`grambiz-dashboard-${Date.now()}.json`, result)}
-              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-            >
-              JSON
-            </button>
             <Badge color={RECO_COLOR[recommendation.label] || 'gray'}>
               {recommendationLabel(recommendation.label, lang)}
             </Badge>
@@ -118,7 +85,6 @@ export function Dashboard() {
                 </ul>
               </div>
             ): null}
-            <p className="mt-2 text-[11px] italic text-gray-500">Evidence indicates this assessment; it is not a guarantee of success.</p>
           </Card>
         )
       })()}
@@ -150,55 +116,7 @@ export function Dashboard() {
         )
       })()}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card3D>
-          <Card className="h-full border-teal-100 shadow-md">
-            <CardHeader title={tr('opportunityScore', lang)} subtitle={`${tr('confidence', lang)}: ${score.confidence_label}`} />
-            <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-center">
-              <div className="shrink-0"><ScoreDonut value={score.overall_score} size={150} /></div>
-              <div className="min-w-0 flex-1 w-full">
-                {bars.map((b) => (
-                  <ScoreBar key={b.label} label={b.label} value={b.value} color={b.value >= 50 ? 'green' : b.value >= 35 ? 'amber' : 'red'} hint={b.hint} />
-                ))}
-              </div>
-            </div>
-            <div className="mt-2 box-border break-words whitespace-normal rounded-lg bg-gray-50 p-3 px-4 text-xs leading-relaxed text-gray-600">
-              <strong className="text-gray-700">{tr('interpretation', lang)}</strong> {recommendation.reason}
-            </div>
-            <ConfidenceExplanation score={score} dataConfidence={result.data_confidence} lang={lang} />
-          </Card>
-        </Card3D>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-          <StatCard
-            label={tr('overallOpportunity', lang)}
-            value={`${score.overall_score}`}
-            sub={recommendationLabel(recommendation.label, lang)}
-            badge={<Badge color={RECO_COLOR[recommendation.label] || 'gray'}>{tr('confidence', lang).toLowerCase()}</Badge>}
-          />
-          <StatCard
-            label={tr('competitors5km', lang)}
-            value={bc?.mapped_competitors_5km ?? '-'}
-            sub={bc?.nearest_competitor_km != null ? `${tr('nearestPrefix', lang)} ${bc.nearest_competitor_km} ${tr('km', lang)}` : tr('noNearCompetitor', lang)}
-          />
-          <StatCard
-            label={tr('competitors5to10km', lang)}
-            value={bc?.mapped_competitors_5km != null && bc?.mapped_competitors_10km != null ? bc.mapped_competitors_10km - bc.mapped_competitors_5km : '-'}
-            sub={tr('additionalInRing', lang)}
-          />
-          <StatCard
-            label={tr('competitors10km', lang)}
-            value={bc?.mapped_competitors_10km ?? '-'}
-            sub={bc?.data_completeness || ''}
-          />
-          <StatCard
-            label={tr('projectCost', lang)}
-            value={`₹${formatINR(fp.project_cost)}`}
-            sub={fp.scheme_name ? `${tr('scheme', lang)}: ${fp.scheme_name}` : tr('conceptLoan', lang)}
-          />
-          <StatCard label={tr('loanAmount', lang)} value={`₹${formatINR(fp.loan_amount)}`} sub={`${tr('ownContributionShort', lang)} ₹${formatINR(fp.own_contribution ?? 0)}`} />
-        </div>
-      </div>
 
       {suggested && suggested.length > 0 && (
         <div className="space-y-3">
@@ -241,29 +159,7 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* Cost breakdown — business-specific estimator (req 1) */}
-      {(result as any).cost_breakdown && (
-        <Card>
-          <CardHeader title={tr('costBreakdownTitle', lang) as string || 'Project Cost Breakdown'} subtitle={`${(result as any).cost_breakdown.category_code} · ${(result as any).cost_breakdown.scale} · location factor ${(result as any).cost_breakdown.location_factor}x`} />
-          <div className="grid gap-4 md:grid-cols-2">
-            <CostSection title="Shop / Equipment" items={(result as any).cost_breakdown.capital_expenditure} />
-            <CostSection title="Working Capital" items={(result as any).cost_breakdown.working_capital} />
-            <CostSection title="Infrastructure" items={(result as any).cost_breakdown.infrastructure} />
-            <CostSection title="Licensing" items={(result as any).cost_breakdown.licensing_compliance} />
-          </div>
-          <div className="mt-3 flex items-center justify-between border-t pt-2 text-sm">
-            <span className="text-gray-500">Contingency ({(result as any).cost_breakdown.contingency_pct}%)</span>
-            <span className="font-medium">₹{formatINR((result as any).cost_breakdown.contingency_amount)}</span>
-          </div>
-          <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
-            <span>Total Project Cost</span>
-            <span>₹{formatINR((result as any).cost_breakdown.total_project_cost)}</span>
-          </div>
-          <div className="mt-2 rounded-lg bg-teal-50 p-3 text-sm text-teal-800">
-            <strong>{tr('youNeedMore', lang) as string || 'You need:'}</strong> ₹{formatINR((result as any).cost_breakdown.total_project_cost)} total · {tr('yourMoney', lang) as string || 'Your money:'} ₹{formatINR(fp.capital_available)} · {tr('estimatedFinancingNeeded', lang) as string || 'Financing needed:'} ₹{formatINR(fp.required_financing ?? 0)}
-          </div>
-        </Card>
-      )}
+
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
@@ -349,12 +245,16 @@ export function Dashboard() {
                 <div className="box-border rounded-lg bg-gray-50 p-3 px-4">
                   <div className="break-words whitespace-normal text-gray-500">{tr('peakMonth', lang)}</div>
                   <div className="break-words whitespace-normal font-semibold text-gray-900">{monthName(si.peak_month, lang)}{si.peak_index != null ? ` · ${si.peak_index}` : ''}</div>
+                  {si.peak_reason && <div className="mt-1 text-[11px] leading-snug text-gray-600">{si.peak_reason}</div>}
                 </div>
                 <div className="box-border rounded-lg bg-gray-50 p-3 px-4">
                   <div className="break-words whitespace-normal text-gray-500">{tr('lowMonth', lang)}</div>
                   <div className="break-words whitespace-normal font-semibold text-gray-900">{monthName(si.low_month, lang)}{si.low_index != null ? ` · ${si.low_index}` : ''}</div>
+                  {si.low_reason && <div className="mt-1 text-[11px] leading-snug text-gray-600">{si.low_reason}</div>}
                 </div>
               </div>
+              {si.peak_explanation && <div className="rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">📌 {si.peak_explanation}</div>}
+              {si.low_explanation && <div className="rounded-lg bg-gray-50 p-2.5 text-xs text-gray-600">🔽 {si.low_explanation}</div>}
               {si.cash_flow_risk_reason && <p className="text-xs text-gray-600">{si.cash_flow_risk_reason}</p>}
               {si.inventory_implication && (
                 <div className="box-border rounded-lg bg-brand-50 p-3 px-4 break-words whitespace-normal text-xs text-brand-800">
@@ -456,21 +356,9 @@ export function Dashboard() {
         )
       })()}
 
-      {/* 8. EVIDENCE — sources + freshness + confidence */}
-      <Card>
-        <CardHeader title="Evidence & Data Quality" subtitle={`${result.data_confidence?.confidence_label || ''} · ${result.opportunity_score.confidence_label} confidence`} />
-        <div className="text-xs text-gray-600">
-          {result.data_sources?.slice(0,6).map((s:any,i:number)=>(
-            <div key={i} className="flex justify-between py-1 border-b border-gray-50">
-              <span>{s.name}</span>
-              <span className="text-gray-500">{s.confidence || s.dataset || ''}</span>
-            </div>
-          ))}
-        </div>
-        <p className="mt-2 text-[11px] italic text-gray-500">Historical Census 2011 is used as a baseline and is not presented as current population. Mapped competitor counts are minimums, not exhaustive. Missing evidence lowers confidence and is reported transparently.</p>
-      </Card>
 
-      {wi?.relevant ? (
+
+      {wi ? (
         <div className="grid gap-6 lg:grid-cols-1">
           <Card>
             <CardHeader title={tr('weatherClimate', lang)} subtitle={weatherSummary(result, lang)} />
@@ -479,8 +367,11 @@ export function Dashboard() {
               <div className="flex flex-wrap items-center gap-2 whitespace-normal text-xs text-gray-600">
                 <span className="break-words whitespace-normal">{tr('categoryClimateSensitivity', lang)}</span>
                 <Badge color={sensitivityColor(wi.sensitivity)}>{wi.sensitivity || '—'}</Badge>
+                {!wi.relevant && <span className="text-[11px] text-gray-500">(indirect impact)</span>}
               </div>
               {wi.reason && <p className="mt-1 break-words whitespace-normal text-[11px] italic text-gray-500">{wi.reason}</p>}
+              {wi.note && <p className="mt-1 break-words whitespace-normal text-[11px] text-gray-600">{wi.note}</p>}
+              {wi.relevant === false && wi.risk?.factors == null && <p className="mt-1 text-[11px] text-green-700">No extreme weather flags at this location; low climate risk for this category.</p>}
             </div>
           </Card>
         </div>
@@ -558,23 +449,7 @@ function NoResult({ lang }: { lang: Language }) {
   )
 }
 
-function CostSection({ title, items }: { title: string; items: Record<string, number> }) {
-  const entries = Object.entries(items)
-  if (entries.length === 0) return null
-  return (
-    <div>
-      <h4 className="mb-2 break-words whitespace-normal text-xs font-semibold uppercase tracking-widest text-slate-500">{title}</h4>
-      <dl className="divide-y divide-gray-100">
-        {entries.map(([k, v]) => (
-          <div key={k} className="flex min-w-0 flex-wrap items-center justify-between gap-3 whitespace-normal py-1.5 text-sm box-border px-1">
-            <dt className="min-w-0 flex-1 break-words whitespace-normal text-gray-500">{k}</dt>
-            <dd className="shrink-0 break-words whitespace-normal font-medium text-gray-900">₹{formatINR(v)}</dd>
-          </div>
-        ))}
-      </dl>
-    </div>
-  )
-}
+
 
 function Rows({ rows }: { rows: [string, string][] }) {
   return (
@@ -643,43 +518,7 @@ function note(text: string) {
   return <p className="mt-2 box-border break-words whitespace-normal rounded-lg bg-gray-50 p-3 px-4 text-xs leading-relaxed text-gray-600">{text}</p>
 }
 
-function ConfidenceExplanation({ score, dataConfidence, lang }: { score: any; dataConfidence?: any; lang: Language }) {
-  const confidenceReasons: string[] = score?.confidence_factors?.reasons ?? []
-  const qualityReasons: string[] = dataConfidence?.reasons ?? []
-  const positive = confidenceReasons.filter((r) => /recent|point-level|high|complete|current/i.test(r))
-  const limitations = confidenceReasons.filter((r) => /old|ageing|approximate|incomplete|missing|insufficient|unknown|low/i.test(r))
-  return (
-    <div className="mt-3 box-border rounded-xl border border-teal-100 bg-teal-50/50 p-3 px-4 text-xs text-gray-700">
-      <div className="mb-1 flex flex-wrap items-center gap-2 whitespace-normal">
-        <span className="break-words whitespace-normal font-semibold text-gray-800">{tr('whyThisScore', lang)}</span>
-        {dataConfidence && (
-          <span className="break-words whitespace-normal rounded-full bg-white px-2 py-0.5 text-[10px] text-gray-500">
-            {tr('dataConfidenceScore', lang)} {dataConfidence.data_confidence_score ?? '—'}/100 ({dataConfidence.confidence_label || ''})
-          </span>
-        )}
-      </div>
-      {(positive.length > 0 || qualityReasons.length > 0) && (
-        <div className="mb-2 min-w-0">
-          <div className="mb-0.5 whitespace-normal font-medium text-green-700">{tr('positiveSignals', lang)}</div>
-          <ul className="list-inside list-disc space-y-0.5 break-words whitespace-normal">
-            {positive.map((r, i) => <li key={i} className="break-words whitespace-normal">{r}</li>)}
-            {qualityReasons.filter((r) => /recent|current|complete|point/i.test(r)).map((r, i) => <li key={`q${i}`} className="break-words whitespace-normal">{r}</li>)}
-          </ul>
-        </div>
-      )}
-      {(limitations.length > 0 || qualityReasons.some((r) => /old|incomplete|approximate|missing/i.test(r))) && (
-        <div className="min-w-0">
-          <div className="mb-0.5 whitespace-normal font-medium text-amber-700">{tr('limitations', lang)}</div>
-          <ul className="list-inside list-disc space-y-0.5 break-words whitespace-normal">
-            {limitations.map((r, i) => <li key={i} className="break-words whitespace-normal">{r}</li>)}
-            {qualityReasons.filter((r) => /old|incomplete|approximate|missing|unknown|low|demo/i.test(r)).map((r, i) => <li key={`q${i}`} className="break-words whitespace-normal">{r}</li>)}
-          </ul>
-        </div>
-      )}
-      {confidenceReasons.length === 0 && <p className="break-words whitespace-normal text-gray-500">{tr('explanationNotAvailable', lang)}</p>}
-    </div>
-  )
-}
+
 
 export function formatINR(n: number | undefined | null): string {
   if (n == null || Number.isNaN(n)) return '—'

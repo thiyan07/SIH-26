@@ -17,6 +17,7 @@ export function BusinessSetup() {
   const [loading, setLoading] = useState(false)
   const [model, setModel] = useState<string | undefined>(undefined)
   const [versions, setVersions] = useState<any[]>([])
+  void setModel; void versions
 
   const analysisId = (result as any)?.analysis_id
 
@@ -84,19 +85,7 @@ export function BusinessSetup() {
         <p className="text-sm text-gray-500">{tr("businessFeasibilitySub", lang)}</p>
       </div>
 
-      {/* Your Business */}
-      <Card>
-        <CardHeader title={tr("yourBusiness", lang)} subtitle={`${p.category_code} · ${p.model} · ${p.scale} · location factor ${p.location_factor}x`} />
-        <div className="flex flex-wrap gap-2 text-xs">
-          {p.available_models?.map((m:any)=> (
-            <button key={m.code} onClick={()=> setModel(m.code)} className={`rounded-full px-3 py-1.5 font-semibold ${p.model===m.code ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700'}`}>{m.label}</button>
-          ))}
-        </div>
-        {versions.length > 1 && (
-          <div className="mt-3 text-xs text-gray-500">Plan versions: {versions.map((v:any)=> `v${v.version} (${v.scale} · ${new Date(v.created_at).toLocaleDateString()})`).join(' • ')}</div>
-        )}
-        <div className="mt-3 text-xs text-gray-500">{p.location_note} <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">{p.data_status}</span></div>
-      </Card>
+
 
       {/* What You Need */}
       <Card>
@@ -134,7 +123,7 @@ export function BusinessSetup() {
             </ul>
           </div>
         </div>
-        <p className="mt-3 text-[11px] italic text-gray-500">All setup items are ESTIMATED demo costs; verify with local quotes. Provenance: {p.provenance}</p>
+        <p className="mt-3 text-[11px] italic text-gray-500">All setup items are modelled estimates; verify with local quotes. Provenance: {p.provenance}</p>
       </Card>
 
       {/* Startup Requirement */}

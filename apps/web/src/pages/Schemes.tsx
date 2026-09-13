@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
-import { Badge, Disclaimer } from '../components/ui'
+import { Badge } from '../components/ui'
 import { Spotlight } from '../components/aceternity/BackgroundBeams'
 import { Card3D } from '../components/aceternity/Card3D'
 import { tr, interpolate, type Language } from '../lib/i18n'
@@ -47,7 +47,6 @@ interface Scheme {
 export function Schemes() {
   const { result, setResult, form, lang, selectedSchemeCode, setSelectedSchemeCode } = useAnalysis()
   const [schemes, setSchemes] = useState<Scheme[]>([])
-  const [note, setNote] = useState('')
   const [matches, setMatches] = useState<any[]>([])
   const [selecting, setSelecting] = useState<string | null>(null)
   const [selectError, setSelectError] = useState<string | null>(null)
@@ -58,7 +57,6 @@ export function Schemes() {
       .get<{ schemes: Scheme[]; note: string }>('/schemes')
       .then((r) => {
         setSchemes(r.schemes)
-        setNote(r.note)
       })
       .catch(() => setSchemes([]))
   }, [])
@@ -124,7 +122,7 @@ export function Schemes() {
       <Spotlight>
         <div className="rounded-xl border border-teal-100 bg-gradient-to-br from-white to-teal-50/40 p-4">
           <h1 className="break-words text-2xl font-bold tracking-tight text-gray-900">{tr('govtSchemes', lang)}</h1>
-          <p className="mt-1 break-words text-sm leading-relaxed text-gray-500">{note} · {schemes.length} schemes · Select a scheme to drive your finance calculation — eligibility is evaluated honestly.</p>
+          <p className="mt-1 break-words text-sm leading-relaxed text-gray-500">{schemes.length} schemes · Select a scheme to drive your finance calculation — eligibility is evaluated honestly.</p>
         </div>
       </Spotlight>
 
@@ -254,8 +252,6 @@ export function Schemes() {
           </tbody>
         </table>
       </div>
-
-      <Disclaimer>{tr('schemesDisclaimer', lang)}</Disclaimer>
     </div>
   )
 }
