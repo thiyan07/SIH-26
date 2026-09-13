@@ -33,8 +33,16 @@ logger = logging.getLogger("grambiz.api")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup hooks can be added here (e.g. verifying DB connectivity, cache
-    # warm-up). For now startup is a no-op beyond FastAPI's defaults.
+    # Ensure production DB has district_normalized column (for Render free tier where migration may not have run)
+    try:
+        from sqlalchemy import text as _text
+        from app.db.session import session_scope
+        with session_scope() as s:
+            s.execute(_text("ALTER TABLE locations ADD COLUMN IF NOT EXISTS district_normalized VARCHAR(100)"))
+            s.execute(_text("CREATE INDEX IF NOT EXISTS ix_locations_district_normalized ON locations (district_normalized)"))
+            s.commit()
+    except Exception as e:
+        logger.warning(f"Startup migration for district_normalized failed (may already exist): {e}")
     logger.info("GramBiz API startup complete (env=%s)", settings.app_env)
     yield
     # Graceful shutdown: flush loggers and release resources.
