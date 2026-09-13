@@ -530,8 +530,11 @@ def run_analysis(db: Session, req) -> dict:
                 source_date=str(row.source_date) if row.source_date else None,
             )
             fin = derive_financial_plan(project_cost, capital, schemes=(scheme_rule,))
-            if scheme_rule.source_document:
-                fin.scheme.source_document = scheme_rule.source_document
+            if fin.scheme and scheme_rule.source_document:
+                try:
+                    fin.scheme.source_document = scheme_rule.source_document
+                except Exception:
+                    pass
             scheme = fin.scheme
         else:
             # Preferred code not found among real schemes — fall back to auto-routing among real schemes

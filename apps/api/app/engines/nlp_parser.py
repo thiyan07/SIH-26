@@ -81,7 +81,7 @@ ERODE_VILLAGE_ALIASES = {
 BUSINESS_KEYWORDS_EN = {
     "dairy": ["dairy", "milk", "cow", "buffalo", "milking", "curd", "paneer", "ghee"],
     "poultry": ["poultry", "chicken", "eggs", "broiler", "layer", "hen", "bird"],
-    "grocery": ["grocery", "kirana", "supermarket", "general store", "retail", "provision"],
+    "grocery": ["grocery", "kirana", "supermarket", "general store", "retail", "provision", "kadai", "shop"],
     "textile": ["textile", "tailoring", "tailor", "sewing", "stitching", "cloth", "garment", "dress"],
     "food_processing": ["food processing", "flour mill", "rice mill", "spice", "pickle", "packaging", "food manufacturing"],
     "restaurant": ["restaurant", "hotel", "food stall", "tea shop", "mess", "canteen", "food court"],
@@ -245,7 +245,7 @@ def extract_location(text: str) -> dict:
         "trichy": "Tiruchirappalli",
     }
     for key, dist in districts.items():
-        if re.search(r'\b' + re.escape(key) + r'\b', text_lower):
+        if re.search(r'\b' + re.escape(key) + r'\w*', text_lower):
             result["district"] = dist
             result["state"] = "Tamil Nadu"
             break
@@ -260,9 +260,10 @@ def extract_location(text: str) -> dict:
                 result["state"] = "Tamil Nadu"
 
     # Block (Latin names or local-script aliases) — longest first to avoid erode shadowing perundurai
+    # Allow Tamil inflections like Perunduraiyil, Erode-la, Bhavaniku
     if not result["block"]:
         for block in sorted(ERODE_BLOCKS, key=len, reverse=True):
-            if re.search(r'\b' + re.escape(block) + r'\b', text_lower):
+            if re.search(r'\b' + re.escape(block) + r'\w*', text_lower):
                 result["block"] = block.title()
                 break
     if not result["block"]:
@@ -274,7 +275,7 @@ def extract_location(text: str) -> dict:
     # Village (Latin names or local-script aliases)
     if not result["village"]:
         for village in sorted(ERODE_VILLAGES, key=len, reverse=True):
-            if re.search(r'\b' + re.escape(village) + r'\b', text_lower):
+            if re.search(r'\b' + re.escape(village) + r'\w*', text_lower):
                 result["village"] = village.title()
                 break
     if not result["village"]:

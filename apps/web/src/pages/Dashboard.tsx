@@ -336,7 +336,22 @@ export function Dashboard() {
         )
       })()}
 
-
+      {/* Navigation helper — always available, but for AVOID the primary CTA is already in viability card */}
+      {(() => {
+        const v = (result as any).viability
+        if (v?.decision === 'AVOID') return null
+        return (
+          <Card>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-gray-600">Want to try different business, location or capital?</p>
+              <div className="flex flex-wrap gap-2">
+                <a href="/analyze" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Back to Analyze & Change Input →</a>
+                <a href="/" className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Exit to Home</a>
+              </div>
+            </div>
+          </Card>
+        )
+      })()}
 
     </div>
   )

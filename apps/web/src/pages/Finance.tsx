@@ -114,7 +114,12 @@ export function Finance() {
                 {fp.shortfall > 0 && <div className="rounded bg-amber-100 px-2 py-1 text-xs text-amber-800">Shortfall: ₹{formatINR(fp.shortfall)} additional own funding required — loan capped by scheme limit</div>}
                 {fp.moratorium_months > 0 && <div className="text-xs text-gray-600">Moratorium: {fp.moratorium_months} months — {fp.moratorium_mode === 'interest_only_during_moratorium' ? 'interest-only during moratorium, principal repayment after' : fp.moratorium_mode}</div>}
               </dl>
-              {needsRecalc && (
+              {selectedSchemeCode && fp.scheme_code == null && fp.scheme_decision === 'no_supported_scheme' && (
+                <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3 text-xs text-red-700">
+                  <strong>{selectedSchemeCode}</strong> is not eligible for project cost ₹{formatINR(fp.project_cost)} — {fp.scheme_reason || 'exceeds scheme limits'}. Try <strong>Term Loan</strong> (up to ₹50 lakh) or another scheme with higher project-cost ceiling on the Schemes page.
+                </div>
+              )}
+              {needsRecalc && !(selectedSchemeCode && fp.scheme_code == null && fp.scheme_decision === 'no_supported_scheme') && (
                 <button onClick={handleApplyScheme} disabled={recalcLoading} className="mt-3 w-full rounded-lg bg-brand-600 px-4 py-2 text-xs font-bold text-white hover:bg-brand-700 disabled:opacity-50">
                   {recalcLoading ? 'Recalculating…' : `Apply ${selectedSchemeCode} to Finance → Recalculate`}
                 </button>
