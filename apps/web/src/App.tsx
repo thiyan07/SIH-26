@@ -44,27 +44,32 @@ function Guarded({ children }: { children: ReactNode }) {
 }
 
 function RequireAnalysis({ children }: { children: ReactNode }) {
-  const { result } = useAnalysis()
+  const { result, isHydrated } = useAnalysis() as any
+  if (!isHydrated) return <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
   if (!result) return <Navigate to="/analyze" replace />
   return <Guarded>{children}</Guarded>
 }
 function RequireBusinessSetup({ children }: { children: ReactNode }) {
-  const { result } = useAnalysis()
+  const { result, isHydrated } = useAnalysis() as any
+  if (!isHydrated) return <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
   if (!result) return <Navigate to="/analyze" replace />
   return <Guarded>{children}</Guarded>
 }
 function RequireFinanceEligible({ children }: { children: ReactNode }) {
-  const { result } = useAnalysis()
+  const { result, isHydrated } = useAnalysis() as any
+  if (!isHydrated) return <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
   if (!result) return <Navigate to="/analyze" replace />
   return <Guarded>{children}</Guarded>
 }
 function RequireFinance({ children }: { children: ReactNode }) {
-  const { result } = useAnalysis()
+  const { result, isHydrated } = useAnalysis() as any
+  if (!isHydrated) return <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
   if (!result) return <Navigate to="/analyze" replace />
   return <Guarded>{children}</Guarded>
 }
 function RequireReport({ children }: { children: ReactNode }) {
-  const { result } = useAnalysis()
+  const { result, isHydrated } = useAnalysis() as any
+  if (!isHydrated) return <div className="p-8 text-center text-sm text-slate-500">Loading...</div>
   if (!result) return <Navigate to="/analyze" replace />
   return <Guarded>{children}</Guarded>
 }

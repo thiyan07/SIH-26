@@ -35,6 +35,7 @@ interface Store {
   eligibilityResult: any | null
   setEligibilityResult: (v: any | null) => void
   clearJourney: () => void
+  isHydrated: boolean
 }
 
 const Ctx = createContext<Store | null>(null)
@@ -61,6 +62,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [applicantAge, setApplicantAgeRaw] = useState<number | null>(null)
   const [eligibilityResult, setEligibilityResultRaw] = useState<any | null>(null)
 
+  const [isHydrated, setIsHydrated] = useState(false)
   useEffect(() => {
     try {
       const saved = localStorage.getItem(KEY)
@@ -100,6 +102,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       localStorage.removeItem(KEY)
       console.warn('[analysisStore] failed to parse cached analysis', e)
+    } finally {
+      setIsHydrated(true)
     }
   }, [])
 
@@ -184,7 +188,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     return selectedSchemeCode
   })()
 
-  return <Ctx.Provider value={{ lang, setLang, result, setResult: persist, form, setForm, selectedSchemeCode, setSelectedSchemeCode, selectedSchemeName, businessSetupConfirmed, setBusinessSetupConfirmed, budgetAllocation, setBudgetAllocation, financeConfirmed, setFinanceConfirmed, simulatorSkipped, setSimulatorSkipped, applicantDetails, setApplicantDetails, applicantAge, setApplicantAge, eligibilityResult, setEligibilityResult, clearJourney }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ lang, setLang, result, setResult: persist, form, setForm, selectedSchemeCode, setSelectedSchemeCode, selectedSchemeName, businessSetupConfirmed, setBusinessSetupConfirmed, budgetAllocation, setBudgetAllocation, financeConfirmed, setFinanceConfirmed, simulatorSkipped, setSimulatorSkipped, applicantDetails, setApplicantDetails, applicantAge, setApplicantAge, eligibilityResult, setEligibilityResult, clearJourney, isHydrated }}>{children}</Ctx.Provider>
 }
 
 export function useAnalysis(): Store {

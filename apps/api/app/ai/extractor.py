@@ -31,7 +31,7 @@ logger = logging.getLogger("grambiz.ai.extractor")
 # Canonical business-type codes understood by the financial engines.
 BUSINESS_TYPES = [
     "dairy", "poultry", "grocery", "textile", "food_processing",
-    "restaurant", "agriculture", "manufacturing", "handicrafts", "other",
+    "restaurant", "agriculture", "manufacturing", "handicrafts", "mobile_shop", "other",
 ]
 
 SCALES = ["micro", "small", "medium"]
@@ -97,6 +97,7 @@ def _map_business_type(value) -> Optional[str]:
         "agriculture": "agriculture", "farming": "agriculture", "agri": "agriculture",
         "manufacturing": "manufacturing", "factory": "manufacturing", "workshop": "manufacturing",
         "handicrafts": "handicrafts", "handicraft": "handicrafts", "craft": "handicrafts",
+        "mobile": "mobile_shop", "mobile_shop": "mobile_shop", "phone_repair": "mobile_shop", "mobile_repair": "mobile_shop", "cell_phone": "mobile_shop",
     }
     if text in aliases:
         return aliases[text]

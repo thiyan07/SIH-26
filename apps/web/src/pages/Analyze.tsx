@@ -152,10 +152,26 @@ export function Analyze() {
       }
       if (parsed.scale) next.preferred_scale = parsed.scale
       if (parsed.project_cost) next.capital_available = parsed.project_cost
-      if (parsed.location?.state) next.state = parsed.location.state
-      if (parsed.location?.district) next.district = parsed.location.district
-      if (parsed.location?.block) next.block = parsed.location.block
-      if (parsed.location?.village) next.village = parsed.location.village
+      // Location: update only if provided, but clear block/village if district changes and new block/village is empty
+      const newDistrict = parsed.location?.district
+      const newBlock = parsed.location?.block
+      const newVillage = parsed.location?.village
+      const newState = parsed.location?.state
+      if (newState) next.state = newState
+      if (newDistrict) {
+        // If district changes, clear stale block/village if new ones are empty
+        const districtChanged = newDistrict && newDistrict.toLowerCase() !== (form.district || '').toLowerCase()
+        next.district = newDistrict
+        if (newBlock) next.block = newBlock
+        else if (districtChanged) next.block = ''
+        if (newVillage) next.village = newVillage
+        else if (districtChanged) next.village = ''
+      } else {
+        if (newBlock) next.block = newBlock
+        if (newVillage) next.village = newVillage
+      }
+      // Ensure at least state is set if district was set
+      if (newDistrict && !next.state) next.state = 'Tamil Nadu'
       setLocalForm(next)
       setForm(next as any)
       setAdvisoryNote(

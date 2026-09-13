@@ -26,6 +26,8 @@ export default defineConfig({
       '/locations': { target: 'http://localhost:8000', changeOrigin: true },
       '/businesses': { target: 'http://localhost:8000', changeOrigin: true },
       '/market': { target: 'http://localhost:8000', changeOrigin: true, bypass: spaBypass },
+      '/suppliers': { target: 'http://localhost:8000', changeOrigin: true },
+      '/business-setup': { target: 'http://localhost:8000', changeOrigin: true, bypass: spaBypass },
       '/financial': { target: 'http://localhost:8000', changeOrigin: true },
       '/advisory': { target: 'http://localhost:8000', changeOrigin: true },
       '/data-sources': { target: 'http://localhost:8000', changeOrigin: true, bypass: spaBypass },
