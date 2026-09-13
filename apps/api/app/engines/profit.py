@@ -200,6 +200,24 @@ _MODELS = {
         "defaults": {"monthly_revenue": 30000.0, "monthly_operating_cost": 18000.0},
         "fn": _generic,
     },
+    "mobile_shop": {
+        "name": "Mobile phone shop",
+        "inputs_schema": ["monthly_revenue", "monthly_operating_cost"],
+        "defaults": {"monthly_revenue": 45000.0, "monthly_operating_cost": 28000.0},
+        "fn": _generic,
+    },
+    "electronics": {
+        "name": "Electronics",
+        "inputs_schema": ["monthly_revenue", "monthly_operating_cost"],
+        "defaults": {"monthly_revenue": 50000.0, "monthly_operating_cost": 32000.0},
+        "fn": _generic,
+    },
+    "pharmacy": {
+        "name": "Pharmacy",
+        "inputs_schema": ["monthly_revenue", "monthly_operating_cost"],
+        "defaults": {"monthly_revenue": 50000.0, "monthly_operating_cost": 35000.0},
+        "fn": _generic,
+    },
 }
 
 # OSM tag mapping for competitor detection per category
@@ -214,6 +232,9 @@ CATEGORY_OSM_TAGS = {
     "manufacturing": [{"man_made": "works"}, {"industrial": "factory"}],
     "handicrafts": [{"craft": "handicraft"}, {"shop": "art"}],
     "other": [],
+    "mobile_shop": [{"shop": "mobile_phone"}, {"shop": "electronics"}, {"shop": "mobile"}],
+    "electronics": [{"shop": "electronics"}, {"shop": "mobile_phone"}],
+    "pharmacy": [{"amenity": "pharmacy"}, {"shop": "pharmacy"}],
 }
 
 
@@ -221,7 +242,18 @@ def simulate_model(category_code: str, inputs: Optional[dict[str, Any]] = None) 
     """Run a category's operating model with provided (or default) inputs."""
     model = _MODELS.get(category_code)
     if model is None:
-        raise ValueError(f"unknown category_code: {category_code}")
+        # Graceful fallback for valid business_categories that are not in core profit models
+        # (e.g. mobile_shop, electronics, pharmacy from the 58-category registry).
+        # Keeps pipeline deterministic without fabricating; uses generic model.
+        # Truly unknown codes like "not_a_category" still raise.
+        fallback_allowed = {"mobile_shop", "electronics", "pharmacy", "hospital", "bakery", "meat_shop", "clothing", "footwear", "furniture", "stationery", "tea_shop", "other"}
+        if category_code in fallback_allowed or category_code in ("other",):
+            model = _MODELS.get("other")
+            category_code = "other"
+        if model is None or category_code == "other" and _MODELS.get("other") is None:
+            raise ValueError(f"unknown category_code: {category_code}")
+        if model is None:
+            raise ValueError(f"unknown category_code: {category_code}")
 
     merged = dict(model["defaults"])
     if inputs:

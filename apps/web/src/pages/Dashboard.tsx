@@ -10,7 +10,6 @@ import {
 import { useAnalysis } from '../lib/analysisStore'
 import { LINK_BRAND } from '../lib/theme'
 import { Badge, Card, CardHeader, Disclaimer } from '../components/ui'
-import { Card3D } from '../components/aceternity/Card3D'
 import { Spotlight } from '../components/aceternity/BackgroundBeams'
 import { tr, interpolate, recommendationLabel, type Language } from '../lib/i18n'
 
@@ -25,7 +24,7 @@ export function Dashboard() {
   const si = result.seasonal_intelligence
   const wi = result.weather_intelligence
   const prs = result.product_recommendations
-  const suggested = (result as any).suggested_businesses as import('../types').SuggestedBusiness[] | undefined
+  // AI Suggested Opportunities removed - no longer shown on Dashboard per requirements
 
   return (
     <div className="space-y-6">
@@ -118,46 +117,7 @@ export function Dashboard() {
 
 
 
-      {suggested && suggested.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-widest text-gray-700">{tr('aiSuggestedOpportunities', lang)}</h2>
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">{tr('tiltHint', lang)}</span>
-          </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            {suggested.slice(0, 6).map((s, i) => (
-              <Card3D key={`${s.business_type}-${i}`}>
-                <div className="group relative flex h-full flex-col rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-orange-50 to-white p-4 shadow-sm transition-all hover:shadow-lg hover:rotate-[0.8deg]">
-                  <div className="absolute -top-2 left-1/2 h-4 w-4 -translate-x-1/2 rounded-full bg-gradient-to-b from-amber-300 to-amber-600 shadow-md ring-2 ring-white" />
-                  <div className="absolute -top-1 left-1/2 h-6 w-px -translate-x-1/2 bg-gradient-to-b from-amber-400 to-transparent" />
-                  <div className="mt-2 text-[10px] font-bold uppercase tracking-widest text-amber-700">{s.scale} • score {s.overall_score}</div>
-                  <div className="mt-1 text-sm font-extrabold text-gray-900">{s.label}</div>
-                  <div className="text-[11px] text-gray-500">{s.business_type}</div>
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-lg bg-white p-2 text-center shadow-sm">
-                      <div className="text-[10px] text-gray-500">Project cost</div>
-                      <div className="font-bold text-gray-900">₹{formatINR(s.total_project_cost)}</div>
-                    </div>
-                    <div className="rounded-lg bg-white p-2 text-center shadow-sm">
-                      <div className="text-[10px] text-gray-500">Monthly profit</div>
-                      <div className="font-bold text-emerald-700">₹{formatINR(s.estimated_monthly_profit)}</div>
-                    </div>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {s.reasons.slice(0, 2).map((r, idx) => (
-                      <span key={idx} className="rounded-full bg-teal-600 px-2 py-0.5 text-[10px] font-medium text-white">{r}</span>
-                    ))}
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-[10px] text-gray-500">
-                    <span>{s.competitors_5km ?? 0} competitors · {s.eligible_schemes} schemes</span>
-                    <span className="font-mono">#{i + 1}</span>
-                  </div>
-                </div>
-              </Card3D>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* AI Suggested Opportunities removed per product requirements — focus on primary analysis review */}
 
 
 
@@ -293,6 +253,15 @@ export function Dashboard() {
           )}
         </Card>
       </div>
+
+      {/* Re-analyse Budget CTA */}
+      <Card>
+        <CardHeader title="Budget Allocation" subtitle="Adjust your startup budget and re-run the authoritative analysis" />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-600">Modify the budget split from Business Setup and regenerate the financial plan through the backend.</p>
+          <a href="/business-setup" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Re-analyse Budget →</a>
+        </div>
+      </Card>
 
       {/* 6. FINANCING — already shown above; working capital & scale fit */}
       {(() => {

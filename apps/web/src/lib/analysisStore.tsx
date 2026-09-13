@@ -3,6 +3,12 @@ import type { AnalysisResult } from '../types'
 
 type Language = 'en' | 'ta' | 'hi'
 
+interface ApplicantDetails {
+  fullName: string
+  phone: string
+  houseAddress: string
+}
+
 interface Store {
   lang: Language
   setLang: (l: Language) => void
@@ -13,17 +19,47 @@ interface Store {
   selectedSchemeCode: string | null
   setSelectedSchemeCode: (code: string | null) => void
   selectedSchemeName: string | null
+  // Journey progression
+  businessSetupConfirmed: boolean
+  setBusinessSetupConfirmed: (v: boolean) => void
+  budgetAllocation: Record<string, number> | null
+  setBudgetAllocation: (v: Record<string, number> | null) => void
+  financeConfirmed: boolean
+  setFinanceConfirmed: (v: boolean) => void
+  simulatorSkipped: boolean
+  setSimulatorSkipped: (v: boolean) => void
+  applicantDetails: ApplicantDetails | null
+  setApplicantDetails: (v: ApplicantDetails | null) => void
+  applicantAge: number | null
+  setApplicantAge: (v: number | null) => void
+  eligibilityResult: any | null
+  setEligibilityResult: (v: any | null) => void
+  clearJourney: () => void
 }
 
 const Ctx = createContext<Store | null>(null)
 const KEY = 'grambiz.last.analysis'
 const KEY_SCHEME = 'grambiz.selectedScheme'
+const KEY_SETUP = 'grambiz.setup.confirmed'
+const KEY_BUDGET = 'grambiz.budget.allocation'
+const KEY_FINANCE = 'grambiz.finance.confirmed'
+const KEY_SIM = 'grambiz.sim.skipped'
+const KEY_APPLICANT = 'grambiz.applicant'
+const KEY_AGE = 'grambiz.age'
+const KEY_ELIG = 'grambiz.eligibility'
 
 export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Language>('en')
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [form, setForm] = useState<Record<string, unknown> | null>(null)
   const [selectedSchemeCode, setSelectedSchemeCodeRaw] = useState<string | null>(null)
+  const [businessSetupConfirmed, setBusinessSetupConfirmedRaw] = useState<boolean>(false)
+  const [budgetAllocation, setBudgetAllocationRaw] = useState<Record<string, number> | null>(null)
+  const [financeConfirmed, setFinanceConfirmedRaw] = useState<boolean>(false)
+  const [simulatorSkipped, setSimulatorSkippedRaw] = useState<boolean>(false)
+  const [applicantDetails, setApplicantDetailsRaw] = useState<ApplicantDetails | null>(null)
+  const [applicantAge, setApplicantAgeRaw] = useState<number | null>(null)
+  const [eligibilityResult, setEligibilityResultRaw] = useState<any | null>(null)
 
   useEffect(() => {
     try {
@@ -47,6 +83,20 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       }
       const savedScheme = localStorage.getItem(KEY_SCHEME)
       if (savedScheme) setSelectedSchemeCodeRaw(savedScheme)
+      const savedSetup = localStorage.getItem(KEY_SETUP)
+      if (savedSetup) setBusinessSetupConfirmedRaw(savedSetup === 'true')
+      const savedBudget = localStorage.getItem(KEY_BUDGET)
+      if (savedBudget) try { setBudgetAllocationRaw(JSON.parse(savedBudget)) } catch {}
+      const savedFinance = localStorage.getItem(KEY_FINANCE)
+      if (savedFinance) setFinanceConfirmedRaw(savedFinance === 'true')
+      const savedSim = localStorage.getItem(KEY_SIM)
+      if (savedSim) setSimulatorSkippedRaw(savedSim === 'true')
+      const savedApplicant = localStorage.getItem(KEY_APPLICANT)
+      if (savedApplicant) try { setApplicantDetailsRaw(JSON.parse(savedApplicant)) } catch {}
+      const savedAge = localStorage.getItem(KEY_AGE)
+      if (savedAge) setApplicantAgeRaw(Number(savedAge))
+      const savedElig = localStorage.getItem(KEY_ELIG)
+      if (savedElig) try { setEligibilityResultRaw(JSON.parse(savedElig)) } catch {}
     } catch (e) {
       localStorage.removeItem(KEY)
       console.warn('[analysisStore] failed to parse cached analysis', e)
@@ -55,8 +105,16 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
   const persist = (r: AnalysisResult) => {
     setResult(r)
+    // New analysis cleanly replaces old — clear downstream journey state
+    setBusinessSetupConfirmedRaw(false)
+    setFinanceConfirmedRaw(false)
+    setSimulatorSkippedRaw(false)
     try {
       localStorage.setItem(KEY, JSON.stringify(r))
+      localStorage.removeItem(KEY_SETUP)
+      localStorage.removeItem(KEY_BUDGET)
+      localStorage.removeItem(KEY_FINANCE)
+      localStorage.removeItem(KEY_SIM)
     } catch {
       /* ignore */
     }
@@ -70,6 +128,53 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
   }
 
+  const setBusinessSetupConfirmed = (v: boolean) => {
+    setBusinessSetupConfirmedRaw(v)
+    try { localStorage.setItem(KEY_SETUP, String(v)) } catch {}
+  }
+  const setBudgetAllocation = (v: Record<string, number> | null) => {
+    setBudgetAllocationRaw(v)
+    try { if (v) localStorage.setItem(KEY_BUDGET, JSON.stringify(v)); else localStorage.removeItem(KEY_BUDGET) } catch {}
+  }
+  const setFinanceConfirmed = (v: boolean) => {
+    setFinanceConfirmedRaw(v)
+    try { localStorage.setItem(KEY_FINANCE, String(v)) } catch {}
+  }
+  const setSimulatorSkipped = (v: boolean) => {
+    setSimulatorSkippedRaw(v)
+    try { localStorage.setItem(KEY_SIM, String(v)) } catch {}
+  }
+  const setApplicantDetails = (v: ApplicantDetails | null) => {
+    setApplicantDetailsRaw(v)
+    try { if (v) localStorage.setItem(KEY_APPLICANT, JSON.stringify(v)); else localStorage.removeItem(KEY_APPLICANT) } catch {}
+  }
+  const setApplicantAge = (v: number | null) => {
+    setApplicantAgeRaw(v)
+    try { if (v != null) localStorage.setItem(KEY_AGE, String(v)); else localStorage.removeItem(KEY_AGE) } catch {}
+  }
+  const setEligibilityResult = (v: any | null) => {
+    setEligibilityResultRaw(v)
+    try { if (v) localStorage.setItem(KEY_ELIG, JSON.stringify(v)); else localStorage.removeItem(KEY_ELIG) } catch {}
+  }
+  const clearJourney = () => {
+    setBusinessSetupConfirmedRaw(false)
+    setBudgetAllocationRaw(null)
+    setFinanceConfirmedRaw(false)
+    setSimulatorSkippedRaw(false)
+    setApplicantDetailsRaw(null)
+    setApplicantAgeRaw(null)
+    setEligibilityResultRaw(null)
+    try {
+      localStorage.removeItem(KEY_SETUP)
+      localStorage.removeItem(KEY_BUDGET)
+      localStorage.removeItem(KEY_FINANCE)
+      localStorage.removeItem(KEY_SIM)
+      localStorage.removeItem(KEY_APPLICANT)
+      localStorage.removeItem(KEY_AGE)
+      localStorage.removeItem(KEY_ELIG)
+    } catch {}
+  }
+
   const selectedSchemeName = (() => {
     if (!selectedSchemeCode || !result) return null
     // Try to find name in result's financial_plan or alternatives
@@ -79,7 +184,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     return selectedSchemeCode
   })()
 
-  return <Ctx.Provider value={{ lang, setLang, result, setResult: persist, form, setForm, selectedSchemeCode, setSelectedSchemeCode, selectedSchemeName }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ lang, setLang, result, setResult: persist, form, setForm, selectedSchemeCode, setSelectedSchemeCode, selectedSchemeName, businessSetupConfirmed, setBusinessSetupConfirmed, budgetAllocation, setBudgetAllocation, financeConfirmed, setFinanceConfirmed, simulatorSkipped, setSimulatorSkipped, applicantDetails, setApplicantDetails, applicantAge, setApplicantAge, eligibilityResult, setEligibilityResult, clearJourney }}>{children}</Ctx.Provider>
 }
 
 export function useAnalysis(): Store {

@@ -45,11 +45,12 @@ interface Scheme {
 }
 
 export function Schemes() {
-  const { result, setResult, form, lang, selectedSchemeCode, setSelectedSchemeCode } = useAnalysis()
+  const { result, setResult, form, lang, selectedSchemeCode, setSelectedSchemeCode, applicantAge, setApplicantAge, eligibilityResult, setEligibilityResult } = useAnalysis()
   const [schemes, setSchemes] = useState<Scheme[]>([])
   const [matches, setMatches] = useState<any[]>([])
-  const [selecting, setSelecting] = useState<string | null>(null)
   const [selectError, setSelectError] = useState<string | null>(null)
+  const [ageInput, setAgeInput] = useState<string>(applicantAge ? String(applicantAge) : "")
+  const [submitting, setSubmitting] = useState(false)
   const projectCost = result?.financial_plan?.project_cost
 
   useEffect(() => {
@@ -71,46 +72,73 @@ export function Schemes() {
         business_type: (result.profit_model as any)?.category_code || result.financial_plan?.scheme_code,
         project_cost: projectCost,
         capital_available: result.financial_plan?.capital_available,
+        age: applicantAge ?? undefined,
       }).then((r) => setMatches(r.matches || [])).catch(() => {})
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result?.location?.block, result?.location?.village, projectCost])
+  }, [result?.location?.block, result?.location?.village, projectCost, applicantAge])
 
   const routed = schemes.length > 0 && projectCost != null ? route(projectCost, schemes, lang) : null
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const handleSelectScheme = async (code: string) => {
-    if (!result || !form) {
-      setSelectedSchemeCode(code)
+  const handleSelectScheme = (code: string) => {
+    setSelectedSchemeCode(code)
+    // Clear previous eligibility until age submitted
+    setEligibilityResult(null)
+  }
+
+  const handleSubmitEligibility = async () => {
+    const ageNum = Number(ageInput)
+    if (!ageNum || ageNum < 18 || ageNum > 80) {
+      setSelectError('Enter a valid age between 18 and 80')
       return
     }
-    setSelecting(code)
+    if (!selectedSchemeCode) {
+      setSelectError('Select at least one scheme')
+      return
+    }
+    setSubmitting(true)
     setSelectError(null)
     try {
-      const payload: any = {
-        ...form,
-        preferred_scheme_code: code,
-        // Ensure location + category are present
-        state: (form as any).state || result.location.state,
-        district: (form as any).district || result.location.district,
-        block: (form as any).block || result.location.block,
-        village: (form as any).village || result.location.village,
-        capital_available: (form as any).capital_available || result.financial_plan.capital_available,
-        category_code: (form as any).category_code || (result as any).profit_model?.category_code,
+      setApplicantAge(ageNum)
+      // Evaluate eligibility via backend (authoritative)
+      const res = await api.post<{ matches: any[] }>('/advisory/schemes/match', {
+        state: result!.location.state,
+        district: result!.location.district,
+        block: result!.location.block,
+        village: result!.location.village,
+        business_type: (result!.profit_model as any)?.category_code || result!.financial_plan?.scheme_code,
+        project_cost: projectCost,
+        capital_available: result!.financial_plan?.capital_available,
+        age: ageNum,
+      })
+      const match = res.matches.find((m:any) => m.scheme_code === selectedSchemeCode)
+      setEligibilityResult(match || res.matches[0] || null)
+      setMatches(res.matches)
+      // Also apply scheme to finance (re-run analysis with preferred_scheme_code + age)
+      if (result && form) {
+        const payload: any = {
+          ...form,
+          preferred_scheme_code: selectedSchemeCode,
+          applicant_age: ageNum,
+          state: (form as any).state || result.location.state,
+          district: (form as any).district || result.location.district,
+          block: (form as any).block || result.location.block,
+          village: (form as any).village || result.location.village,
+          capital_available: (form as any).capital_available || result.financial_plan.capital_available,
+          category_code: (form as any).category_code || (result as any).profit_model?.category_code,
+        }
+        if ((result as any).location?.proposed_latitude) {
+          payload.proposed_latitude = (result as any).location.proposed_latitude
+          payload.proposed_longitude = (result as any).location.proposed_longitude
+        }
+        const analysisRes = await api.post<any>('/analysis', payload)
+        setResult(analysisRes)
       }
-      // Preserve proposed location if present in previous result
-      if ((result as any).location?.proposed_latitude) {
-        payload.proposed_latitude = (result as any).location.proposed_latitude
-        payload.proposed_longitude = (result as any).location.proposed_longitude
-      }
-      const { api } = await import('../lib/api')
-      const res = await api.post<any>('/analysis', payload)
-      setResult(res)
-      setSelectedSchemeCode(code)
     } catch (e: any) {
-      setSelectError(e.message || 'Could not apply scheme')
+      setSelectError(e.message || 'Could not evaluate eligibility')
     } finally {
-      setSelecting(null)
+      setSubmitting(false)
     }
   }
 
@@ -127,15 +155,63 @@ export function Schemes() {
       </Spotlight>
 
       {selectedSchemeCode && (
-        <div className="rounded-xl border border-brand-200 bg-brand-50 p-4 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-sm text-brand-900">
-            <strong>Selected Scheme:</strong> {selectedMatch?.scheme_name || selectedSchemeCode} {selectedMatch?.status ? <Badge color={selectedMatch.status === 'ELIGIBLE' ? 'green' : selectedMatch.status === 'NOT_ELIGIBLE' ? 'red' : 'amber'}>{selectedMatch.status.replace('_', ' ')}</Badge> : null}
-            <span className="ml-2 text-xs text-brand-700">This scheme will drive your Finance calculation (interest, tenure, moratorium, eligible loan).</span>
+        <div className="space-y-3 rounded-xl border border-brand-200 bg-brand-50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-brand-900">
+              <strong>Selected Scheme:</strong> {selectedMatch?.scheme_name || selectedSchemeCode} {selectedMatch?.status ? <Badge color={selectedMatch.status === 'ELIGIBLE' ? 'green' : selectedMatch.status === 'NOT_ELIGIBLE' ? 'red' : 'amber'}>{selectedMatch.status.replace('_', ' ')}</Badge> : null}
+              <span className="ml-2 text-xs text-brand-700">This scheme will drive your Finance calculation.</span>
+            </div>
+            <button onClick={() => { setSelectedSchemeCode(null); setEligibilityResult(null); setAgeInput("") }} className="rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-700">Clear</button>
           </div>
-          <div className="flex gap-2">
-            <a href="/finance" className="rounded-lg bg-brand-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-brand-700">View Finance →</a>
-            <button onClick={() => setSelectedSchemeCode(null)} className="rounded-lg border border-brand-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-700">Clear</button>
+          <div className="rounded-lg bg-white p-3">
+            <label className="text-xs font-bold text-gray-700">Enter your age <span className="text-red-500">*</span></label>
+            <div className="mt-1 flex gap-2">
+              <input
+                type="number"
+                min={18}
+                max={80}
+                value={ageInput}
+                onChange={(e) => setAgeInput(e.target.value)}
+                placeholder="e.g. 28"
+                className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                data-testid="scheme-age"
+              />
+              <button
+                onClick={handleSubmitEligibility}
+                disabled={submitting || !ageInput || !selectedSchemeCode}
+                className="rounded-lg bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+                data-testid="scheme-submit"
+              >
+                {submitting ? 'Checking...' : 'Okay / Submit'}
+              </button>
+              {eligibilityResult && (
+                <a href="/finance" className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white hover:bg-black">View Finance →</a>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-gray-500">Age is required for schemes with age limits (e.g. 18-45). Your age is stored for eligibility.</p>
           </div>
+          {eligibilityResult && (
+            <div className="rounded-lg bg-white p-3 border">
+              <div className="text-sm font-bold text-gray-900">Eligibility Result</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                <span>Scheme: <strong>{eligibilityResult.scheme_name || selectedSchemeCode}</strong></span>
+                <Badge color={eligibilityResult.status === 'ELIGIBLE' ? 'green' : eligibilityResult.status === 'NOT_ELIGIBLE' ? 'red' : 'amber'}>{eligibilityResult.status?.replace('_',' ')}</Badge>
+                <span>Age: <strong>{applicantAge ?? ageInput}</strong></span>
+              </div>
+              {eligibilityResult.matching_reasons?.length > 0 && (
+                <div className="mt-2 text-xs text-green-700">✓ {eligibilityResult.matching_reasons.slice(0,3).join(' · ')}</div>
+              )}
+              {eligibilityResult.mismatch_reasons?.length > 0 && (
+                <div className="mt-1 text-xs text-red-700">✗ {eligibilityResult.mismatch_reasons.slice(0,3).join(' · ')}</div>
+              )}
+              {eligibilityResult.missing_information?.length > 0 && (
+                <div className="mt-1 text-xs text-amber-700">Missing: {eligibilityResult.missing_information.slice(0,3).join(' · ')}</div>
+              )}
+              {eligibilityResult.status === 'INSUFFICIENT_INFO' && (
+                <p className="mt-2 text-xs text-amber-700">Eligibility cannot be determined — missing required information. Provide age and required documents.</p>
+              )}
+            </div>
+          )}
         </div>
       )}
       {selectError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{selectError}</div>}
@@ -212,11 +288,11 @@ export function Schemes() {
                     <td className="px-4 py-3">
                       <button
                         onClick={(e) => { e.stopPropagation(); handleSelectScheme(s.code) }}
-                        disabled={selecting === s.code || status === 'NOT_ELIGIBLE'}
+                        disabled={status === 'NOT_ELIGIBLE'}
                         className={`rounded-lg px-3 py-1 text-xs font-bold ${isSelected ? 'bg-brand-600 text-white' : status === 'NOT_ELIGIBLE' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800'} disabled:opacity-60`}
                         title={status === 'NOT_ELIGIBLE' ? 'Not eligible for this project' : status === 'INSUFFICIENT_INFO' ? 'Potentially eligible — verify applicant criteria' : 'Select to drive finance'}
                       >
-                        {selecting === s.code ? 'Applying…' : isSelected ? 'Selected' : 'Select'}
+                        {isSelected ? 'Selected' : 'Select'}
                       </button>
                       {status === 'INSUFFICIENT_INFO' && <div className="text-[10px] text-amber-700 mt-1">Potentially eligible — verify criteria</div>}
                     </td>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, BarChart, Bar } from 'recharts'
 import { useAnalysis } from '../lib/analysisStore'
 import { Card, CardHeader, Disclaimer, StatCard } from '../components/ui'
@@ -8,7 +9,8 @@ import { formatINR } from './Dashboard'
 import { downloadCSV } from '../lib/export'
 
 export function Simulator() {
-  const { result, lang } = useAnalysis()
+  const { result, lang, setSimulatorSkipped } = useAnalysis()
+  const navigate = useNavigate()
   const fp = result?.financial_plan
   const [loan, setLoan] = useState(fp?.loan_amount ?? 250000)
   const [rate, setRate] = useState(fp?.interest_rate ?? 8)
@@ -35,9 +37,18 @@ export function Simulator() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{tr('loanSimulator', lang)}</h1>
-        <p className="text-sm text-gray-500">{tr('loanSimulatorSub', lang)}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{tr('loanSimulator', lang)}</h1>
+          <p className="text-sm text-gray-500">{tr('loanSimulatorSub', lang)}</p>
+        </div>
+        <button
+          onClick={() => { setSimulatorSkipped(true); navigate('/report') }}
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+          data-testid="sim-skip"
+        >
+          Skip →
+        </button>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

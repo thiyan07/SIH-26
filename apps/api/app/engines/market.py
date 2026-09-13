@@ -13,10 +13,7 @@ buying/demand clusters for a category (restaurants, hotels, markets,
 retail). The exact categories examined are configurable via `signal_codes`.
 """
 from __future__ import annotations
-# v2 Enhancements: Signal clustering
-def _signal_strength(count: int, radius_km: float) -> float:
-    area = 3.14 * radius_km**2
-    return round(min(count / (area/50), 1.0), 2)
+
 # Engine v2.0 - Upgraded 2026-09-13
 # - Added LRU caching for expensive computations
 # - Enhanced error handling and validation
@@ -30,6 +27,11 @@ from dataclasses import dataclass
 from typing import Any, Optional
 
 from app.geo import find_nearby_with_distance, real_data_condition
+
+# v2 Enhancements: Signal clustering
+def _signal_strength(count: int, radius_km: float) -> float:
+    area = 3.14 * radius_km**2
+    return round(min(count / (area/50), 1.0), 2)
 
 DEFAULT_SIGNAL_CODES = ("restaurant", "grocery", "market")  # demand proxies
 

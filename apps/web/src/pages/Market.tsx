@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { useAnalysis } from '../lib/analysisStore'
 import { Card, CardHeader, Provenance } from '../components/ui'
@@ -10,10 +11,12 @@ import type { AnalysisResult, Business, InfrastructurePoint, LocationOut, MapLay
 
 export function Market() {
   const { result, setResult, setForm, lang } = useAnalysis()
+  const navigate = useNavigate()
   const [markets, setMarkets] = useState<MapPoint[]>([])
   const [infrastructure, setInfrastructure] = useState<InfrastructurePoint[]>([])
   const [layersNote, setLayersNote] = useState('')
   const [allBusinesses, setAllBusinesses] = useState<Business[]>([])
+  const [radiusKm, setRadiusKm] = useState(10)
   const [demoLoading, setDemoLoading] = useState(false)
 
   const loadDemo = async () => {
@@ -51,7 +54,7 @@ export function Market() {
       .post<MapLayersResponse>('/geojson/layers', {
         latitude: result.location.latitude,
         longitude: result.location.longitude,
-        radius_km: 20,
+        radius_km: radiusKm,
       })
       .then((r) => {
         setMarkets(pointsFromGeoJSON(r.layers.markets?.features))
@@ -67,11 +70,11 @@ export function Market() {
       .post<{ businesses: Business[] }>('/businesses/nearby', {
         latitude: result.location.latitude,
         longitude: result.location.longitude,
-        radius_km: 10,
+        radius_km: radiusKm,
       })
       .then((r) => setAllBusinesses(r.businesses || []))
       .catch(() => setAllBusinesses([]))
-  }, [result?.location.latitude, result?.location.longitude])
+  }, [result?.location.latitude, result?.location.longitude, radiusKm])
 
   if (!result) return <Empty lang={lang} onLoadDemo={() => loadDemo()} loadingDemo={demoLoading} />
   const bc = result.business_competition
@@ -98,6 +101,19 @@ export function Market() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader title={tr('liveMapNearby', lang)} subtitle={tr('liveMapSub', lang)} />
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-600">Radius: {radiusKm} km</span>
+              <input
+                type="range"
+                min={5}
+                max={20}
+                value={radiusKm}
+                onChange={(e) => setRadiusKm(Number(e.target.value))}
+                className="h-1 w-24 accent-brand-600"
+                data-testid="market-radius"
+              />
+              <span className="text-xs text-slate-500">5km — 20km (live)</span>
+            </div>
             <BusinessMap
               center={{ latitude: result.location.latitude, longitude: result.location.longitude }}
               businesses={allBusinesses.length ? allBusinesses : (bc?.businesses || [])}
@@ -105,6 +121,7 @@ export function Market() {
               markets={markets}
               infrastructure={infrastructure}
               selectedCategory={result.profit_model?.category_code}
+              radiusKm={radiusKm}
             />
             <p className="mt-2 text-xs text-gray-500">{layersNote || bc?.note || ''}</p>
             <div className="mt-3">
@@ -144,6 +161,16 @@ export function Market() {
           district={result.location.district}
         />
       </Card>
+
+      <div className="flex justify-end">
+        <button
+          onClick={() => navigate('/schemes')}
+          className="rounded-xl bg-brand-600 px-8 py-3 text-sm font-bold text-white hover:bg-brand-700 shadow"
+          data-testid="market-go-on"
+        >
+          Go On →
+        </button>
+      </div>
 
       {/* Market prices are available via Market Intelligence API and used for demand/seasonality — detailed price table removed per product scope */}
     </div>

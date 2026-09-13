@@ -81,13 +81,14 @@ ERODE_VILLAGE_ALIASES = {
 BUSINESS_KEYWORDS_EN = {
     "dairy": ["dairy", "milk", "cow", "buffalo", "milking", "curd", "paneer", "ghee"],
     "poultry": ["poultry", "chicken", "eggs", "broiler", "layer", "hen", "bird"],
-    "grocery": ["grocery", "shop", "store", "retail", "kirana", "general store", "supermarket"],
+    "grocery": ["grocery", "kirana", "supermarket", "general store", "retail", "provision"],
     "textile": ["textile", "tailoring", "tailor", "sewing", "stitching", "cloth", "garment", "dress"],
     "food_processing": ["food processing", "flour mill", "rice mill", "spice", "pickle", "packaging", "food manufacturing"],
     "restaurant": ["restaurant", "hotel", "food stall", "tea shop", "mess", "canteen", "food court"],
     "agriculture": ["agriculture", "farming", "crop", "field", "cultivation", "irrigation", "paddy", "turmeric"],
     "manufacturing": ["manufacturing", "workshop", "factory", "production", "machine", "fabrication"],
     "handicrafts": ["handicraft", "craft", "pottery", "weaving", "bamboo", "art work", "handmade"],
+    "mobile_shop": ["mobile", "phone repair", "cell phone", "mobile repair", "electronics repair", "phone shop"],
 }
 
 BUSINESS_KEYWORDS_TA = {
@@ -219,26 +220,48 @@ def _extract_with_keywords(text: str, keyword_map: dict) -> Optional[str]:
 
 def extract_location(text: str) -> dict:
     """Extract location information from free text."""
+    import re
     text_lower = text.lower()
     result = {"state": None, "district": None, "block": None, "village": None}
 
     # State
-    if any(w in text_lower for w in ["tamil nadu", "tamilnadu", "தமிழ்நாडு", "तमिलनाडु"]):
-        result["state"] = "Tamil Nadu"
+    if any(w in text_lower for w in ["tamil nadu", "tamilnadu", "தமிழ்நாडு", "तमिलनाडु", "chennai", "சென்னை", "चेन्नई"]):
+        # If any TN district is mentioned, set state
+        if any(k in text_lower for k in ["erode", "perundurai", "bhavani", "chennai", "coimbatore", "madurai", "salem", "tiruppur", "trichy", "tiruchirappalli"]):
+            result["state"] = "Tamil Nadu"
+        elif any(w in text_lower for w in ["tamil nadu", "tamilnadu"]):
+            result["state"] = "Tamil Nadu"
 
-    # District
-    district_hit = (
-        "erode" in text_lower
-        or "ईरोड" in text_lower
-        or any(a in text for a in ("ஈரோடு", "ஈரோட்", "ஈரோட்டில்", "ஈரோட்டில", "ஈரோடில்"))
-    )
-    if district_hit:
-        result["district"] = "Erode"
+    # District - handle major TN districts with word boundaries
+    districts = {
+        "erode": "Erode",
+        "chennai": "Chennai",
+        "coimbatore": "Coimbatore",
+        "madurai": "Madurai",
+        "salem": "Salem",
+        "tiruppur": "Tiruppur",
+        "tiruchirappalli": "Tiruchirappalli",
+        "trichy": "Tiruchirappalli",
+    }
+    for key, dist in districts.items():
+        if re.search(r'\b' + re.escape(key) + r'\b', text_lower):
+            result["district"] = dist
+            result["state"] = "Tamil Nadu"
+            break
+    # Tamil/Hindi aliases
+    if not result["district"]:
+        if any(a in text for a in ("ஈரோடு", "ஈரோட்", "ஈரோட்டில்", "சென்னை", "சென்னையில்", "கோயம்புத்தூர்", "மதுரை", "சேலம்")):
+            if "சென்னை" in text or "சென்னையில்" in text:
+                result["district"] = "Chennai"
+                result["state"] = "Tamil Nadu"
+            elif any(a in text for a in ("ஈரோடு", "ஈரோட்")):
+                result["district"] = "Erode"
+                result["state"] = "Tamil Nadu"
 
     # Block (Latin names or local-script aliases)
     if not result["block"]:
         for block in ERODE_BLOCKS:
-            if block in text_lower:
+            if re.search(r'\b' + re.escape(block) + r'\b', text_lower):
                 result["block"] = block.title()
                 break
     if not result["block"]:
@@ -250,7 +273,7 @@ def extract_location(text: str) -> dict:
     # Village (Latin names or local-script aliases)
     if not result["village"]:
         for village in ERODE_VILLAGES:
-            if village in text_lower:
+            if re.search(r'\b' + re.escape(village) + r'\b', text_lower):
                 result["village"] = village.title()
                 break
     if not result["village"]:
@@ -259,11 +282,20 @@ def extract_location(text: str) -> dict:
                 result["village"] = canonical
                 break
 
+    # Infer district/state from block if block is known Erode block
+    if result["block"] and not result["district"]:
+        if result["block"].lower() in ("perundurai", "bhavani", "gobichettipalayam", "sathyamangalam", "anthiyur", "nambiyur", "modakkurichi", "chennimalai", "erode"):
+            result["district"] = "Erode"
+            result["state"] = "Tamil Nadu"
+    if result["district"] and not result["state"]:
+        result["state"] = "Tamil Nadu"
+
     return result
 
 
 def extract_business_type(text: str, lang: str = "en") -> Optional[str]:
     """Detect business type from free text."""
+    import re
     text_lower = text.lower()
 
     keyword_map = {
@@ -272,18 +304,38 @@ def extract_business_type(text: str, lang: str = "en") -> Optional[str]:
         "hi": BUSINESS_KEYWORDS_HI,
     }
 
+    def _word_match(kw: str, txt: str) -> bool:
+        # Use word boundaries for English short keywords to avoid "hen" in "chennai"
+        # For Tamil/Hindi and multi-word, use substring (Unicode \b is unreliable)
+        import re as _re2
+        # If keyword contains non-ASCII (Tamil/Hindi), use simple substring
+        if any(ord(c) > 127 for c in kw):
+            return kw.lower() in txt
+        # For very short English keywords (<=3 chars) use word boundaries
+        if len(kw) <= 3:
+            pattern = r'\b' + re.escape(kw.lower()) + r'\b'
+            return bool(_re2.search(pattern, txt))
+        return kw.lower() in txt
+
     scores = {}
     for category, keywords in keyword_map.get(lang, BUSINESS_KEYWORDS_EN).items():
-        count = sum(1 for kw in keywords if kw.lower() in text_lower)
+        count = sum(1 for kw in keywords if _word_match(kw, text_lower))
         if count > 0:
             scores[category] = count
 
     # Also check English keywords as fallback
     if lang != "en":
         for category, keywords in BUSINESS_KEYWORDS_EN.items():
-            count = sum(1 for kw in keywords if kw.lower() in text_lower)
+            count = sum(1 for kw in keywords if _word_match(kw, text_lower))
             if count > 0:
                 scores[category] = scores.get(category, 0) + count
+
+    # Special handling: "shop" alone without other grocery keywords should not force grocery if mobile is present
+    # If mobile_shop scores, prioritize it over grocery when "mobile" or "phone" is present
+    if "mobile_shop" in scores and "grocery" in scores:
+        if any(w in text_lower for w in ["mobile", "phone", "repair"]):
+            # Boost mobile_shop
+            scores["mobile_shop"] = scores.get("mobile_shop", 0) + 2
 
     if not scores:
         return None

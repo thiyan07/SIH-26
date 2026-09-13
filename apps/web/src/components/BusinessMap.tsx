@@ -20,6 +20,8 @@ export interface BusinessMapProps {
   zoom?: number
   height?: string
   selectedCategory?: string
+  radiusKm?: number
+  onRadiusChange?: (km: number) => void
 }
 
 // Category-specific competitor mapping: for each business type, which category_codes
@@ -143,9 +145,14 @@ function getColorForCategory(categoryCode?: string): string {
   return CATEGORY_COLORS[categoryCode] || '#dc2626'
 }
 
-export function BusinessMap({ center, businesses = [], competitors = [], markets = [], infrastructure = [], msmeClusters = [], showRadius = true, zoom = 12, height = '420px', selectedCategory }: BusinessMapProps) {
+export function BusinessMap({ center, businesses = [], competitors = [], markets = [], infrastructure = [], msmeClusters = [], showRadius = true, zoom = 12, height = '420px', selectedCategory, radiusKm: propRadius, onRadiusChange }: BusinessMapProps) {
   const [layer, setLayer] = useState('all')
-  const [radiusKm, setRadiusKm] = useState(10)
+  const [internalRadius, setInternalRadius] = useState(10)
+  const radiusKm = propRadius ?? internalRadius
+  const setRadiusKm = (v: number) => {
+    if (onRadiusChange) onRadiusChange(v)
+    else setInternalRadius(v)
+  }
 
   // Determine which category_codes count as competitors for the selected business type.
   const competitorCodes = selectedCategory
@@ -210,11 +217,15 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
           </button>
         ))}
         <div className="ml-auto flex items-center gap-1">
-          <label className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300">
-            Radius
-            <input data-testid="radius-slider" type="range" min={5} max={20} value={radiusKm} onChange={e=>setRadiusKm(Number(e.target.value))} className="h-1 w-16 accent-brand-600" />
-            <span className="w-8 text-right">{radiusKm}km</span>
-          </label>
+          {onRadiusChange || propRadius == null ? (
+            <label className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300">
+              Radius
+              <input data-testid="radius-slider" type="range" min={5} max={20} value={radiusKm} onChange={e=>setRadiusKm(Number(e.target.value))} className="h-1 w-16 accent-brand-600" />
+              <span className="w-8 text-right">{radiusKm}km</span>
+            </label>
+          ) : (
+            <span className="text-[11px] text-slate-500">{radiusKm}km radius</span>
+          )}
         </div>
       </div>
       <div style={{ flex: '1 1 auto', minHeight: 0, borderRadius: 12, overflow: 'hidden' }}>

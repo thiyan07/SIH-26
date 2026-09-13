@@ -4,18 +4,16 @@ import { tr, type Language } from '../../lib/i18n'
 type Item = { to: string; labelKey: string; icon: string; desc: string; group: string }
 
 const ITEMS: Item[] = [
-  { to: '/analyze', labelKey: 'navAnalyze', icon: '🧭', desc: 'Feasibility', group: 'Plan' },
-  { to: '/dashboard', labelKey: 'navDashboard', icon: '📊', desc: 'Score & ROI', group: 'Plan' },
-  { to: '/business-setup', labelKey: 'navBusinessSetup' as any, icon: '🛠️', desc: 'Setup plan', group: 'Plan' },
-  { to: '/market', labelKey: 'navMarket', icon: '🏪', desc: 'Prices & peers', group: 'Discover' },
-  { to: '/schemes', labelKey: 'navSchemes', icon: '🏛️', desc: 'Financing Options', group: 'Money' },
-  { to: '/finance', labelKey: 'navFinance', icon: '💳', desc: 'Loan plan', group: 'Money' },
-  { to: '/simulator', labelKey: 'navSimulator', icon: '🎛️', desc: 'What-if', group: 'Money' },
-  { to: '/report', labelKey: 'navReport', icon: '📄', desc: 'Printable', group: 'Output' },
-  { to: '/data-sources', labelKey: 'navData', icon: '🔗', desc: 'Provenance', group: 'Output' },
-  { to: '/compare', labelKey: 'navCompare' as any, icon: '⚖️', desc: 'Village vs', group: 'Output' },
+  { to: '/analyze', labelKey: 'navAnalyze', icon: '🧭', desc: 'Input', group: 'Plan' },
+  { to: '/dashboard', labelKey: 'navDashboard', icon: '📊', desc: 'Review', group: 'Plan' },
+  { to: '/business-setup', labelKey: 'navBusinessSetup' as any, icon: '🛠️', desc: 'Setup', group: 'Plan' },
+  { to: '/market', labelKey: 'navMarket', icon: '🏪', desc: 'Market', group: 'Discover' },
+  { to: '/schemes', labelKey: 'navSchemes', icon: '🏛️', desc: 'Schemes', group: 'Money' },
+  { to: '/finance', labelKey: 'navFinance', icon: '💳', desc: 'Finance', group: 'Money' },
+  { to: '/simulator', labelKey: 'navSimulator', icon: '🎛️', desc: 'Simulate', group: 'Money' },
+  { to: '/report', labelKey: 'navReport', icon: '📄', desc: 'Report', group: 'Output' },
+  { to: '/videos', labelKey: 'navVideos' as any, icon: '🎥', desc: 'Apply', group: 'Output' },
   { to: '/expenses', labelKey: 'navExpenses' as any, icon: '💰', desc: 'Ledger', group: 'Money' },
-  { to: '/videos', labelKey: 'navVideos' as any, icon: '🎥', desc: 'Learn', group: 'Output' },
 ]
 
 const GROUPS = ['Plan','Discover','Money','Output'] as const

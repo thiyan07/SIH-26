@@ -10,11 +10,10 @@ import { Finance } from './pages/Finance'
 import { Simulator } from './pages/Simulator'
 import { Report } from './pages/Report'
 import { Schemes } from './pages/Schemes'
-import { DataSources } from './pages/DataSources'
-import { Compare } from './pages/Compare'
 import { ExpenseTracker } from './pages/ExpenseTracker'
 import { BusinessSetup } from './pages/BusinessSetup'
 import { VideoTutorials } from './pages/VideoTutorials'
+import { useAnalysis } from './lib/analysisStore'
 
 export default function App() {
   const location = useLocation()
@@ -24,18 +23,16 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Guarded><Landing /></Guarded>} />
         <Route path="/analyze" element={<Guarded><Analyze /></Guarded>} />
-        <Route path="/dashboard" element={<Guarded><Dashboard /></Guarded>} />
-        <Route path="/market" element={<Guarded><Market /></Guarded>} />
+        <Route path="/dashboard" element={<RequireAnalysis><Dashboard /></RequireAnalysis>} />
+        <Route path="/business-setup" element={<RequireAnalysis><BusinessSetup /></RequireAnalysis>} />
+        <Route path="/market" element={<RequireBusinessSetup><Market /></RequireBusinessSetup>} />
         <Route path="/map" element={<Navigate to="/market" replace />} />
-        <Route path="/finance" element={<Guarded><Finance /></Guarded>} />
-        <Route path="/simulator" element={<Guarded><Simulator /></Guarded>} />
-        <Route path="/report" element={<Guarded><Report /></Guarded>} />
-        <Route path="/schemes" element={<Guarded><Schemes /></Guarded>} />
-        <Route path="/data-sources" element={<Guarded><DataSources /></Guarded>} />
-      <Route path="/compare" element={<Guarded><Compare /></Guarded>} />
-      <Route path="/expenses" element={<Guarded><ExpenseTracker /></Guarded>} />
-      <Route path="/business-setup" element={<Guarded><BusinessSetup /></Guarded>} />
-      <Route path="/videos" element={<Guarded><VideoTutorials /></Guarded>} />
+        <Route path="/schemes" element={<RequireBusinessSetup><Schemes /></RequireBusinessSetup>} />
+        <Route path="/finance" element={<RequireFinanceEligible><Finance /></RequireFinanceEligible>} />
+        <Route path="/simulator" element={<RequireFinance><Simulator /></RequireFinance>} />
+        <Route path="/report" element={<RequireReport><Report /></RequireReport>} />
+        <Route path="/videos" element={<RequireReport><VideoTutorials /></RequireReport>} />
+        <Route path="/expenses" element={<Guarded><ExpenseTracker /></Guarded>} />
       </Routes>
     </Layout>
   )
@@ -43,7 +40,37 @@ export default function App() {
 
 function Guarded({ children }: { children: ReactNode }) {
   const pathname = useLocation().pathname
-  // Key by path so a boundary reset happens on each route change,
-  // letting the user retry after navigating away and back.
   return <ErrorBoundary key={pathname}>{children}</ErrorBoundary>
+}
+
+function RequireAnalysis({ children }: { children: ReactNode }) {
+  const { result } = useAnalysis()
+  if (!result) return <Navigate to="/analyze" replace />
+  return <Guarded>{children}</Guarded>
+}
+function RequireBusinessSetup({ children }: { children: ReactNode }) {
+  const { result, businessSetupConfirmed } = useAnalysis()
+  if (!result) return <Navigate to="/analyze" replace />
+  if (!businessSetupConfirmed) return <Navigate to="/dashboard" replace />
+  return <Guarded>{children}</Guarded>
+}
+function RequireFinanceEligible({ children }: { children: ReactNode }) {
+  const { result, selectedSchemeCode, applicantAge, eligibilityResult } = useAnalysis()
+  if (!result) return <Navigate to="/analyze" replace />
+  if (!selectedSchemeCode) return <Navigate to="/schemes" replace />
+  if (applicantAge == null) return <Navigate to="/schemes" replace />
+  if (!eligibilityResult) return <Navigate to="/schemes" replace />
+  return <Guarded>{children}</Guarded>
+}
+function RequireFinance({ children }: { children: ReactNode }) {
+  const { result, financeConfirmed } = useAnalysis()
+  if (!result) return <Navigate to="/analyze" replace />
+  if (!financeConfirmed) return <Navigate to="/finance" replace />
+  return <Guarded>{children}</Guarded>
+}
+function RequireReport({ children }: { children: ReactNode }) {
+  const { result, financeConfirmed } = useAnalysis()
+  if (!result) return <Navigate to="/analyze" replace />
+  if (!financeConfirmed) return <Navigate to="/finance" replace />
+  return <Guarded>{children}</Guarded>
 }

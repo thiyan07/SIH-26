@@ -618,7 +618,7 @@ def run_analysis(db: Session, req) -> dict:
         data_completeness=biz_coverage,
     )
     competition = competition_to_dict(competitor)
-    signal_codes = tuple(profile.get("demand_signals") or market_default_signal_codes())
+    signal_codes = tuple(profile.get("demand_signals") or market_default_signal_codes)
     market_reach = analyze_market(
         db, location=location_view, radius_km=10.0,
         signal_codes=signal_codes,

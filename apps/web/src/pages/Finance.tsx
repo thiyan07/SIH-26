@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAnalysis } from '../lib/analysisStore'
 import { Card, CardHeader, Disclaimer, StatCard, Badge } from '../components/ui'
 import { schedule, emi } from '../lib/finance'
 import { tr, interpolate, schemeDecisionLabel, type Language } from '../lib/i18n'
 import { formatINR } from './Dashboard'
 import { LoanComparison } from '../components/LoanComparison'
-import { CalendarReminders } from '../components/CalendarReminders'
 
 export function Finance() {
-  const { result, setResult, form, lang, selectedSchemeCode, selectedSchemeName } = useAnalysis()
+  const navigate = useNavigate()
+  const { result, setResult, form, lang, selectedSchemeCode, selectedSchemeName, financeConfirmed, setFinanceConfirmed } = useAnalysis()
   const fp = result?.financial_plan as any
   const repayment = result?.repayment as any
   const [tabs, setTabs] = useState<'plan' | 'schedule' | 'compare'>('plan')
@@ -162,7 +163,15 @@ export function Finance() {
         <StatCard label={tr('repayHealth', lang)} value={repayHealth === 'High' || repayHealth === 'High-Risk' || repayHealth === 'High risk' ? tr('highRisk', lang) : repayHealth} />
       </div>
 
-      <CalendarReminders />
+      <Card>
+        <CardHeader title="Is this financing plan okay?" subtitle="Confirm to proceed to Simulator" />
+        <div className="flex flex-wrap gap-3">
+          <button onClick={() => { setFinanceConfirmed(true); navigate('/simulator') }} className="rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-brand-700">Okay / Continue →</button>
+          <button onClick={() => navigate('/schemes')} className="rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">Back</button>
+        </div>
+        {financeConfirmed && <p className="mt-2 text-xs text-green-600">✓ Financing confirmed — you may proceed to Simulator</p>}
+      </Card>
+
       {me && (
         <Card>
           <CardHeader title={tr('monthlyCashflow', lang)} subtitle={tr('cashflowSub', lang)} />
