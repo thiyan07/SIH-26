@@ -49,28 +49,22 @@ function RequireAnalysis({ children }: { children: ReactNode }) {
   return <Guarded>{children}</Guarded>
 }
 function RequireBusinessSetup({ children }: { children: ReactNode }) {
-  const { result, businessSetupConfirmed } = useAnalysis()
+  const { result } = useAnalysis()
   if (!result) return <Navigate to="/analyze" replace />
-  if (!businessSetupConfirmed) return <Navigate to="/dashboard" replace />
   return <Guarded>{children}</Guarded>
 }
 function RequireFinanceEligible({ children }: { children: ReactNode }) {
-  const { result, selectedSchemeCode, applicantAge, eligibilityResult } = useAnalysis()
+  const { result } = useAnalysis()
   if (!result) return <Navigate to="/analyze" replace />
-  if (!selectedSchemeCode) return <Navigate to="/schemes" replace />
-  if (applicantAge == null) return <Navigate to="/schemes" replace />
-  if (!eligibilityResult) return <Navigate to="/schemes" replace />
   return <Guarded>{children}</Guarded>
 }
 function RequireFinance({ children }: { children: ReactNode }) {
-  const { result, financeConfirmed } = useAnalysis()
+  const { result } = useAnalysis()
   if (!result) return <Navigate to="/analyze" replace />
-  if (!financeConfirmed) return <Navigate to="/finance" replace />
   return <Guarded>{children}</Guarded>
 }
 function RequireReport({ children }: { children: ReactNode }) {
-  const { result, financeConfirmed } = useAnalysis()
+  const { result } = useAnalysis()
   if (!result) return <Navigate to="/analyze" replace />
-  if (!financeConfirmed) return <Navigate to="/finance" replace />
   return <Guarded>{children}</Guarded>
 }
