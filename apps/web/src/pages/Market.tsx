@@ -16,7 +16,7 @@ export function Market() {
   const [infrastructure, setInfrastructure] = useState<InfrastructurePoint[]>([])
   const [layersNote, setLayersNote] = useState('')
   const [allBusinesses, setAllBusinesses] = useState<Business[]>([])
-  const [radiusKm, setRadiusKm] = useState(10)
+  const radiusKm = 10
   const [demoLoading, setDemoLoading] = useState(false)
 
   const loadDemo = async () => {
@@ -101,19 +101,7 @@ export function Market() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader title={tr('liveMapNearby', lang)} subtitle={tr('liveMapSub', lang)} />
-            <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-medium text-slate-600">Radius: {radiusKm} km</span>
-              <input
-                type="range"
-                min={5}
-                max={20}
-                value={radiusKm}
-                onChange={(e) => setRadiusKm(Number(e.target.value))}
-                className="h-1 w-24 accent-brand-600"
-                data-testid="market-radius"
-              />
-              <span className="text-xs text-slate-500">5km — 20km (live)</span>
-            </div>
+            <p className="mb-2 text-xs text-slate-500">Showing businesses within {radiusKm} km of your location.</p>
             <BusinessMap
               center={{ latitude: result.location.latitude, longitude: result.location.longitude }}
               businesses={allBusinesses.length ? allBusinesses : (bc?.businesses || [])}

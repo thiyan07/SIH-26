@@ -13,7 +13,6 @@ const ITEMS: Item[] = [
   { to: '/simulator', labelKey: 'navSimulator', icon: '🎛️', desc: 'Simulate', group: 'Money' },
   { to: '/report', labelKey: 'navReport', icon: '📄', desc: 'Report', group: 'Output' },
   { to: '/videos', labelKey: 'navVideos' as any, icon: '🎥', desc: 'Apply', group: 'Output' },
-  { to: '/expenses', labelKey: 'navExpenses' as any, icon: '💰', desc: 'Ledger', group: 'Money' },
 ]
 
 const GROUPS = ['Plan','Discover','Money','Output'] as const

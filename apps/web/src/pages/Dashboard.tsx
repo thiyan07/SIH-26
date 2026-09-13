@@ -259,14 +259,20 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Business Setup CTA — detailed budget split lives there */}
-      <Card>
-        <CardHeader title="Business Setup" subtitle="Review startup requirements, inventory and recommended budget split." />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-gray-600">See what you need to start, including equipment, inventory and budget breakdown.</p>
-          <a href="/business-setup" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Go to Business Setup →</a>
-        </div>
-      </Card>
+      {/* Business Setup CTA — detailed budget split lives there — hide when NEGATIVE to force re-analyse */}
+      {(() => {
+        const v = (result as any).viability
+        if (v?.decision === 'AVOID') return null
+        return (
+          <Card>
+            <CardHeader title="Business Setup" subtitle="Review startup requirements, inventory and recommended budget split." />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-gray-600">See what you need to start, including equipment, inventory and budget breakdown.</p>
+              <a href="/business-setup" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Go to Business Setup →</a>
+            </div>
+          </Card>
+        )
+      })()}
 
       {/* 6. FINANCING — already shown above; working capital & scale fit */}
       {(() => {

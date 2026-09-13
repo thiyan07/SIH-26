@@ -171,6 +171,9 @@ export function Analyze() {
         language: advisoryLang,
       })
       const next = { ...form }
+      let districtChanged = false
+      let blockChanged = false
+      let locationChanged = false
       if (parsed.business_type) {
         next.category_code = parsed.business_type
         setAutoRecommend(false)
@@ -186,30 +189,74 @@ export function Analyze() {
       const newBlock = parsed.location?.block
       const newVillage = parsed.location?.village
       const newState = parsed.location?.state
-      if (newState) next.state = newState
+      if (newState && newState.toLowerCase() !== (form.state || '').toLowerCase()) {
+        next.state = newState
+        locationChanged = true
+      } else if (newState) {
+        next.state = newState
+      }
       if (newDistrict) {
-        // If district changes, clear stale block/village if new ones are empty
-        const districtChanged = newDistrict && newDistrict.toLowerCase() !== (form.district || '').toLowerCase()
+        districtChanged = newDistrict.toLowerCase() !== (form.district || '').toLowerCase()
         next.district = newDistrict
-        if (newBlock) next.block = newBlock
-        else if (districtChanged) next.block = ''
-        if (newVillage) next.village = newVillage
-        else if (districtChanged) next.village = ''
+        if (newBlock) {
+          if (newBlock.toLowerCase() !== (form.block || '').toLowerCase()) blockChanged = true
+          next.block = newBlock
+        } else if (districtChanged) {
+          next.block = ''
+          blockChanged = true
+        }
+        if (newVillage) {
+          next.village = newVillage
+        } else if (districtChanged) {
+          next.village = ''
+        }
+        if (districtChanged) locationChanged = true
       } else {
-        if (newBlock) next.block = newBlock
-        if (newVillage) next.village = newVillage
+        if (newBlock) {
+          if (newBlock.toLowerCase() !== (form.block || '').toLowerCase()) {
+            next.block = newBlock
+            blockChanged = true
+            locationChanged = true
+          } else {
+            next.block = newBlock
+          }
+        }
+        if (newVillage) {
+          if (newVillage.toLowerCase() !== (form.village || '').toLowerCase()) locationChanged = true
+          next.village = newVillage
+        }
       }
       // If block is known but district is still empty, infer district/state via location logic (Perundurai -> Erode)
       if (newBlock && !next.district) {
         const lower = newBlock.toLowerCase()
-        if (['perundurai','bhavani','gobichettipalayam','sathyamangalam','anthiyur','nambiyur','modakkurichi','erode'].includes(lower)) {
+        if (['perundurai','bhavani','gobichettipalayam','sathyamangalam','anthiyur','nambiyur','modakkurichi','chennimalai','erode'].includes(lower)) {
           next.district = 'Erode'
           if (!next.state) next.state = 'Tamil Nadu'
+          districtChanged = true
+          locationChanged = true
         }
       }
       // Ensure at least state is set if district was set
       if (newDistrict && !next.state) next.state = 'Tamil Nadu'
-      // If location resolved, try to geocode to lat/lng via search
+      // If location changed via parse, reset map pin and q so user sees updated location and must confirm
+      if (locationChanged) {
+        next.latitude = 0
+        next.longitude = 0
+        next.q = ''
+        setAreaPinned(false)
+        setDraftProposed(null)
+        setConfirmedProposed(null)
+      }
+      // Keep q in sync with structured location when we have a new location
+      if (newDistrict || newBlock || newVillage || newState) {
+        const qParts = [next.village, next.block, next.district, next.state].filter(Boolean)
+        if (qParts.length) {
+          // Only auto-update q if it was empty or location changed
+          if (!form.q.trim() || locationChanged || districtChanged || blockChanged) {
+            next.q = qParts.join(', ')
+          }
+        }
+      }
       setLocalForm(next)
       setAdvisoryNote(
         interpolate(tr('advisoryParsedAs', lang), {
@@ -218,8 +265,9 @@ export function Analyze() {
           pct: String(Math.round((parsed.confidence?.overall ?? 0) * 100)),
         }),
       )
-      // If we have district/block/village but no coordinates, attempt to resolve coordinates
-      if ((next.district || next.block || next.village) && !next.latitude) {
+      // If we have district/block/village but no coordinates (or location changed), attempt to resolve coordinates
+      const needsGeocode = (next.district || next.block || next.village) && (!next.latitude || locationChanged)
+      if (needsGeocode) {
         try {
           const qParts = [next.village, next.block, next.district].filter(Boolean).join(' ')
           if (qParts) {

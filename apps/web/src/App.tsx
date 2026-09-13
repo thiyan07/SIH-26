@@ -10,7 +10,6 @@ import { Finance } from './pages/Finance'
 import { Simulator } from './pages/Simulator'
 import { Report } from './pages/Report'
 import { Schemes } from './pages/Schemes'
-import { ExpenseTracker } from './pages/ExpenseTracker'
 import { BusinessSetup } from './pages/BusinessSetup'
 import { VideoTutorials } from './pages/VideoTutorials'
 import { useAnalysis } from './lib/analysisStore'
@@ -32,7 +31,6 @@ export default function App() {
         <Route path="/simulator" element={<RequireFinance><Simulator /></RequireFinance>} />
         <Route path="/report" element={<RequireReport><Report /></RequireReport>} />
         <Route path="/videos" element={<RequireReport><VideoTutorials /></RequireReport>} />
-        <Route path="/expenses" element={<Guarded><ExpenseTracker /></Guarded>} />
       </Routes>
     </Layout>
   )

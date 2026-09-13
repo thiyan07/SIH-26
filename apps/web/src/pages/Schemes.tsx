@@ -164,17 +164,30 @@ export function Schemes() {
           </div>
           <div className="rounded-lg bg-white p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={handleConfirmScheme}
-                disabled={submitting || !selectedSchemeCode}
-                className="rounded-lg bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
-                data-testid="scheme-submit"
-              >
-                {submitting ? 'Checking...' : 'Confirm Scheme'}
-              </button>
-              {effectiveAge != null && <span className="text-xs text-gray-600">Age {effectiveAge} will be used for eligibility</span>}
-              {eligibilityResult && (
-                <a href="/finance" className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white hover:bg-black">View Finance →</a>
+              {eligibilityResult && eligibilityResult.scheme_code === selectedSchemeCode ? (
+                <>
+                  <button
+                    disabled
+                    className="rounded-lg bg-green-600 px-5 py-2 text-sm font-bold text-white opacity-90"
+                    data-testid="scheme-submit"
+                  >
+                    Confirmed ✓
+                  </button>
+                  <span className="text-xs font-medium text-green-700">Scheme confirmed — eligibility evaluated</span>
+                  <a href="/finance" className="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white hover:bg-black">View Finance →</a>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={handleConfirmScheme}
+                    disabled={submitting || !selectedSchemeCode}
+                    className="rounded-lg bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50"
+                    data-testid="scheme-submit"
+                  >
+                    {submitting ? 'Checking...' : 'Confirm Scheme'}
+                  </button>
+                  {effectiveAge != null && <span className="text-xs text-gray-600">Age {effectiveAge} will be used for eligibility</span>}
+                </>
               )}
             </div>
             <p className="mt-2 text-xs text-gray-500">Age is taken from Analyze for schemes with age limits (e.g. 18-45). Update age on the Analyze page if needed.</p>
