@@ -93,7 +93,7 @@ export function BusinessSetup() {
     if (ok) {
       navigate('/market')
     } else {
-      navigate('/dashboard')
+      navigate('/analyze')
     }
   }
 
@@ -203,15 +203,13 @@ export function BusinessSetup() {
         </div>
         <div className="mt-6">
           <h3 className="text-sm font-bold text-gray-900">Is this budget split okay?</h3>
-          <p className="mt-1 text-xs text-gray-500">Confirm to proceed to Market Intelligence, or go back to adjust your budget on the Dashboard.</p>
+          <p className="mt-1 text-xs text-gray-500">Confirm to proceed to Market Intelligence, or return to Analyze to change your inputs.</p>
           <div className="mt-4 flex gap-3">
             <button onClick={() => handleConfirm(true)} disabled={confirming} className="flex-1 rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50">Yes, Continue →</button>
-            <button onClick={() => handleConfirm(false)} disabled={confirming} className="flex-1 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">No, Back to Dashboard</button>
+            <button onClick={() => handleConfirm(false)} disabled={confirming} className="flex-1 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Change Business Analysis</button>
           </div>
         </div>
       </Card>
-
-      <div className="text-[11px] italic text-gray-500">Data status: {p.data_status} · {p.assumptions?.join(' ') || ''} Confidence: {p.confidence}</div>
       {loading && <div className="text-xs text-gray-400">Updating…</div>}
     </div>
   )

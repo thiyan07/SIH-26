@@ -31,9 +31,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 ERODE_BLOCKS = [
-    "erode", "gobichettipalayam", "bhavani", "perundurai",
-    "sathyamangalam", "sathy", "nambiyur", "anthiyur",
-    "modakkurichi", "kadathur", "tally", "palladam",
+    "gobichettipalayam", "sathyamangalam", "modakkurichi", "perundurai",
+    "nambiyur", "anthiyur", "bhavani", "chennimalai", "kadathur", "palladam",
+    "tally", "erode", "sathy",
 ]
 
 # Local-script aliases mapping to canonical block names (for ta/hi input).
@@ -149,8 +149,9 @@ COST_KEYWORDS = {
 }
 
 CAPITAL_KEYWORDS = {
-    "en": [r"(?:have|with|available)\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)?",
-           r"capital\s*(?:of|is|:)?\s*₹?\s*([\d,]+)", r"savings?\s*(?:of|is|:)?\s*₹?\s*([\d,]+)"],
+    "en": [r"(?:have|with|available)(?:\s+\w+){0,3}\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)?",
+           r"capital\s*(?:of|is|:)?\s*₹?\s*([\d,]+)", r"savings?\s*(?:of|is|:)?\s*₹?\s*([\d,]+)",
+           r"investment\s*(?:of|is|:)?\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)?"],
     "ta": [r"முதலீடு\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:லட்சம்|இலட்சம்)?",
            r"சேமிப்பு\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:லட்சம்|இலட்சம்)?",
            r"([\d,]+(?:\.\d+)?)\s*லட்சம்", r"([\d,]+(?:\.\d+)?)\s*இலட்சம்"],
@@ -258,9 +259,9 @@ def extract_location(text: str) -> dict:
                 result["district"] = "Erode"
                 result["state"] = "Tamil Nadu"
 
-    # Block (Latin names or local-script aliases)
+    # Block (Latin names or local-script aliases) — longest first to avoid erode shadowing perundurai
     if not result["block"]:
-        for block in ERODE_BLOCKS:
+        for block in sorted(ERODE_BLOCKS, key=len, reverse=True):
             if re.search(r'\b' + re.escape(block) + r'\b', text_lower):
                 result["block"] = block.title()
                 break
@@ -272,7 +273,7 @@ def extract_location(text: str) -> dict:
 
     # Village (Latin names or local-script aliases)
     if not result["village"]:
-        for village in ERODE_VILLAGES:
+        for village in sorted(ERODE_VILLAGES, key=len, reverse=True):
             if re.search(r'\b' + re.escape(village) + r'\b', text_lower):
                 result["village"] = village.title()
                 break
@@ -285,6 +286,11 @@ def extract_location(text: str) -> dict:
     # Infer district/state from block if block is known Erode block
     if result["block"] and not result["district"]:
         if result["block"].lower() in ("perundurai", "bhavani", "gobichettipalayam", "sathyamangalam", "anthiyur", "nambiyur", "modakkurichi", "chennimalai", "erode"):
+            result["district"] = "Erode"
+            result["state"] = "Tamil Nadu"
+    # Infer district/state from village if village is known Erode village
+    if result["village"] and not result["district"]:
+        if result["village"].lower() in [v.lower() for v in ERODE_VILLAGES]:
             result["district"] = "Erode"
             result["state"] = "Tamil Nadu"
     if result["district"] and not result["state"]:

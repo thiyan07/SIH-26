@@ -11,7 +11,7 @@ import { useAnalysis } from '../lib/analysisStore'
 import { LINK_BRAND } from '../lib/theme'
 import { Badge, Card, CardHeader, Disclaimer } from '../components/ui'
 import { Spotlight } from '../components/aceternity/BackgroundBeams'
-import { tr, interpolate, recommendationLabel, type Language } from '../lib/i18n'
+import { tr, recommendationLabel, type Language } from '../lib/i18n'
 
 const RECO_COLOR: Record<string, string> = { GO: 'green', MODIFY: 'amber', AVOID: 'red' }
 
@@ -22,7 +22,6 @@ export function Dashboard() {
   const { recommendation, financial_plan: fp, profit_model: pm } = result
   const me = result.monthly_economics
   const si = result.seasonal_intelligence
-  const wi = result.weather_intelligence
   const prs = result.product_recommendations
   // AI Suggested Opportunities removed - no longer shown on Dashboard per requirements
 
@@ -84,6 +83,12 @@ export function Dashboard() {
                 </ul>
               </div>
             ): null}
+            {v.decision === 'AVOID' && (
+              <div className="mt-4 flex flex-wrap gap-3">
+                <a href="/analyze" className="rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white hover:bg-brand-700 shadow">Go to Analyze & Change Input →</a>
+                <a href="/" className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Exit</a>
+              </div>
+            )}
           </Card>
         )
       })()}
@@ -254,12 +259,12 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Re-analyse Budget CTA */}
+      {/* Business Setup CTA — detailed budget split lives there */}
       <Card>
-        <CardHeader title="Budget Allocation" subtitle="Adjust your startup budget and re-run the authoritative analysis" />
+        <CardHeader title="Business Setup" subtitle="Review startup requirements, inventory and recommended budget split." />
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-gray-600">Modify the budget split from Business Setup and regenerate the financial plan through the backend.</p>
-          <a href="/business-setup" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Re-analyse Budget →</a>
+          <p className="text-sm text-gray-600">See what you need to start, including equipment, inventory and budget breakdown.</p>
+          <a href="/business-setup" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Go to Business Setup →</a>
         </div>
       </Card>
 
@@ -327,80 +332,6 @@ export function Dashboard() {
 
 
 
-      {wi ? (
-        <div className="grid gap-6 lg:grid-cols-1">
-          <Card>
-            <CardHeader title={tr('weatherClimate', lang)} subtitle={weatherSummary(result, lang)} />
-            <WeatherPanel weather={result.weather} lang={lang} />
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              <div className="flex flex-wrap items-center gap-2 whitespace-normal text-xs text-gray-600">
-                <span className="break-words whitespace-normal">{tr('categoryClimateSensitivity', lang)}</span>
-                <Badge color={sensitivityColor(wi.sensitivity)}>{wi.sensitivity || '—'}</Badge>
-                {!wi.relevant && <span className="text-[11px] text-gray-500">(indirect impact)</span>}
-              </div>
-              {wi.reason && <p className="mt-1 break-words whitespace-normal text-[11px] italic text-gray-500">{wi.reason}</p>}
-              {wi.note && <p className="mt-1 break-words whitespace-normal text-[11px] text-gray-600">{wi.note}</p>}
-              {wi.relevant === false && wi.risk?.factors == null && <p className="mt-1 text-[11px] text-green-700">No extreme weather flags at this location; low climate risk for this category.</p>}
-            </div>
-          </Card>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
-function weatherSummary(result: any, lang: Language): string {
-  const w = result?.weather
-  if (!w) return tr('noLiveRowsStored', lang)
-  if (!w.available) return tr('weatherUnavailableDefault', lang)
-  return `${interpolate(tr('weatherRows', lang), { n: w.records?.length || 0 })} · +${w.risk?.risk_delta ?? 0}`
-}
-
-const RISK_COLOR: Record<string, string> = {
-  heat_stress: 'amber',
-  drought: 'red',
-  flood_risk: 'blue',
-}
-
-function WeatherPanel({ weather, lang }: { weather?: any; lang: Language }) {
-  const records = weather?.records || []
-  const latest = records[records.length - 1]
-  const factors = weather?.risk?.factors || null
-
-  const latestRow =
-    latest && latest.value != null ? (
-      <div className="text-sm">
-        {tr('latestRecordedIndicator', lang)}: <strong>{latest.indicator}</strong> = {latest.value}
-        {latest.unit ? ` ${latest.unit}` : ''}
-        {latest.date ? ` ${tr('onPrefix', lang)} ${String(latest.date).slice(0, 10)}` : ''}
-      </div>
-    ) : null
-
-  return (
-    <div className="space-y-2 text-xs text-gray-600">
-      {!weather?.available && (
-        <div className="box-border rounded-lg bg-gray-50 p-3 px-4 break-words whitespace-normal">
-          {tr('noWeatherWithin5km', lang)}
-        </div>
-      )}
-      {latestRow && <div className="box-border rounded-lg bg-gray-50 p-3 px-4 break-words whitespace-normal">{latestRow}</div>}
-      {!factors && weather?.available && (
-        <div className="box-border rounded-lg bg-green-50 p-3 px-4 break-words whitespace-normal text-green-700">{tr('noClimateRiskFlags', lang)}</div>
-      )}
-      {factors && (
-        <ul className="space-y-1.5">
-          {factors.map((f: any) => (
-            <li key={f.factor} className="box-border flex flex-wrap items-center justify-between gap-2 whitespace-normal rounded-lg bg-gray-50 p-3 px-4">
-              <span>
-                <Badge color={RISK_COLOR[f.factor] || 'gray'}>{f.factor.replace('_', ' ')}</Badge>{' '}
-                <span className="capitalize">{f.level}</span>
-              </span>
-              <span className="font-medium text-gray-800">+{f.risk_delta}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {factors && <p className="text-[11px] italic text-gray-500">{tr('storedWeatherRows', lang)}</p>}
     </div>
   )
 }
@@ -498,10 +429,6 @@ export function formatINR(n: number | undefined | null): string {
 function monthName(m: number | undefined | null, lang: Language = 'en'): string {
   if (m == null || m < 0 || m > 11) return '—'
   return tr('monthNames', lang).split(',')[m]
-}
-
-function sensitivityColor(v: string | undefined): any {
-  return v === 'VERY HIGH' || v === 'HIGH' ? 'red' : v === 'MEDIUM' ? 'amber' : 'gray'
 }
 
 function seasonLabelColor(v: string | undefined): any {

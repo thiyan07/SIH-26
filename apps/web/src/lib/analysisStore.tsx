@@ -16,6 +16,10 @@ interface Store {
   setResult: (r: AnalysisResult) => void
   form: Record<string, unknown> | null
   setForm: (f: Record<string, unknown>) => void
+  advisoryText: string
+  setAdvisoryText: (s: string) => void
+  advisoryLang: Language
+  setAdvisoryLang: (l: Language) => void
   selectedSchemeCode: string | null
   setSelectedSchemeCode: (code: string | null) => void
   selectedSchemeName: string | null
@@ -53,6 +57,8 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Language>('en')
   const [result, setResult] = useState<AnalysisResult | null>(null)
   const [form, setForm] = useState<Record<string, unknown> | null>(null)
+  const [advisoryText, setAdvisoryText] = useState<string>('')
+  const [advisoryLang, setAdvisoryLang] = useState<Language>('en')
   const [selectedSchemeCode, setSelectedSchemeCodeRaw] = useState<string | null>(null)
   const [businessSetupConfirmed, setBusinessSetupConfirmedRaw] = useState<boolean>(false)
   const [budgetAllocation, setBudgetAllocationRaw] = useState<Record<string, number> | null>(null)
@@ -188,7 +194,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     return selectedSchemeCode
   })()
 
-  return <Ctx.Provider value={{ lang, setLang, result, setResult: persist, form, setForm, selectedSchemeCode, setSelectedSchemeCode, selectedSchemeName, businessSetupConfirmed, setBusinessSetupConfirmed, budgetAllocation, setBudgetAllocation, financeConfirmed, setFinanceConfirmed, simulatorSkipped, setSimulatorSkipped, applicantDetails, setApplicantDetails, applicantAge, setApplicantAge, eligibilityResult, setEligibilityResult, clearJourney, isHydrated }}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={{ lang, setLang, result, setResult: persist, form, setForm, advisoryText, setAdvisoryText, advisoryLang, setAdvisoryLang, selectedSchemeCode, setSelectedSchemeCode, selectedSchemeName, businessSetupConfirmed, setBusinessSetupConfirmed, budgetAllocation, setBudgetAllocation, financeConfirmed, setFinanceConfirmed, simulatorSkipped, setSimulatorSkipped, applicantDetails, setApplicantDetails, applicantAge, setApplicantAge, eligibilityResult, setEligibilityResult, clearJourney, isHydrated }}>{children}</Ctx.Provider>
 }
 
 export function useAnalysis(): Store {

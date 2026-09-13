@@ -9,19 +9,35 @@ import { BackgroundBeams, Spotlight } from '../components/aceternity/BackgroundB
 import { BentoGrid, BentoCard } from '../components/aceternity/BentoGrid'
 
 import { tr, interpolate, type Language } from '../lib/i18n'
-import type { AnalysisResult, Category, LocationOut, AdvisoryParseOutput, AdvisoryReport } from '../types'
+import type { AnalysisResult, Category, LocationOut, AdvisoryParseOutput } from '../types'
 
 
 export function Analyze() {
   const navigate = useNavigate()
-  const { result, setResult, setForm, lang } = useAnalysis()
+  const { result, setResult, form: storedForm, setForm, lang, advisoryText: storedAdvisoryText, setAdvisoryText: setStoredAdvisoryText, advisoryLang: storedAdvisoryLang, setAdvisoryLang: setStoredAdvisoryLang, setApplicantAge } = useAnalysis() as any
   const [categories, setCategories] = useState<Category[]>([])
   const [locations, setLocations] = useState<LocationOut[]>([])
   const [searching, setSearching] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autoRecommend, setAutoRecommend] = useState(false)
-  const [form, setLocalForm] = useState({
+  const initialForm = storedForm ? {
+    q: (storedForm.q as string) || '',
+    state: (storedForm.state as string) || '',
+    district: (storedForm.district as string) || '',
+    block: (storedForm.block as string) || '',
+    village: (storedForm.village as string) || '',
+    latitude: (storedForm.latitude as number) || 0,
+    longitude: (storedForm.longitude as number) || 0,
+    capital_available: (storedForm.capital_available as number) || 100000,
+    category_code: (storedForm.category_code as string) || 'dairy',
+    business_experience: (storedForm.business_experience as boolean) || false,
+    existing_shop: (storedForm.existing_shop as boolean) || false,
+    existing_equipment: (storedForm.existing_equipment as boolean) || false,
+    family_members: (storedForm.family_members as number) || 0,
+    preferred_scale: (storedForm.preferred_scale as string) || 'small',
+    applicant_age: (storedForm.applicant_age as number) || 28,
+  } : {
     q: '',
     state: '',
     district: '',
@@ -37,18 +53,27 @@ export function Analyze() {
     family_members: 0,
     preferred_scale: 'small',
     applicant_age: 28,
-  })
-  const [areaPinned, setAreaPinned] = useState(false)
-  const [draftProposed, setDraftProposed] = useState<{ lat: number; lng: number } | null>(null)
-  const [confirmedProposed, setConfirmedProposed] = useState<{ lat: number; lng: number } | null>(null)
+  }
+  const [form, setLocalForm] = useState(initialForm)
+  const [areaPinned, setAreaPinned] = useState(!!initialForm.latitude && !!initialForm.longitude)
+  const [draftProposed, setDraftProposed] = useState<{ lat: number; lng: number } | null>(initialForm.latitude && initialForm.longitude ? { lat: initialForm.latitude, lng: initialForm.longitude } : null)
+  const [confirmedProposed, setConfirmedProposed] = useState<{ lat: number; lng: number } | null>(initialForm.latitude && initialForm.longitude ? { lat: initialForm.latitude, lng: initialForm.longitude } : null)
 
-  const [advisoryText, setAdvisoryText] = useState('')
-  const [advisoryLang, setAdvisoryLang] = useState<Language>('en')
+  const [advisoryText, setAdvisoryText] = useState(storedAdvisoryText || '')
+  const [advisoryLang, setAdvisoryLang] = useState<Language>(storedAdvisoryLang || 'en')
   const [advisoryParsing, setAdvisoryParsing] = useState(false)
-  const [advisoryReport, setAdvisoryReport] = useState<AdvisoryReport | null>(null)
-  const [advisoryLoading, setAdvisoryLoading] = useState(false)
   const [advisoryError, setAdvisoryError] = useState<string | null>(null)
   const [advisoryNote, setAdvisoryNote] = useState<string | null>(null)
+
+  // Persist advisory text/lang to store (survives navigation, clears on refresh)
+  useEffect(() => { setStoredAdvisoryText(advisoryText) }, [advisoryText])
+  useEffect(() => { setStoredAdvisoryLang(advisoryLang) }, [advisoryLang])
+
+  // Persist form draft to store on every change (so navigation preserves it)
+  useEffect(() => {
+    setForm(form as any)
+    if (form.applicant_age) setApplicantAge(form.applicant_age)
+  }, [form])
 
   useEffect(() => {
     api.get<{ categories: Category[] }>('/financial/categories')
@@ -151,7 +176,11 @@ export function Analyze() {
         setAutoRecommend(false)
       }
       if (parsed.scale) next.preferred_scale = parsed.scale
-      if (parsed.project_cost) next.capital_available = parsed.project_cost
+      // Capital: prefer capital_available, fallback to project_cost
+      const capital = (parsed as any).capital_available ?? parsed.project_cost
+      if (capital) next.capital_available = capital
+      // Age if extracted
+      if ((parsed as any).age) next.applicant_age = (parsed as any).age
       // Location: update only if provided, but clear block/village if district changes and new block/village is empty
       const newDistrict = parsed.location?.district
       const newBlock = parsed.location?.block
@@ -170,10 +199,18 @@ export function Analyze() {
         if (newBlock) next.block = newBlock
         if (newVillage) next.village = newVillage
       }
+      // If block is known but district is still empty, infer district/state via location logic (Perundurai -> Erode)
+      if (newBlock && !next.district) {
+        const lower = newBlock.toLowerCase()
+        if (['perundurai','bhavani','gobichettipalayam','sathyamangalam','anthiyur','nambiyur','modakkurichi','erode'].includes(lower)) {
+          next.district = 'Erode'
+          if (!next.state) next.state = 'Tamil Nadu'
+        }
+      }
       // Ensure at least state is set if district was set
       if (newDistrict && !next.state) next.state = 'Tamil Nadu'
+      // If location resolved, try to geocode to lat/lng via search
       setLocalForm(next)
-      setForm(next as any)
       setAdvisoryNote(
         interpolate(tr('advisoryParsedAs', lang), {
           type: parsed.business_type || '—',
@@ -181,38 +218,35 @@ export function Analyze() {
           pct: String(Math.round((parsed.confidence?.overall ?? 0) * 100)),
         }),
       )
+      // If we have district/block/village but no coordinates, attempt to resolve coordinates
+      if ((next.district || next.block || next.village) && !next.latitude) {
+        try {
+          const qParts = [next.village, next.block, next.district].filter(Boolean).join(' ')
+          if (qParts) {
+            const locs = await api.get<LocationOut[]>(`/locations/search?q=${encodeURIComponent(qParts)}&limit=5`)
+            if (locs.length) {
+              const best = locs[0]
+              setLocalForm((f) => ({
+                ...f,
+                q: [best.village, best.block, best.district, best.state].filter(Boolean).join(', '),
+                state: best.state || f.state,
+                district: best.district || f.district,
+                block: best.block || f.block,
+                village: best.village || f.village,
+                latitude: best.latitude,
+                longitude: best.longitude,
+              }))
+              setAreaPinned(true)
+              setDraftProposed({ lat: best.latitude, lng: best.longitude })
+              setConfirmedProposed(null)
+            }
+          }
+        } catch { /* ignore geocode failure, let user pick manually */ }
+      }
     } catch (e: any) {
       setAdvisoryError(e.message || tr('couldNotParse', lang))
     } finally {
       setAdvisoryParsing(false)
-    }
-  }
-
-  const runFullAdvisory = async () => {
-    if (!advisoryText.trim()) return
-    setAdvisoryLoading(true)
-    setAdvisoryError(null)
-    setAdvisoryReport(null)
-    try {
-      const report = await api.post<AdvisoryReport>('/advisory/report', {
-        free_text: advisoryText,
-        language: advisoryLang,
-        // Use pinned form location + selected category as fallback so report
-        // never shows "None District" / generic "Business" when free text is vague
-        state: form.state || undefined,
-        district: form.district || undefined,
-        block: form.block || undefined,
-        village: form.village || undefined,
-        business_type: autoRecommend ? undefined : (form.category_code || undefined),
-        scale: form.preferred_scale || undefined,
-        capital_available: form.capital_available || undefined,
-        project_cost: undefined,
-      })
-      setAdvisoryReport(report)
-    } catch (e: any) {
-      setAdvisoryError(e.message || tr('couldNotGenerateAdvisory', lang))
-    } finally {
-      setAdvisoryLoading(false)
     }
   }
 
@@ -247,6 +281,7 @@ export function Analyze() {
         applicant_age: form.applicant_age,
       }
       setForm(payload)
+      if (form.applicant_age) setApplicantAge(form.applicant_age)
       const res = await api.post<AnalysisResult>('/analysis', payload)
       setResult(res)
       navigate('/dashboard')
@@ -283,7 +318,7 @@ export function Analyze() {
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             />
             <div className="flex flex-wrap items-center gap-2">
-              <VoiceInput lang={advisoryLang} onResult={(t) => setAdvisoryText((prev) => (prev ? prev + ' ' : '') + t)} />
+              <VoiceInput lang={advisoryLang} onResult={(t) => setAdvisoryText((prev: string) => (prev ? prev + ' ' : '') + t)} />
               <select
                 value={advisoryLang}
                 onChange={(e) => setAdvisoryLang(e.target.value as Language)}
@@ -301,19 +336,11 @@ export function Analyze() {
               >
                 {advisoryParsing ? tr('parsing', advisoryLang) : tr('parsePrefill', advisoryLang)}
               </Button>
-              <Button
-                type="button"
-                onClick={runFullAdvisory}
-                disabled={advisoryLoading || !advisoryText.trim()}
-              >
-                {advisoryLoading ? tr('generating', advisoryLang) : tr('fullAdvisory', advisoryLang)}
-              </Button>
               {advisoryNote && <span className="text-xs font-medium text-emerald-700">{advisoryNote}</span>}
             </div>
             {advisoryError && (
               <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 text-sm text-red-700">{advisoryError}</div>
             )}
-            {advisoryReport && <AdvisoryReportView report={advisoryReport} lang={advisoryLang} />}
           </div>
         </div>
       </BackgroundBeams>
@@ -355,8 +382,31 @@ export function Analyze() {
                 )}
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <Field label={tr('state', lang)} value={form.state} onChange={(v) => setLocalForm((f) => ({ ...f, state: v }))} />
-                <Field label={tr('district', lang)} value={form.district} onChange={(v) => setLocalForm((f) => ({ ...f, district: v }))} />
+                <Field label={tr('state', lang)} value={form.state} onChange={(v) => {
+                  setLocalForm((f) => {
+                    // Changing state clears district/block/village and coords if state actually changed
+                    const changed = v.toLowerCase() !== (f.state || '').toLowerCase()
+                    if (changed) return { ...f, state: v, district: '', block: '', village: '', latitude: 0, longitude: 0, q: '' }
+                    return { ...f, state: v }
+                  })
+                  if (v.toLowerCase() !== (form.state || '').toLowerCase()) {
+                    setAreaPinned(false)
+                    setDraftProposed(null)
+                    setConfirmedProposed(null)
+                  }
+                }} />
+                <Field label={tr('district', lang)} value={form.district} onChange={(v) => {
+                  setLocalForm((f) => {
+                    const changed = v.toLowerCase() !== (f.district || '').toLowerCase()
+                    if (changed) return { ...f, district: v, block: '', village: '', latitude: 0, longitude: 0 }
+                    return { ...f, district: v }
+                  })
+                  if (v.toLowerCase() !== (form.district || '').toLowerCase()) {
+                    setAreaPinned(false)
+                    setDraftProposed(null)
+                    setConfirmedProposed(null)
+                  }
+                }} />
                 <Field label={tr('block', lang)} value={form.block} onChange={(v) => setLocalForm((f) => ({ ...f, block: v }))} />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -528,147 +578,6 @@ export function Analyze() {
       </form>
     </div>
   )
-}
-
-function speak(text: string, lang: Language) {
-  if (!('speechSynthesis' in window)) {
-    alert('Text-to-speech not supported in this browser. Try Chrome.')
-    return
-  }
-  // If already speaking, stop (toggle)
-  if (speechSynthesis.speaking) {
-    speechSynthesis.cancel()
-    return
-  }
-  const utter = new SpeechSynthesisUtterance(text)
-  utter.lang = lang === 'ta' ? 'ta-IN' : lang === 'hi' ? 'hi-IN' : 'en-IN'
-  utter.rate = 0.9
-  // Pick best available voice for language
-  const voices = speechSynthesis.getVoices()
-  const preferred = voices.find((v) => v.lang.toLowerCase().startsWith(utter.lang.toLowerCase().slice(0, 2)))
-    || voices.find((v) => v.lang.toLowerCase().includes('en'))
-  if (preferred) utter.voice = preferred
-  utter.onerror = () => speechSynthesis.cancel()
-  speechSynthesis.cancel()
-  // Some browsers need voices loaded async
-  if (voices.length === 0) {
-    speechSynthesis.addEventListener('voiceschanged', () => {
-      const vs = speechSynthesis.getVoices()
-      const pv = vs.find((v) => v.lang.toLowerCase().startsWith(utter.lang.toLowerCase().slice(0, 2)))
-      if (pv) utter.voice = pv
-      speechSynthesis.speak(utter)
-    }, { once: true })
-  } else {
-    speechSynthesis.speak(utter)
-  }
-}
-
-function AdvisoryReportView({ report, lang }: { report: AdvisoryReport; lang: Language }) {
-  const fs = report.financial_structure
-  const ls = fs?.loan_structure
-  const summary = report.summary
-  const schemes = report.scheme_eligibility ?? []
-  return (
-    <div className="mt-3 space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-gray-900">{tr('fullReportTitle', lang)}</h3>
-        {summary && (
-          <button
-            onClick={() => speak(summary.slice(0, 400), lang)}
-            className="rounded-lg bg-slate-900 px-2.5 py-1 text-xs font-semibold text-white hover:bg-slate-800"
-            title="Listen in Tamil/Hindi/English"
-          >
-            🔊 Listen
-          </button>
-        )}
-      </div>
-
-      {summary && <p className="rounded-lg bg-white p-3 text-sm text-gray-700">{summary}</p>}
-
-      <div className="grid gap-3 md:grid-cols-2">
-        {schemes.length > 0 && (
-          <div className="rounded-lg bg-white p-3">
-            <div className="mb-1 text-xs font-semibold uppercase text-gray-500">{tr('bestSchemes', lang)}</div>
-            <ul className="space-y-1">
-              {schemes.slice(0, 4).map((s) => (
-                <li key={s.scheme_code} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-800">{s.scheme_name}</span>
-                  <span className="rounded px-1.5 py-0.5 text-[10px] font-medium text-white bg-teal-600">
-                    {Math.round(s.match_score)}% · {s.status.slice(0, 3)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {ls && (
-          <div className="rounded-lg bg-white p-3">
-            <div className="mb-1 text-xs font-semibold uppercase text-gray-500">{tr('loanStructure', lang)}</div>
-            <dl className="space-y-1 text-sm">
-              <Row k={tr('recommendedScheme', lang)} v={fs?.recommended_scheme ?? ls.scheme_name ?? '—'} />
-              <Row k={tr('loanAmount', lang)} v={inr(ls.loan_amount)} />
-              <Row k={tr('interestRatePA', lang)} v={ls.interest_rate != null ? `${ls.interest_rate}%` : '—'} />
-              <Row k={tr('tenure', lang)} v={ls.tenure_years != null ? `${ls.tenure_years} ${tr('yr', lang)}` : '—'} />
-              <Row k={tr('emiDuringMoratorium', lang)} v={inr(ls.monthly_emi_during_moratorium)} />
-              <Row k={tr('emiAfterMoratorium', lang)} v={inr(ls.monthly_emi_after_moratorium)} />
-              <Row k={tr('totalInterest', lang)} v={inr(ls.total_interest)} />
-            </dl>
-            {ls && ls.is_assumed && (
-              <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
-                {tr('assumedFieldsNote', lang)}{' '}
-                {((ls.assumed_fields ?? []).length ? (ls.assumed_fields as string[]) : ['financial_terms']).join(', ')}.
-                {tr('verifyWithAgency', lang)}
-              </div>
-            )}
-            {ls.repayment_health?.label && (
-              <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-amber-800">
-                {tr('repayHealth', lang)}: {ls.repayment_health.label} {ls.repayment_health.disclaimer ? `· ${tr('estimate', lang)}` : ''}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {report.risks?.high?.length > 0 && (
-        <div className="rounded-lg bg-white p-3">
-          <div className="mb-1 text-xs font-semibold uppercase text-gray-500">{tr('keyRisks', lang)}</div>
-          <ul className="list-inside list-disc space-y-0.5 text-sm text-gray-700">
-            {report.risks.high.slice(0, 3).map((r: any, i: number) => (
-              <li key={i}>{r.risk || r}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {report.key_documents?.length > 0 && (
-        <div className="rounded-lg bg-white p-3">
-          <div className="mb-1 text-xs font-semibold uppercase text-gray-500">{tr('documentsNeeded', lang)}</div>
-          <ul className="list-inside list-disc space-y-0.5 text-sm text-gray-700">
-            {report.key_documents.slice(0, 8).map((d: any, i: number) => (
-              <li key={i}>{typeof d === 'string' ? d : d.document || d.name || JSON.stringify(d)}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {report.disclaimer && <p className="text-[11px] text-gray-500">{report.disclaimer}</p>}
-    </div>
-  )
-}
-
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="flex justify-between gap-3">
-      <dt className="text-gray-500">{k}</dt>
-      <dd className="font-medium text-gray-900">{v}</dd>
-    </div>
-  )
-}
-
-function inr(n?: number | null): string {
-  if (n == null || Number.isNaN(n)) return '—'
-  return '₹' + Math.round(n).toLocaleString('en-IN')
 }
 
 function Field({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {

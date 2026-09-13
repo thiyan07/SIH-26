@@ -7,9 +7,9 @@ const dict = {
     hi: 'अपने व्यवसाय का विश्लेषण करें',
   },
   exploreDemo: {
-    en: 'Explore Demo',
-    ta: 'டெமோவை பார்க்க',
-    hi: 'डेमो देखें',
+    en: 'Get Started',
+    ta: 'தொடங்குங்கள்',
+    hi: 'शुरू करें',
   },
   opportunity: {
     en: 'Overall Opportunity',
@@ -76,9 +76,9 @@ const dict = {
     hi: 'हाइपर-लोकल व्यावसायिक बुद्धिमत्ता',
   },
   footer: {
-    en: '© OpenStreetMap contributors · GramBiz AI demo — scores and loan guidance are estimates, not guarantees.',
-    ta: '© OpenStreetMap பங்களிப்பாளர்கள் · GramBiz AI டெமோ — மதிப்பெண்கள் மற்றும் கடன் வழிகாட்டி மதிப்பீடுகள், உத்தரவாதங்கள் அல்ல.',
-    hi: '© OpenStreetMap योगदानकर्ता · GramBiz AI डेमो — स्कोर और ऋण मार्गदर्शन अनुमान हैं, गारंटी नहीं।',
+    en: '© OpenStreetMap contributors · GramBiz AI — Advisory results and loan guidance are estimates and may vary based on actual conditions.',
+    ta: '© OpenStreetMap பங்களிப்பாளர்கள் · GramBiz AI — ஆலோசனை முடிவுகள் மற்றும் கடன் வழிகாட்டுதல் மதிப்பீடுகள் மற்றும் உண்மையான நிலைமைகளைப் பொறுத்து மாறுபடலாம்.',
+    hi: '© OpenStreetMap योगदानकर्ता · GramBiz AI — सलाह परिणाम और ऋण मार्गदर्शन अनुमान हैं और वास्तविक स्थितियों के आधार पर भिन्न हो सकते हैं।',
   },
   // ── Advisory (NLP) ──
   advisoryTitle: {
@@ -87,9 +87,9 @@ const dict = {
     hi: 'अपने व्यवसाय का सरल शब्दों में वर्णन करें (बहुभाषी)',
   },
   advisorySubtitle: {
-    en: 'Type or paste a sentence in English, தமிழ், or हिंदी. GramBiz extracts the details, pre-fills the form, and can generate a full advisory plan.',
-    ta: 'ஆங்கிலம், தமிழ் அல்லது இந்தியில் ஒரு வாக்கியத்தைத் தட்டச்சு செய்யவும். GramBiz விவரங்களைப் பிரித்தெடுத்து, படிவத்தை முன்கூட்டியே நிரப்பி, முழு ஆலோசனைத் திட்டத்தை உருவாக்கும்.',
-    hi: 'अंग्रेज़ी, தமிழ் या हिंदी में एक वाक्य टाइप करें। GramBiz विवरण निकालता है, फॉर्म भरता है, और पूरी सलाह योजना बना सकता है।',
+    en: 'Type or paste a sentence in English, தமிழ், or हिंदी. GramBiz extracts the details and pre-fills the form for you to review before analysis.',
+    ta: 'ஆங்கிலம், தமிழ் அல்லது இந்தியில் ஒரு வாக்கியத்தைத் தட்டச்சு செய்யவும். GramBiz விவரங்களைப் பிரித்தெடுத்து படிவத்தை முன்கூட்டியே நிரப்பும் — பகுப்பாய்விற்கு முன் சரிபார்க்கவும்.',
+    hi: 'अंग्रेज़ी, तमिल या हिंदी में एक वाक्य टाइप करें। GramBiz विवरण निकालता है और विश्लेषण से पहले समीक्षा के लिए फॉर्म भर देता है।',
   },
   advisoryPlaceholder: {
     en: 'e.g. I want to start dairy farming in Erode, Tamil Nadu with a budget around 2 lakh. Or: ஈரோடு மாவட்டத்தில் பால் பண்ணை தொடங்க 2 லட்சம் பட்ஜெட்.',
@@ -271,7 +271,7 @@ const dict = {
   product: { en: 'Product', ta: 'தயாரிப்பு', hi: 'उत्पाद' },
   explanationNotAvailable: { en: 'Explanation not available.', ta: 'விளக்கம் கிடைக்கவில்லை.', hi: 'स्पष्टीकरण उपलब्ध नहीं है।' },
   analysisFailed: { en: 'Analysis failed', ta: 'பகுப்பாய்வு தோல்வி', hi: 'विश्लेषण विफल' },
-  analysisFailedDemo: { en: 'Analysis failed. Try the demo workspace.', ta: 'பகுப்பாய்வு தோல்வி. டெமோ பணியிடத்தை முயற்சிக்கவும்.', hi: 'विश्लेषण विफल। डेमो वर्कस्पेस आज़माएं।' },
+  analysisFailedDemo: { en: 'Analysis failed. Please try again or check your inputs.', ta: 'பகுப்பாய்வு தோல்வி. மீண்டும் முயற்சிக்கவும் அல்லது உள்ளீடுகளைச் சரிபார்க்கவும்.', hi: 'विश्लेषण विफल। कृपया पुनः प्रयास करें या इनपुट जाँचें।' },
   competitorPreviewUnavailable: { en: 'Competitor preview unavailable', ta: 'போட்டியாளர் முன்னோட்டம் கிடைக்கவில்லை', hi: 'प्रतिस्पर्धी पूर्वावलोकन उपलब्ध नहीं' },
   couldNotParse: { en: 'Could not parse the text.', ta: 'உரையை பகுப்பாய்வு செய்ய முடியவில்லை.', hi: 'पाठ को पार्स नहीं कर सके।' },
   couldNotGenerateAdvisory: { en: 'Could not generate the advisory report.', ta: 'ஆலோசனை அறிக்கையை உருவாக்க முடியவில்லை.', hi: 'सलाह रिपोर्ट बनाने में असमर्थ।' },
@@ -425,16 +425,16 @@ const dict = {
     ta: 'சந்தை தரவைப் பார்க்க முதலில் பகுப்பாய்வை இயக்கவும்.',
     hi: 'बाजार डेटा देखने के लिए पहले विश्लेषण चलाएं।',
   },
-  loadingDemo: { en: 'Loading demo…', ta: 'டெமோ ஏற்றுகிறது…', hi: 'डेमो लोड हो रहा है…' },
+  loadingDemo: { en: 'Loading sample…', ta: 'மாதிரி ஏற்றுகிறது…', hi: 'नमूना लोड हो रहा है…' },
   loadDemoWorkspace: {
-    en: 'Load demo workspace (Perundurai, restaurant)',
-    ta: 'டெமோ பணியிடத்தை ஏற்றவும் (பெருந்துறை, உணவகம்)',
-    hi: 'डेमो कार्यक्षेत्र लोड करें (पेरुंदुरै, रेस्तरां)',
+    en: 'Load sample workspace (Perundurai, restaurant)',
+    ta: 'மாதிரி பணியிடத்தை ஏற்றவும் (பெருந்துறை, உணவகம்)',
+    hi: 'नमूना कार्यक्षेत्र लोड करें (पेरुंदुरै, रेस्तरां)',
   },
   marketOneClickNote: {
-    en: 'One click loads a ready-made demo analysis; you can also build your own on the Analyze page.',
-    ta: 'ஒரு கிளிக் தயாராக உள்ள டெமோ பகுப்பாய்வை ஏற்றுகிறது; நீங்கள் Analyze பக்கத்தில் உங்கள் சொந்தத்தை உருவாக்கலாம்.',
-    hi: 'एक क्लिक तैयार डेमो विश्लेषण लोड करता है; आप Analyze पृष्ठ पर अपना खुद का भी बना सकते हैं।',
+    en: 'One click loads a ready-made sample analysis; you can also build your own on the Analyze page.',
+    ta: 'ஒரு கிளிக் தயாராக உள்ள மாதிரி பகுப்பாய்வை ஏற்றுகிறது; நீங்கள் Analyze பக்கத்தில் உங்கள் சொந்தத்தை உருவாக்கலாம்.',
+    hi: 'एक क्लिक तैयार नमूना विश्लेषण लोड करता है; आप Analyze पृष्ठ पर अपना खुद का भी बना सकते हैं।',
   },
   ofRelevantCommodities: {
     en: 'of relevant commodities',
@@ -877,7 +877,7 @@ const dict = {
   block: { en: 'Block', ta: 'தொகுதி', hi: 'ब्लॉक' },
   village: { en: 'Village', ta: 'கிராமம்', hi: 'गाँव' },
   adminAreaCentre: { en: 'Admin area centre', ta: 'நிர்வாக பகுதி மையம்', hi: 'प्रशासनिक क्षेत्र केंद्र' },
-  notPinned: { en: 'Not pinned — demo will pin it', ta: 'பின் செய்யப்படவில்லை — டெமோ பின் செய்யும்', hi: 'पिन नहीं किया गया — डेमो पिन करेगा' },
+  notPinned: { en: 'Not pinned — select a location', ta: 'பின் செய்யப்படவில்லை — இடத்தைத் தேர்ந்தெடுக்கவும்', hi: 'पिन नहीं किया गया — स्थान चुनें' },
   exactProposedShop: {
     en: 'Exact proposed shop location',
     ta: 'சரியான முன்மொழியப்பட்ட கடை இருப்பிடம்',
@@ -1093,7 +1093,7 @@ const dict = {
   sourcingNeeds: { en: 'Sourcing needs', ta: 'ஆதாரத் தேவைகள்', hi: 'सोर्सिंग आवश्यकताएं' },
   trackAfterLaunch: { en: 'Track After Launch — KPIs', ta: 'தொடங்கிய பிறகு கண்காணிக்க — KPIs', hi: 'लॉन्च के बाद ट्रैक करें — KPIs' },
   plannedValues: { en: 'Planned values (for plan vs actual)', ta: 'திட்டமிடப்பட்ட மதிப்புகள் (திட்டம் vs உண்மை)', hi: 'नियोजित मान (योजना बनाम वास्तविक)' },
-  allSetupEstimated: { en: 'All setup items are ESTIMATED demo costs; verify with local quotes. Provenance:', ta: 'அனைத்து அமைப்பு உருப்படிகளும் ESTIMATED மதிப்பீட்டு செலவுகள்; உள்ளூர் விலைப்புள்ளிகளுடன் சரிபார்க்கவும். தோற்றம்:', hi: 'सभी सेटअप आइटम अनुमानित लागत हैं; स्थानीय कोटेशन से सत्यापित करें। उत्पत्ति:' },
+  allSetupEstimated: { en: 'All setup items are ESTIMATED costs; verify with local quotes.', ta: 'அனைத்து அமைப்பு உருப்படிகளும் ESTIMATED மதிப்பீட்டு செலவுகள்; உள்ளூர் விலைப்புள்ளிகளுடன் சரிபார்க்கவும்.', hi: 'सभी सेटअप आइटम अनुमानित लागत हैं; स्थानीय कोटेशन से सत्यापित करें।' },
   runAnalysisFirstSetup: { en: 'Run an analysis first to see your setup plan.', ta: 'உங்கள் அமைப்புத் திட்டத்தைப் பார்க்க முதலில் பகுப்பாய்வை இயக்கவும்.', hi: 'अपना सेटअप प्लान देखने के लिए पहले विश्लेषण चलाएं।' },
   workingCapitalReserve: { en: 'Recommended working-capital reserve', ta: 'பரிந்துரைக்கப்பட்ட செயல்பாட்டு மூலதன இருப்பு', hi: 'अनुशंसित कार्यशील पूंजी आरक्षित' },
   inventoryPlan: { en: 'Initial inventory / raw materials', ta: 'ஆரம்ப சரக்கு / மூலப்பொருட்கள்', hi: 'प्रारंभिक इन्वेंट्री / कच्चा माल' },

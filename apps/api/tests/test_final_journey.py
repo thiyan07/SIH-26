@@ -15,7 +15,12 @@ def test_dashboard_no_ai_suggested():
     # Check that the actual JSX component block for AI Suggested is removed (not just comment)
     assert "suggested.slice(0, 6)" not in text, "Dashboard should not contain AI Suggested Opportunities component"
     assert "aiSuggestedOpportunities" not in text, "Dashboard should not import AI Suggested"
-    assert "Re-analyse Budget" in text, "Dashboard should have Re-analyse Budget"
+    assert "Business Setup" in text, "Dashboard should have Business Setup card"
+    assert "Go to Business Setup" in text, "Dashboard should have Go to Business Setup button"
+    # Budget Allocation should be removed from Dashboard (detailed split lives on Business Setup)
+    assert "Budget Allocation" not in text, "Dashboard should not contain Budget Allocation"
+    # Weather/Climate Evidence should be removed from Dashboard
+    assert "Weather & Climate Evidence" not in text and "weatherClimate" not in text, "Dashboard should not contain Weather/Climate Evidence"
 
 def test_business_setup_has_budget_split():
     import pathlib
@@ -24,6 +29,9 @@ def test_business_setup_has_budget_split():
     assert "Suggested Budget Split" in text
     assert "Is this budget split okay?" in text
     assert "Yes, Continue" in text
+    assert "Change Business Analysis" in text, "No should go to Analyze (Change Business Analysis)"
+    assert "Back to Dashboard" not in text, "BusinessSetup No should not go to Dashboard"
+    assert "Data status:" not in text and "Data Status" not in text, "Data Status: Estimated should be removed"
     # Check for i18n key or rendered title
     assert "whatYouNeedToStart" in text or "What You Need to Start" in text
     assert "howToOperate" not in text.lower(), "BusinessSetup should not have How to Operate"
@@ -32,9 +40,17 @@ def test_scheme_requires_selection_and_age():
     import pathlib
     p = pathlib.Path("/home/thiyan/projects/sih/grambiz-ai/apps/web/src/pages/Schemes.tsx")
     text = p.read_text()
-    assert "Enter your age" in text
-    assert "Okay / Submit" in text
+    # Age is now single source on Analyze; Schemes must NOT have separate age input
+    assert "Using age from Analyze" in text or "age from Analyze" in text.lower()
+    assert "Confirm Scheme" in text
     assert "Eligibility Result" in text
+    # Ensure old separate age input was removed
+    assert text.count("Enter your age") == 0, "Schemes should not have separate age input"
+    # Also verify Analyze has age
+    p2 = pathlib.Path("/home/thiyan/projects/sih/grambiz-ai/apps/web/src/pages/Analyze.tsx")
+    text2 = p2.read_text()
+    assert "Applicant Age" in text2
+    assert "applicant_age" in text2
 
 def test_finance_has_confirmation():
     import pathlib
