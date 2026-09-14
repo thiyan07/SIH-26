@@ -26,35 +26,75 @@ from app.discovery.targets import (
 
 log = logging.getLogger("discovery.orchestrator")
 
-# Provider registry
+# Provider registry — FAST HTTP true-data providers (no browser)
 def _get_providers(source: str) -> list:
     """Return provider instances for the requested source."""
     from app.discovery.providers.google_provider import GoogleMapsProvider
     from app.discovery.providers.osm_provider import OSMProvider
     from app.discovery.providers.licensed_provider import LicensedGeospatialProvider
+    try:
+        from app.discovery.providers.mappls_provider import MapplsProvider
+    except Exception:
+        MapplsProvider = None  # type: ignore
 
     source = (source or "both").lower()
     providers = []
+    # 'all' = fastest HTTP true-data: OSM + licensed (Geoapify) + Mappls (atlas) — no browser
+    if source == "all":
+        providers.append(OSMProvider())
+        providers.append(LicensedGeospatialProvider())
+        if MapplsProvider:
+            providers.append(MapplsProvider())
+        # Google via fast HTTP (scrapling Fetcher) if available, else skip (disabled = fast)
+        gp = GoogleMapsProvider()
+        # Only add Google if not disabled (disabled is fast path: skip browser)
+        if getattr(gp, "mode", "disabled") != "disabled":
+            providers.append(gp)
+        return providers
     if source in ("both", "google_maps", "google"):
         providers.append(GoogleMapsProvider())
     if source in ("both", "osm"):
         providers.append(OSMProvider())
     if source in ("licensed", "geoapify"):
         providers.append(LicensedGeospatialProvider())
-    # 'both' historically meant google+osm; licensed is opt-in via --source licensed
-    # If source is 'both' and licensed is configured, we could optionally add it, but keep explicit
+    if source in ("mappls",):
+        if MapplsProvider:
+            providers.append(MapplsProvider())
+    if source == "both":
+        # For speed & true data, also add licensed + mappls alongside OSM+Google when both requested
+        # (keeps licensed opt-in but auto-includes if health is AVAILABLE — still HTTP fast)
+        try:
+            lp = LicensedGeospatialProvider()
+            if lp.health_check().status == "AVAILABLE":
+                providers.append(lp)
+        except Exception:
+            pass
+        if MapplsProvider:
+            try:
+                mp = MapplsProvider()
+                if mp.health_check().status == "AVAILABLE":
+                    providers.append(mp)
+            except Exception:
+                pass
     return providers
 
 def get_provider_health(source: str = "both") -> list:
     """Return health for requested providers."""
     providers = _get_providers(source)
-    # Also check licensed if not already included but configured
-    if source == "both":
-        # Check licensed health as well for observability, even if not selected
+    # Ensure observability for licensed/mappls even if not in list
+    if source in ("both", "all"):
         try:
             from app.discovery.providers.licensed_provider import LicensedGeospatialProvider
-            licensed = LicensedGeospatialProvider()
-            providers.append(licensed)
+            lp = LicensedGeospatialProvider()
+            if lp not in providers:
+                providers.append(lp)
+        except Exception:
+            pass
+        try:
+            from app.discovery.providers.mappls_provider import MapplsProvider
+            mp = MapplsProvider()
+            if mp not in providers:
+                providers.append(mp)
         except Exception:
             pass
     results = []
@@ -430,9 +470,9 @@ def _persist_observation(
         category_code=target.category,
         query=target.query,
         source=provider,
-        source_record_id=obs.source_id,
-        name=obs.name,
-        normalized_name=obs.normalized_name,
+        source_record_id=(obs.source_id or "")[:200],
+        name=(obs.name or "")[:200],
+        normalized_name=(obs.normalized_name or "")[:200],
         latitude=obs.latitude,
         longitude=obs.longitude,
         address=obs.address,
@@ -459,6 +499,20 @@ def _upsert_canonical_business(session: Session, canonical) -> str:
     from app.geo import haversine_km
     from sqlalchemy import select
     import datetime as dt, uuid
+    # First check for exact source_id deduplication (true id, prevents duplicate source_id)
+    try:
+        src = canonical.sources[0] if canonical.sources else None
+        sid = (canonical.source_ids.get(src) if canonical.source_ids and src else None) or ""
+        if src and sid:
+            existing_src = session.execute(select(Business).where(Business.source == src, Business.source_id == sid[:200])).scalars().first()
+            if existing_src:
+                # Update last_seen and merge if needed
+                existing_src.last_seen_at = dt.datetime.now(dt.timezone.utc)
+                existing_src.retrieved_at = dt.datetime.now(dt.timezone.utc)
+                session.flush()
+                return existing_src.id
+    except Exception:
+        pass
     # Check for close match: same normalized_name within 100m
     rows = session.execute(select(Business).where(Business.normalized_name == canonical.normalized_name)).scalars().all()
     for r in rows:
@@ -484,11 +538,13 @@ def _upsert_canonical_business(session: Session, canonical) -> str:
             r.retrieved_at = dt.datetime.now(dt.timezone.utc)
             session.flush()
             return r.id
-    # Insert new
+    # Insert new - only if true coordinates present
+    if canonical.latitude is None or canonical.longitude is None:
+        return "noop"
     new = Business(
         id=str(uuid.uuid4()),
-        name=canonical.name,
-        normalized_name=canonical.normalized_name,
+        name=(canonical.name or "")[:200],
+        normalized_name=(canonical.normalized_name or "")[:200],
         category_code=canonical.category_code,
         latitude=canonical.latitude,
         longitude=canonical.longitude,
@@ -496,7 +552,7 @@ def _upsert_canonical_business(session: Session, canonical) -> str:
         phone=canonical.phone,
         website=canonical.website,
         source=canonical.sources[0] if canonical.sources else "discovery",
-        source_id=canonical.source_ids.get(canonical.sources[0]) if canonical.source_ids else None,
+        source_id=(((canonical.source_ids.get(canonical.sources[0]) if canonical.source_ids else None) or "")[:200]),
         source_name="Discovery",
         dataset_name="discovery_canonical",
         source_type="vendor",
@@ -708,6 +764,8 @@ def run_live(
         if batch_observations:
             from app.discovery.dedup import deduplicate
             canonicals = deduplicate(batch_observations)
+            # Skip canonicals without true coordinates (only add if true lat/lng)
+            canonicals = [c for c in canonicals if c.latitude is not None and c.longitude is not None]
             for c in canonicals:
                 _upsert_canonical_business(session, c)
                 total_canonical += 1

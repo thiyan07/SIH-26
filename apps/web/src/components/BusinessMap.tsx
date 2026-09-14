@@ -233,7 +233,14 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
           {showRadius && <MapGeoJSON id="radius5" data={radius5} fillColor="#16a34a" fillOpacity={0.05} lineColor="#15803d" />}
           {showRadius && <MapGeoJSON id="radius10" data={radius10} fillOpacity={0.03} />}
           <MapMarker latitude={center.latitude} longitude={center.longitude} color="#111827" label="You are here" />
-          <MapClusterLayer id="businesses" data={businessesToGeoJSON(allShown)} />
+          {showBusinesses && allShown.length > 0 && (
+            layer === 'all' ? (
+              <MapClusterLayer id="businesses" data={businessesToGeoJSON(allShown)} clusterRadiusMeters={1000} smallCluster />
+            ) : (
+              <MapClusterLayer id="businesses" data={businessesToGeoJSON(allShown)} clusterRadiusMeters={100} />
+            )
+          )}
+          {/* Competitors are always individual pins — no clustering (see comps.map below) */}
           {showMarkets && markets.length > 0 && (
             <MapGeoJSON id="markets" data={pointsToGeoJSON(markets)} circleColor="#d97706" circleRadius={7} />
           )}

@@ -535,7 +535,14 @@ def run_analysis(db: Session, req) -> dict:
                     fin.scheme.source_document = scheme_rule.source_document
                 except Exception:
                     pass
-            scheme = fin.scheme
+            # Keep selected scheme details even when out-of-range (so Finance can show
+            # interest/tenure/max instead of Unknown/—). Loan stays as concept gap.
+            if fin.scheme is None:
+                scheme = scheme_rule
+                # Preserve the not-eligible reason, but ensure scheme is visible
+                # for UI. fin.loan_amount already set to funding gap by finance engine.
+            else:
+                scheme = fin.scheme
         else:
             # Preferred code not found among real schemes — fall back to auto-routing among real schemes
             from app.db.models import GovernmentScheme

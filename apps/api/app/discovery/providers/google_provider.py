@@ -22,6 +22,32 @@ from app.discovery.providers.base import (
 )
 from app.discovery.targets import DiscoveryTarget
 
+# Shared browser for reuse across targets in same process — avoids per-target launch overhead (~3s)
+_SHARED_PW = None
+_SHARED_BROWSER = None
+
+def _get_shared_browser():
+    global _SHARED_PW, _SHARED_BROWSER
+    if _SHARED_BROWSER is not None:
+        try:
+            # check if still connected
+            if _SHARED_BROWSER.is_connected():
+                return _SHARED_BROWSER
+        except Exception:
+            pass
+        # stale, reset
+        try:
+            _SHARED_BROWSER.close()
+        except Exception:
+            pass
+        _SHARED_BROWSER = None
+    if _SHARED_PW is None:
+        from playwright.sync_api import sync_playwright
+        _SHARED_PW = sync_playwright().start()
+    # launch with chrome channel, reuse
+    _SHARED_BROWSER = _SHARED_PW.chromium.launch(channel="chrome", headless=True)
+    return _SHARED_BROWSER
+
 def _mode() -> str:
     # Support both DISCOVERY_GOOGLE_PROVIDER (spec) and legacy GOOGLE_MAPS_PROVIDER
     mode = os.getenv("DISCOVERY_GOOGLE_PROVIDER", "").strip() or os.getenv("GOOGLE_MAPS_PROVIDER", "").strip()
@@ -103,7 +129,7 @@ class GoogleMapsProvider:
                 elapsed_s=0.0,
                 error_detail=health.reason,
             )
-        # Cache check — respect refresh
+        # Cache check — respect refresh (fixed: previously duplicated without refresh gate)
         if not refresh:
             cached = self._check_cache(target, session)
             if cached is not None:
@@ -115,48 +141,43 @@ class GoogleMapsProvider:
                     elapsed_s=0.0,
                     cached=True,
                 )
-        # Check cache first (DiscoveryObservationModel)
-        cached = self._check_cache(target, session)
-        if cached is not None:
-            return ProviderResult(
-                provider=PROVIDER_GOOGLE,
-                observations=cached,
-                status="empty" if not cached else "success",
-                termination_reason="CACHE_HIT",
-                elapsed_s=0.0,
-                cached=True,
-            )
-        # Live discovery via adaptive provider
+        # Live discovery via adaptive provider — reuses shared browser to avoid per-target launch cost
         try:
             from app.discovery.providers.google_maps import scrape_target_adaptive
-            # Need a browser — we create one per call (orchestrator will batch with delay)
-            # For health, we already verified Playwright available; now try to run
-            # To avoid creating browser per target in health check, we do it here
-            from playwright.sync_api import sync_playwright
             start = time.time()
             observations = []
             termination = "UNKNOWN"
-            # Use a single browser per discover call (orchestrator will handle pooling)
-            with sync_playwright() as pw:
-                browser = pw.chromium.launch(channel="chrome", headless=True)
+            browser = _get_shared_browser()
+            from app.discovery.config import CONFIG
+            last_err = None
+            for attempt in range(CONFIG.retry_count + 1):
                 try:
-                    # Use bounded retry with exponential backoff
-                    from app.discovery.config import CONFIG
-                    last_err = None
-                    for attempt in range(CONFIG.retry_count + 1):
+                    result = scrape_target_adaptive(browser, target, fast=True)
+                    observations = result.observations
+                    termination = result.termination_reason
+                    break
+                except Exception as e:
+                    last_err = e
+                    msg = str(e).lower()
+                    # if browser died, reset and retry once
+                    if "closed" in msg or "target" in msg:
                         try:
+                            global _SHARED_BROWSER, _SHARED_PW
+                            if _SHARED_BROWSER:
+                                try: _SHARED_BROWSER.close()
+                                except: pass
+                            _SHARED_BROWSER = None
+                            browser = _get_shared_browser()
                             result = scrape_target_adaptive(browser, target, fast=True)
                             observations = result.observations
                             termination = result.termination_reason
                             break
-                        except Exception as e:
-                            last_err = e
-                            if attempt < CONFIG.retry_count:
-                                time.sleep(CONFIG.retry_backoff_s * (2 ** attempt))
-                            else:
-                                raise
-                finally:
-                    browser.close()
+                        except Exception:
+                            pass
+                    if attempt < CONFIG.retry_count:
+                        time.sleep(CONFIG.retry_backoff_s * (2 ** attempt))
+                    else:
+                        raise
             elapsed = time.time() - start
             # Persist to cache/observation handled by orchestrator; we just return
             status = "empty" if not observations else "success"

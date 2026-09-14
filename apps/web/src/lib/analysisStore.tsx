@@ -116,15 +116,20 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const persist = (r: AnalysisResult) => {
     setResult(r)
     // New analysis cleanly replaces old — clear downstream journey state
+    // CRITICAL: also clear selected scheme & eligibility so Finance/Schemes don't show stale "Selected: pmegp — Not yet applied" with ₹0
     setBusinessSetupConfirmedRaw(false)
     setFinanceConfirmedRaw(false)
     setSimulatorSkippedRaw(false)
+    setSelectedSchemeCodeRaw(null)
+    setEligibilityResultRaw(null)
     try {
       localStorage.setItem(KEY, JSON.stringify(r))
       localStorage.removeItem(KEY_SETUP)
       localStorage.removeItem(KEY_BUDGET)
       localStorage.removeItem(KEY_FINANCE)
       localStorage.removeItem(KEY_SIM)
+      localStorage.removeItem(KEY_SCHEME)
+      localStorage.removeItem(KEY_ELIG)
     } catch {
       /* ignore */
     }
@@ -174,6 +179,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setApplicantDetailsRaw(null)
     setApplicantAgeRaw(null)
     setEligibilityResultRaw(null)
+    setSelectedSchemeCodeRaw(null)
     try {
       localStorage.removeItem(KEY_SETUP)
       localStorage.removeItem(KEY_BUDGET)
@@ -182,6 +188,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem(KEY_APPLICANT)
       localStorage.removeItem(KEY_AGE)
       localStorage.removeItem(KEY_ELIG)
+      localStorage.removeItem(KEY_SCHEME)
     } catch {}
   }
 

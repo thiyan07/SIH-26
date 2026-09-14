@@ -177,20 +177,25 @@ export function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader title={tr('financialPlan', lang)} subtitle={fp.scheme_name || tr('microFinanceTerm', lang)} />
+          <CardHeader title={tr('financialPlan', lang)} subtitle={fp.scheme_name || (fp.scheme_decision === 'no_scheme_selected' ? 'No scheme selected — concept financing' : fp.scheme_decision === 'no_supported_scheme' ? 'No supported scheme for this project cost' : tr('microFinanceTerm', lang))} />
           <Rows
             rows={[
               [tr('capitalAvailable', lang), `₹${formatINR(fp.capital_available)}`],
               [tr('projectCost', lang), `₹${formatINR(fp.project_cost)}`],
-              [tr('bankLoan', lang), `₹${formatINR(fp.loan_amount)}`],
+              [tr('bankLoan', lang), fp.loan_amount != null && fp.loan_amount > 0 ? `₹${formatINR(fp.loan_amount)}` : fp.scheme_code ? `₹${formatINR(fp.loan_amount)}` : '— (select a scheme)'],
               [tr('interestRatePA', lang), fp.interest_rate != null ? `${fp.interest_rate}%` : '—'],
               [tr('tenure', lang), fp.tenure_years != null ? `${fp.tenure_years} ${tr('yr', lang)}` : '—'],
               [tr('moratorium', lang), fp.moratorium_months != null ? `${fp.moratorium_months} ${tr('mo', lang)} (${fp.moratorium_mode || 'grace'})` : '—'],
-              [tr('monthlyEMI', lang), fp.emi != null ? `₹${formatINR(fp.emi)}` : result.repayment?.monthly_emi != null ? `₹${formatINR(result.repayment.monthly_emi)}` : '—'],
+              [tr('monthlyEMI', lang), fp.emi != null && fp.emi > 0 ? `₹${formatINR(fp.emi)}` : result.repayment?.monthly_emi != null && result.repayment.monthly_emi > 0 ? `₹${formatINR(result.repayment.monthly_emi)}` : '—'],
               [tr('schemeDecision', lang), fp.scheme_decision || '—'],
             ]}
           />
           {fp.scheme_reason && note(fp.scheme_reason)}
+          {(fp.scheme_decision === 'no_scheme_selected' || !fp.scheme_code) && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Project cost ₹{formatINR(fp.project_cost)} — no scheme selected. Please <a href="/schemes" className="font-bold underline">select a scheme</a> to see scheme-specific financing (interest, tenure, EMI). Showing concept estimates only.
+            </div>
+          )}
         </Card>
       </div>
 
@@ -259,16 +264,30 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Business Setup CTA — detailed budget split lives there — hide when NEGATIVE to force re-analyse */}
+      {/* Business Setup + Navigation — side-by-side in one card; hide Business Setup button when AVOID */}
       {(() => {
         const v = (result as any).viability
         if (v?.decision === 'AVOID') return null
         return (
           <Card>
-            <CardHeader title="Business Setup" subtitle="Review startup requirements, inventory and recommended budget split." />
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-gray-600">See what you need to start, including equipment, inventory and budget breakdown.</p>
-              <a href="/business-setup" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Go to Business Setup →</a>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              {/* Left: Business Setup */}
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-gray-900">Business Setup</div>
+                <p className="mt-1 text-xs leading-relaxed text-gray-500">Review startup requirements, inventory and recommended budget split.</p>
+                <a href="/business-setup" className="mt-3 inline-flex rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Go to Business Setup →</a>
+              </div>
+              {/* Divider */}
+              <div className="hidden sm:block h-20 w-px bg-gray-200" />
+              <div className="sm:hidden h-px bg-gray-200" />
+              {/* Right: Navigation helpers */}
+              <div className="min-w-0 flex-1 sm:text-right">
+                <div className="text-sm font-semibold text-gray-900">Want to try different business, location or capital?</div>
+                <div className="mt-3 flex flex-wrap gap-2 sm:justify-end">
+                  <a href="/analyze" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Back to Analyze & Change Input →</a>
+                  <a href="/" className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Exit to Home</a>
+                </div>
+              </div>
             </div>
           </Card>
         )
@@ -301,13 +320,13 @@ export function Dashboard() {
                   <div className="font-bold capitalize">{s.scale} {s.scale===sf.recommended_scale?'★':''}</div>
                   <div>Project ₹{formatINR(s.project_cost)}</div>
                   <div>Gap ₹{formatINR(s.required_financing)}</div>
-                  <div>EMI ₹{formatINR(s.emi)} · {s.repayment_health}</div>
+                  <div>Scheme {s.scheme || '—'} · EMI ₹{formatINR(s.emi)} · {s.repayment_health}</div>
                   {s.cash_surplus!=null && <div>Cash surplus ₹{formatINR(s.cash_surplus)}</div>}
                   <div className="mt-1 text-[10px] text-gray-500">Fit {s.fit_score}/100</div>
                 </div>
               ))}
             </div>
-            {sf.recommended_scale && <p className="mt-2 text-sm font-semibold text-teal-700">Recommended scale: {sf.recommended_scale}</p>}
+            {sf.recommended_scale && <p className="mt-2 text-sm font-semibold text-teal-700">Recommended scale: {sf.recommended_scale} <span className="text-xs font-normal text-gray-600">— best fit for your capital of ₹{formatINR(sf.capital_available)} based on financing gap and repayment health</span></p>}
           </Card>
         )
       })()}
@@ -336,22 +355,7 @@ export function Dashboard() {
         )
       })()}
 
-      {/* Navigation helper — always available, but for AVOID the primary CTA is already in viability card */}
-      {(() => {
-        const v = (result as any).viability
-        if (v?.decision === 'AVOID') return null
-        return (
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-gray-600">Want to try different business, location or capital?</p>
-              <div className="flex flex-wrap gap-2">
-                <a href="/analyze" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Back to Analyze & Change Input →</a>
-                <a href="/" className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Exit to Home</a>
-              </div>
-            </div>
-          </Card>
-        )
-      })()}
+
 
     </div>
   )

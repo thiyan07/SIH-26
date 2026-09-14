@@ -86,9 +86,18 @@ def configured_keys(provider_keys: str) -> dict:
 
 def api_key(settings) -> Optional[str]:
     """Return the Geoapify key from settings, or None if not configured."""
+    # Primary: settings.data_provider_keys JSON (spec)
     keys = configured_keys(getattr(settings, "data_provider_keys", "") or "")
-    key = keys.get("geoapify")
-    return (key or "").strip() or None
+    key = (keys.get("geoapify") or "").strip()
+    if key:
+        return key
+    # Fallback: env DISCOVERY_LICENSED_API_KEY / DISCOVERY_PROVIDER_API_KEY / GEOAPIFY_API_KEY (from documents/api.txt)
+    import os
+    for env in ("DISCOVERY_LICENSED_API_KEY", "DISCOVERY_PROVIDER_API_KEY", "GEOAPIFY_API_KEY"):
+        k = os.getenv(env, "").strip()
+        if k:
+            return k
+    return None
 
 
 def _build_url(lat: float, lon: float, radius_m: int, categories: list[str],
@@ -144,6 +153,22 @@ def _normalize(feature: dict, queried_at) -> Optional[dict]:
     }
 
 
+def _urlopen_ipv4(url: str, headers: dict, timeout_s: int):
+    """urllib urlopen forced to IPv4 (avoids IPv6 handshake timeout on api.geoapify.com)."""
+    import socket
+    import urllib.request
+    orig_getaddrinfo = socket.getaddrinfo
+    def ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        # Force AF_INET; keep caller's hints but filter to IPv4
+        infos = orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+        return infos
+    socket.getaddrinfo = ipv4_only_getaddrinfo
+    try:
+        req = urllib.request.Request(url, headers=headers)
+        return urllib.request.urlopen(req, timeout=timeout_s)
+    finally:
+        socket.getaddrinfo = orig_getaddrinfo
+
 def query(lat: float, lon: float, radius_m: int, category_code: str,
           *, key: Optional[str] = None, timeout_s: int = TIMEOUT_S,
           provider_keys: str = "") -> GeoapifyResult:
@@ -157,6 +182,14 @@ def query(lat: float, lon: float, radius_m: int, category_code: str,
             k = configured_keys(provider_keys).get("geoapify")
             key = (k or "").strip() or None
     if key is None:
+        # Fallback to env keys (documents/api.txt)
+        import os
+        for env in ("DISCOVERY_LICENSED_API_KEY", "DISCOVERY_PROVIDER_API_KEY", "GEOAPIFY_API_KEY"):
+            k = os.getenv(env, "").strip()
+            if k:
+                key = k
+                break
+    if key is None:
         raise GeoapifyUnavailable("Geoapify not configured (no geoapify key in data_provider_keys)")
 
     categories = GEOAPIFY_CATEGORIES.get(category_code)
@@ -167,8 +200,7 @@ def query(lat: float, lon: float, radius_m: int, category_code: str,
     url = _build_url(lat, lon, radius_m, categories, key)
     started = time.time()
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": _UA})
-        with urllib.request.urlopen(req, timeout=timeout_s) as r:
+        with _urlopen_ipv4(url, {"User-Agent": _UA}, timeout_s) as r:
             payload = json.load(r)
     except (urllib.error.URLError, urllib.error.HTTPError, OSError, json.JSONDecodeError) as e:
         raise GeoapifyUnavailable(f"Geoapify request failed: {e}") from e
@@ -187,11 +219,17 @@ def query(lat: float, lon: float, radius_m: int, category_code: str,
 def ping(key: Optional[str] = None, timeout_s: int = 8) -> bool:
     """Return True if Geoapify is reachable with the configured key (for health)."""
     if key is None or not key:
+        import os
+        for env in ("DISCOVERY_LICENSED_API_KEY", "DISCOVERY_PROVIDER_API_KEY", "GEOAPIFY_API_KEY"):
+            k = os.getenv(env, "").strip()
+            if k:
+                key = k
+                break
+    if key is None or not key:
         return False
     try:
         url = _build_url(13.0827, 80.2707, 500, ["commercial.supermarket"], key, limit=1)
-        req = urllib.request.Request(url, headers={"User-Agent": _UA})
-        with urllib.request.urlopen(req, timeout=timeout_s) as r:
+        with _urlopen_ipv4(url, {"User-Agent": _UA}, timeout_s) as r:
             r.read()
         return True
     except Exception:

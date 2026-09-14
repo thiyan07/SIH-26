@@ -156,11 +156,20 @@ def derive_financial_plan(
 
     if scheme is None:
         plan.beyond_maximum = True
-        plan.notes.append(
-            f"Project cost ₹{project_cost:,.0f} exceeds the largest supported scheme "
-            f"maximum; no supported scheme recommended. Show as ESTIMATED / "
-            f"non-scheme financing (SCHEME_UNAVAILABLE)."
-        )
+        if decision == "no_scheme_selected":
+            # Concept financing: show funding gap so UI can display "Financing needed"
+            # instead of ₹0. No scheme terms to show.
+            plan.loan_amount = required_financing
+            plan.notes.append(
+                f"Project cost ₹{project_cost:,.0f} — no scheme selected. Please select a scheme to see financing details. "
+                f"Concept financing needed: ₹{required_financing:,.0f} (funding gap)."
+            )
+        else:
+            plan.notes.append(
+                f"Project cost ₹{project_cost:,.0f} exceeds the largest supported scheme "
+                f"maximum; no supported scheme recommended. Show as ESTIMATED / "
+                f"non-scheme financing (SCHEME_UNAVAILABLE)."
+            )
         return plan
 
     plan.max_loan_allowed = scheme.max_loan_amount
