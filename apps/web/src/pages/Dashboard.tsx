@@ -7,16 +7,18 @@ import {
   Tooltip,
   CartesianGrid,
 } from 'recharts'
+import { useNavigate } from 'react-router-dom'
 import { useAnalysis } from '../lib/analysisStore'
 import { LINK_BRAND } from '../lib/theme'
 import { Badge, Card, CardHeader, Disclaimer } from '../components/ui'
 import { Spotlight } from '../components/aceternity/BackgroundBeams'
-import { tr, recommendationLabel, type Language } from '../lib/i18n'
+import { tr, interpolate, recommendationLabel, schemeDecisionLabel, type Language } from '../lib/i18n'
 
 const RECO_COLOR: Record<string, string> = { GO: 'green', MODIFY: 'amber', AVOID: 'red' }
 
 export function Dashboard() {
   const { result, lang } = useAnalysis()
+  const navigate = useNavigate()
   if (!result) return <NoResult lang={lang} />
 
   const { recommendation, financial_plan: fp, profit_model: pm } = result
@@ -28,7 +30,7 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <Spotlight>
-        <div className="flex flex-col gap-3 rounded-xl border border-teal-100 bg-gradient-to-br from-white via-teal-50/50 to-cyan-50/30 p-4 px-4 sm:px-6 box-border sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-xl border border-teal-100 bg-gradient-to-br from-white via-teal-50/50 to-cyan-50/30 p-4 px-4 sm:px-6 box-border sm:flex-row sm:items-center sm:justify-between dark:border-teal-800/40 dark:from-slate-800 dark:via-teal-950/25 dark:to-slate-900">
           <div className="min-w-0 flex-1">
             <h1 className="break-words text-2xl font-bold tracking-tight text-gray-900">{tr('reportTitle', lang)}</h1>
             <p className="break-words text-sm leading-relaxed text-gray-500">
@@ -50,45 +52,52 @@ export function Dashboard() {
         if (!v) return null
         const color = v.decision === 'GO' ? 'green' : v.decision === 'AVOID' ? 'red' : 'amber'
         return (
-          <Card className={`border-2 ${v.decision === 'GO' ? 'border-green-200 bg-green-50/40' : v.decision === 'AVOID' ? 'border-red-200 bg-red-50/40' : 'border-amber-200 bg-amber-50/40'}`}>
+          <Card className={`border-2 ${v.decision === 'GO' ? 'border-green-200 bg-green-50/40 dark:border-green-800/50 dark:bg-green-950/25' : v.decision === 'AVOID' ? 'border-red-200 bg-red-50/40 dark:border-red-800/50 dark:bg-red-950/25' : 'border-amber-200 bg-amber-50/40 dark:border-amber-800/50 dark:bg-amber-950/25'}`}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-xs font-bold uppercase tracking-widest text-gray-500">Final Decision</div>
-                <div className={`mt-1 text-3xl font-black tracking-tight ${v.decision === 'GO' ? 'text-green-700' : v.decision === 'AVOID' ? 'text-red-700' : 'text-amber-700'}`}>{v.decision}</div>
-                <div className="mt-1 text-xs text-gray-500">Score {v.score}/100 · confidence {v.confidence} ({v.confidence_score}/100)</div>
+                <div className="text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-slate-400">{tr('finalDecision', lang)}</div>
+                <div className={`mt-1 text-3xl font-black tracking-tight ${v.decision === 'GO' ? 'text-green-700 dark:text-green-300' : v.decision === 'AVOID' ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}>{v.decision}</div>
+                <div className="mt-1 text-xs text-gray-500 dark:text-slate-400">{interpolate(tr('scoreConfidence', lang), { score: v.score, conf: v.confidence, raw: v.confidence_score })}</div>
               </div>
               <Badge color={color}>{v.decision}</Badge>
             </div>
-            <p className="mt-3 text-sm text-gray-700">{v.reason}</p>
+            <p className="mt-3 text-sm text-gray-700 dark:text-slate-300">{translateDynamic(v.reason, lang)}</p>
             {/* 2. WHY — top 3 reasons */}
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-lg bg-white p-3">
-                <div className="text-xs font-semibold text-green-700">Top positives</div>
-                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-gray-700">
-                  {(v.top_positive_factors || []).slice(0,3).map((f:string,i:number)=><li key={i}>{f}</li>)}
+              <div className="rounded-lg bg-white p-3 dark:bg-slate-800 dark:border dark:border-slate-700/40">
+                <div className="text-xs font-semibold text-green-700 dark:text-green-300">{tr('topPositives', lang)}</div>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-gray-700 dark:text-slate-300">
+                  {(v.top_positive_factors || []).slice(0,3).map((f:string,i:number)=><li key={i}>{translateDynamic(f, lang)}</li>)}
                 </ul>
               </div>
-              <div className="rounded-lg bg-white p-3">
-                <div className="text-xs font-semibold text-red-700">Top negatives</div>
-                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-gray-700">
-                  {(v.top_negative_factors || []).slice(0,3).map((f:string,i:number)=><li key={i}>{f}</li>)}
+              <div className="rounded-lg bg-white p-3 dark:bg-slate-800 dark:border dark:border-slate-700/40">
+                <div className="text-xs font-semibold text-red-700 dark:text-red-300">{tr('topNegatives', lang)}</div>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-gray-700 dark:text-slate-300">
+                  {(v.top_negative_factors || []).slice(0,3).map((f:string,i:number)=><li key={i}>{translateDynamic(f, lang)}</li>)}
                 </ul>
               </div>
             </div>
             {v.recommended_actions?.length ? (
-              <div className="mt-3 rounded-lg bg-white p-3">
-                <div className="text-xs font-semibold text-gray-700">Recommended actions</div>
-                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-gray-700">
-                  {v.recommended_actions.slice(0,3).map((a:string,i:number)=><li key={i}>{a}</li>)}
+              <div className="mt-3 rounded-lg bg-white p-3 dark:bg-slate-800 dark:border dark:border-slate-700/40">
+                <div className="text-xs font-semibold text-gray-700 dark:text-slate-200">{tr('recommendedActions', lang)}</div>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-xs text-gray-700 dark:text-slate-300">
+                  {v.recommended_actions.slice(0,3).map((a:string,i:number)=><li key={i}>{translateDynamic(a, lang)}</li>)}
                 </ul>
               </div>
             ): null}
             {v.decision === 'AVOID' && (
               <div className="mt-4 flex flex-wrap gap-3">
-                <a href="/analyze" className="rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white hover:bg-brand-700 shadow">Go to Analyze & Change Input →</a>
-                <a href="/" className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Exit</a>
+                <a href="/analyze" className="rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white hover:bg-brand-700 shadow">{tr('goToAnalyzeChange', lang)}</a>
+                <a href="/" className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">{tr('exitLabel', lang)}</a>
               </div>
             )}
+            <div className="mt-4 border-t border-gray-100 pt-4 dark:border-slate-700/50">
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">{tr('wantToTryDifferent', lang)}</div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a href="/analyze" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">{tr('backToAnalyze', lang)}</a>
+                <a href="/" className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-200">{tr('exitToHome', lang)}</a>
+              </div>
+            </div>
           </Card>
         )
       })()}
@@ -99,23 +108,23 @@ export function Dashboard() {
         if (!ls) return null
         return (
           <Card>
-            <CardHeader title="Location Suitability" subtitle={`${ls.suitability_score}/100 · confidence ${ls.confidence}`} />
+            <CardHeader title={tr('locationSuitability', lang)} subtitle={`${ls.suitability_score}/100 · confidence ${ls.confidence}`} />
             <div className="grid gap-3 md:grid-cols-2">
               <div className="rounded-lg bg-green-50 p-3">
-                <div className="text-xs font-semibold text-green-800">Strengths</div>
+                <div className="text-xs font-semibold text-green-800">{tr('strengths', lang)}</div>
                 <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-700">
-                  {ls.strengths.map((s:string,i:number)=><li key={i}>{s}</li>)}
+                  {ls.strengths.map((s:string,i:number)=><li key={i}>{translateBackend(s, lang)}</li>)}
                 </ul>
               </div>
               <div className="rounded-lg bg-amber-50 p-3">
-                <div className="text-xs font-semibold text-amber-800">Concerns</div>
+                <div className="text-xs font-semibold text-amber-800">{tr('concerns', lang)}</div>
                 <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-700">
-                  {ls.concerns.map((s:string,i:number)=><li key={i}>{s}</li>)}
+                  {ls.concerns.map((s:string,i:number)=><li key={i}>{translateBackend(s, lang)}</li>)}
                 </ul>
               </div>
             </div>
-            <div className="mt-2 text-xs text-gray-500">{result.location.village || result.location.block} · {result.location.district} · {result.location.uses_proposed_location ? `Exact: ${Number(result.location.proposed_latitude).toFixed(4)}, ${Number(result.location.proposed_longitude).toFixed(4)} (uses exact proposed location)` : `Centroid: ${Number(result.location.latitude).toFixed(4)}, ${Number(result.location.longitude).toFixed(4)}` } · {result.location.geo_precision}</div>
-            <p className="mt-1 text-[11px] italic text-gray-500">{ls.note}</p>
+            <div className="mt-2 text-xs text-gray-500">{result.location.village || result.location.block} · {result.location.district} · {result.location.uses_proposed_location ? interpolate(tr('exactLocation', lang), { coords: `${Number(result.location.proposed_latitude).toFixed(4)}, ${Number(result.location.proposed_longitude).toFixed(4)}` }) : interpolate(tr('centroidLocation', lang), { coords: `${Number(result.location.latitude).toFixed(4)}, ${Number(result.location.longitude).toFixed(4)}` }) } · {result.location.geo_precision}</div>
+            <p className="mt-1 text-[11px] italic text-gray-500">{translateBackend(ls.note, lang)}</p>
           </Card>
         )
       })()}
@@ -151,7 +160,7 @@ export function Dashboard() {
               </div>
               {(me.notes?.length || 0) > 0 && (
                 <div className="mt-1 space-y-0.5">
-                  {(me.notes || []).map((n: string, i: number) => <p key={i} className="text-[11px] italic text-gray-500">{n}</p>)}
+                  {(me.notes || []).map((n: string, i: number) => <p key={i} className="text-[11px] italic text-gray-500">{translateBackend(n, lang)}</p>)}
                 </div>
               )}
             </div>
@@ -177,23 +186,23 @@ export function Dashboard() {
         </Card>
 
         <Card>
-          <CardHeader title={tr('financialPlan', lang)} subtitle={fp.scheme_name || (fp.scheme_decision === 'no_scheme_selected' ? 'No scheme selected — concept financing' : fp.scheme_decision === 'no_supported_scheme' ? 'No supported scheme for this project cost' : tr('microFinanceTerm', lang))} />
+          <CardHeader title={tr('financialPlan', lang)} subtitle={fp.scheme_name || (fp.scheme_decision === 'no_scheme_selected' ? tr('noSchemeSelectedConcept', lang) : fp.scheme_decision === 'no_supported_scheme' ? tr('noSupportedSchemeCost', lang) : tr('microFinanceTerm', lang))} />
           <Rows
             rows={[
               [tr('capitalAvailable', lang), `₹${formatINR(fp.capital_available)}`],
               [tr('projectCost', lang), `₹${formatINR(fp.project_cost)}`],
-              [tr('bankLoan', lang), fp.loan_amount != null && fp.loan_amount > 0 ? `₹${formatINR(fp.loan_amount)}` : fp.scheme_code ? `₹${formatINR(fp.loan_amount)}` : '— (select a scheme)'],
+              [tr('bankLoan', lang), fp.loan_amount != null && fp.loan_amount > 0 ? `₹${formatINR(fp.loan_amount)}` : fp.scheme_code ? `₹${formatINR(fp.loan_amount)}` : `— (${tr('selectSchemeShort', lang)})`],
               [tr('interestRatePA', lang), fp.interest_rate != null ? `${fp.interest_rate}%` : '—'],
               [tr('tenure', lang), fp.tenure_years != null ? `${fp.tenure_years} ${tr('yr', lang)}` : '—'],
               [tr('moratorium', lang), fp.moratorium_months != null ? `${fp.moratorium_months} ${tr('mo', lang)} (${fp.moratorium_mode || 'grace'})` : '—'],
               [tr('monthlyEMI', lang), fp.emi != null && fp.emi > 0 ? `₹${formatINR(fp.emi)}` : result.repayment?.monthly_emi != null && result.repayment.monthly_emi > 0 ? `₹${formatINR(result.repayment.monthly_emi)}` : '—'],
-              [tr('schemeDecision', lang), fp.scheme_decision || '—'],
+              [tr('schemeDecision', lang), fp.scheme_decision ? schemeDecisionLabel(fp.scheme_decision, lang) : '—'],
             ]}
           />
-          {fp.scheme_reason && note(fp.scheme_reason)}
+          {fp.scheme_reason && note(translateBackend(fp.scheme_reason, lang))}
           {(fp.scheme_decision === 'no_scheme_selected' || !fp.scheme_code) && (
             <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              Project cost ₹{formatINR(fp.project_cost)} — no scheme selected. Please <a href="/schemes" className="font-bold underline">select a scheme</a> to see scheme-specific financing (interest, tenure, EMI). Showing concept estimates only.
+              {interpolate(tr('noSchemeSelectedCost', lang), { cost: `₹${formatINR(fp.project_cost)}` })} {tr('pleaseSelectScheme', lang)} <a href="/schemes" className="font-bold underline">{tr('schemesPageLink', lang)}</a> {tr('toSeeInterestTenure', lang)}
             </div>
           )}
         </Card>
@@ -215,25 +224,25 @@ export function Dashboard() {
                 <div className="box-border rounded-lg bg-gray-50 p-3 px-4">
                   <div className="break-words whitespace-normal text-gray-500">{tr('peakMonth', lang)}</div>
                   <div className="break-words whitespace-normal font-semibold text-gray-900">{monthName(si.peak_month, lang)}{si.peak_index != null ? ` · ${si.peak_index}` : ''}</div>
-                  {si.peak_reason && <div className="mt-1 text-[11px] leading-snug text-gray-600">{si.peak_reason}</div>}
+                  {si.peak_reason && <div className="mt-1 text-[11px] leading-snug text-gray-600">{translateSeasonalReason(si.peak_reason, lang)}</div>}
                 </div>
                 <div className="box-border rounded-lg bg-gray-50 p-3 px-4">
                   <div className="break-words whitespace-normal text-gray-500">{tr('lowMonth', lang)}</div>
                   <div className="break-words whitespace-normal font-semibold text-gray-900">{monthName(si.low_month, lang)}{si.low_index != null ? ` · ${si.low_index}` : ''}</div>
-                  {si.low_reason && <div className="mt-1 text-[11px] leading-snug text-gray-600">{si.low_reason}</div>}
+                  {si.low_reason && <div className="mt-1 text-[11px] leading-snug text-gray-600">{translateSeasonalReason(si.low_reason, lang)}</div>}
                 </div>
               </div>
-              {si.peak_explanation && <div className="rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">📌 {si.peak_explanation}</div>}
-              {si.low_explanation && <div className="rounded-lg bg-gray-50 p-2.5 text-xs text-gray-600">🔽 {si.low_explanation}</div>}
-              {si.cash_flow_risk_reason && <p className="text-xs text-gray-600">{si.cash_flow_risk_reason}</p>}
+              {si.peak_explanation && <div className="rounded-lg bg-amber-50 p-2.5 text-xs text-amber-900">📌 {interpolate(tr('peakInMonth', lang), { month: monthName(si.peak_month, lang), index: si.peak_index ?? '' })} {translateSeasonalReason(si.peak_reason, lang)}</div>}
+              {si.low_explanation && <div className="rounded-lg bg-gray-50 p-2.5 text-xs text-gray-600">🔽 {interpolate(tr('lowInMonth', lang), { month: monthName(si.low_month, lang), index: si.low_index ?? '' })} {translateSeasonalReason(si.low_reason, lang)}</div>}
+              {si.cash_flow_risk_reason && <p className="text-xs text-gray-600">{translateSeasonalReason(si.cash_flow_risk_reason, lang)}</p>}
               {si.inventory_implication && (
                 <div className="box-border rounded-lg bg-brand-50 p-3 px-4 break-words whitespace-normal text-xs text-brand-800">
-                  <strong>{tr('inventory', lang)}</strong>{si.inventory_implication}
+                  <strong>{tr('inventory', lang)}</strong>{translateInventory(si.inventory_implication, si, lang)}
                   {si.stock_buffer_factor != null ? ` (${tr('buffer', lang)} ×${si.stock_buffer_factor})` : ''}
                 </div>
               )}
-              {si.recommendation && <p className="text-xs text-gray-700">{si.recommendation}</p>}
-              {si.note && <p className="text-[11px] italic text-gray-500">{si.note}</p>}
+              {si.recommendation && <p className="text-xs text-gray-700">{translateBackend(si.recommendation, lang)}</p>}
+              {si.note && <p className="text-[11px] italic text-gray-500">{translateBackend(si.note, lang)}</p>}
             </div>
           ) : (
             <p className="text-sm text-gray-500">{tr('noSeasonalIntelligence', lang)}</p>
@@ -247,14 +256,14 @@ export function Dashboard() {
               {prs.map((p: any, i: number) => (
                 <li key={i} className="box-border rounded-lg bg-gray-50 p-3 px-4">
                   <div className="flex flex-wrap items-center justify-between gap-2 whitespace-normal">
-                    <span className="break-words whitespace-normal font-medium text-gray-900">{p.product || tr('product', lang)}</span>
+                    <span className="break-words whitespace-normal font-medium text-gray-900">{translateProductName(p.product, lang)}</span>
                     <div className="flex flex-wrap items-center gap-1.5">
                       <Badge color={relevanceColor(p.relevance)}>{p.relevance || '—'}</Badge>
                       <span className="break-words whitespace-normal text-[10px] text-gray-500">{p.confidence || '—'} {tr('confidence', lang)}</span>
                     </div>
                   </div>
-                  {p.reason && <p className="mt-1 break-words whitespace-normal text-xs text-gray-600">{p.reason}</p>}
-                  {p.evidence && <p className="mt-1 break-words whitespace-normal text-[11px] italic text-gray-500">{p.evidence}</p>}
+                  {p.reason && <p className="mt-1 break-words whitespace-normal text-xs text-gray-600">{translateProductReason(p.reason, lang)}</p>}
+                  {p.evidence && <p className="mt-1 break-words whitespace-normal text-[11px] italic text-gray-500">{translateBackend(p.evidence, lang)}</p>}
                 </li>
               ))}
             </ul>
@@ -264,69 +273,25 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Business Setup + Navigation — side-by-side in one card; hide Business Setup button when AVOID */}
-      {(() => {
-        const v = (result as any).viability
-        if (v?.decision === 'AVOID') return null
-        return (
-          <Card>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              {/* Left: Business Setup */}
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-gray-900">Business Setup</div>
-                <p className="mt-1 text-xs leading-relaxed text-gray-500">Review startup requirements, inventory and recommended budget split.</p>
-                <a href="/business-setup" className="mt-3 inline-flex rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Go to Business Setup →</a>
-              </div>
-              {/* Divider */}
-              <div className="hidden sm:block h-20 w-px bg-gray-200" />
-              <div className="sm:hidden h-px bg-gray-200" />
-              {/* Right: Navigation helpers */}
-              <div className="min-w-0 flex-1 sm:text-right">
-                <div className="text-sm font-semibold text-gray-900">Want to try different business, location or capital?</div>
-                <div className="mt-3 flex flex-wrap gap-2 sm:justify-end">
-                  <a href="/analyze" className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700">Back to Analyze & Change Input →</a>
-                  <a href="/" className="rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Exit to Home</a>
-                </div>
-              </div>
-            </div>
-          </Card>
-        )
-      })()}
-
-      {/* 6. FINANCING — already shown above; working capital & scale fit */}
-      {(() => {
-        const wc = (result as any).working_capital
-        if (!wc) return null
-        return (
-          <Card>
-            <CardHeader title="Working Capital / Survival Buffer" subtitle={`Modelled estimate: ₹${formatINR(wc.estimated_working_capital_requirement)}`} />
-            <ul className="space-y-1 text-xs text-gray-600">
-              {wc.reasons.map((r:string,i:number)=><li key={i}>• {r}</li>)}
-            </ul>
-            <p className="mt-2 text-[11px] italic text-gray-500">{wc.disclaimer}</p>
-          </Card>
-        )
-      })()}
-
       {(() => {
         const sf = (result as any).scale_fit
         if (!sf) return null
         return (
           <Card>
-            <CardHeader title="Business Scale Fit" subtitle={sf.reason || ''} />
+            <CardHeader title={tr('businessScaleFitTitle', lang)} subtitle={sf.reason || ''} />
             <div className="grid gap-2 md:grid-cols-3">
               {sf.scales.map((s:any)=>(
                 <div key={s.scale} className={`rounded-lg p-3 text-xs ${s.scale===sf.recommended_scale?'bg-teal-50 border border-teal-200':'bg-gray-50'}`}>
                   <div className="font-bold capitalize">{s.scale} {s.scale===sf.recommended_scale?'★':''}</div>
-                  <div>Project ₹{formatINR(s.project_cost)}</div>
-                  <div>Gap ₹{formatINR(s.required_financing)}</div>
-                  <div>Scheme {s.scheme || '—'} · EMI ₹{formatINR(s.emi)} · {s.repayment_health}</div>
-                  {s.cash_surplus!=null && <div>Cash surplus ₹{formatINR(s.cash_surplus)}</div>}
-                  <div className="mt-1 text-[10px] text-gray-500">Fit {s.fit_score}/100</div>
+                  <div>{interpolate(tr('scaleProjectAmount', lang), { amount: formatINR(s.project_cost) })}</div>
+                  <div>{interpolate(tr('scaleGapAmount', lang), { amount: formatINR(s.required_financing) })}</div>
+                  <div>{interpolate(tr('scaleSchemeEmi', lang), { scheme: s.scheme || '—', emi: formatINR(s.emi), health: s.repayment_health || '—' })}</div>
+                  {s.cash_surplus!=null && <div>{interpolate(tr('scaleCashSurplus', lang), { amount: formatINR(s.cash_surplus) })}</div>}
+                  <div className="mt-1 text-[10px] text-gray-500">{interpolate(tr('fitLabel', lang), { score: s.fit_score })}</div>
                 </div>
               ))}
             </div>
-            {sf.recommended_scale && <p className="mt-2 text-sm font-semibold text-teal-700">Recommended scale: {sf.recommended_scale} <span className="text-xs font-normal text-gray-600">— best fit for your capital of ₹{formatINR(sf.capital_available)} based on financing gap and repayment health</span></p>}
+            {sf.recommended_scale && <p className="mt-2 text-sm font-semibold text-teal-700">{interpolate(tr('recommendedScale', lang), { scale: sf.recommended_scale })} <span className="text-xs font-normal text-gray-600">{interpolate(tr('bestFitForCapital', lang), { capital: formatINR(sf.capital_available) })}</span></p>}
           </Card>
         )
       })()}
@@ -337,17 +302,17 @@ export function Dashboard() {
         if (!c || !c.constraints?.length) return null
         return (
           <Card>
-            <CardHeader title="What Is Limiting My Business?" subtitle={`${c.count} constraint(s) · top is ${c.top_constraint?.severity || ''}`} />
+            <CardHeader title={tr('whatIsLimiting', lang)} subtitle={interpolate(tr('constraintCount', lang), { count: c.count, severity: c.top_constraint?.severity || '' })} />
             <div className="space-y-2">
               {c.constraints.slice(0,5).map((con:any,i:number)=>(
                 <div key={i} className="rounded-lg bg-gray-50 p-3">
                   <div className="flex items-center gap-2">
                     <Badge color={con.severity==='HIGH'?'red':con.severity==='MEDIUM'?'amber':'gray'}>{con.severity}</Badge>
-                    <span className="text-sm font-semibold text-gray-800">{con.factor}</span>
+                    <span className="text-sm font-semibold text-gray-800">{translateConstraintFactor(con.factor, lang)}</span>
                   </div>
-                  <div className="mt-1 text-xs text-gray-600">{con.detail}</div>
-                  {con.evidence && <div className="text-[11px] italic text-gray-500">Evidence: {con.evidence}</div>}
-                  {con.action && <div className="mt-1 text-xs text-teal-700">→ {con.action}</div>}
+                  <div className="mt-1 text-xs text-gray-600">{translateBackend(con.detail, lang)}</div>
+                  {con.evidence && <div className="text-[11px] italic text-gray-500">{tr('evidenceLabel', lang)} {translateBackend(con.evidence, lang)}</div>}
+                  {con.action && <div className="mt-1 text-xs text-teal-700">{interpolate(tr('actionPrefix', lang), { action: translateBackend(con.action, lang) })}</div>}
                 </div>
               ))}
             </div>
@@ -355,7 +320,16 @@ export function Dashboard() {
         )
       })()}
 
-
+      {/* Go to Business Setup — final CTA at absolute end */}
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-gray-900">{tr('businessSetupTitle', lang)}</div>
+            <p className="mt-1 text-xs leading-relaxed text-gray-500">{tr('businessSetupDesc', lang)}</p>
+          </div>
+          <button onClick={() => navigate('/business-setup')} className="rounded-xl bg-brand-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-brand-700">{tr('goToBusinessSetup', lang)} →</button>
+        </div>
+      </Card>
 
     </div>
   )
@@ -431,6 +405,177 @@ function incomeCostData(meOrPm: any, lang: Language) {
     ]
   }
   return []
+}
+
+function translateDynamic(text: string, lang: Language): string {
+  if (!text || lang === 'en') return text
+  const map: Record<string, keyof typeof import('../lib/i18n').dict> = {
+    'Repayment health is High Risk and business shows negative cash surplus': 'dynRepaymentHighRisk',
+    'Adequate local demand (100/100)': 'dynAdequateDemand',
+    'Good accessibility (80/100)': 'dynGoodAccessibility',
+    'Consider an alternate business category or location with stronger demand and lower competition.': 'dynConsiderAlternate',
+  }
+  const key = map[text]
+  if (key) return tr(key, lang)
+  return translateBackend(text, lang)
+}
+
+function translateBackend(text: string, lang: Language): string {
+  if (!text || lang === 'en') return text
+  const map: Record<string, keyof typeof import('../lib/i18n').dict> = {
+    // Seasonal notes & risks
+    'Seasonal indexes are modelled from the category\'s festival, harvest and school calendar. Validate with local records.': 'seasonalNoteModel',
+    'Demand swings notably across the year; working capital and cash flow are exposed to seasonal troughs.': 'seasonalRiskHigh',
+    'Moderate seasonal variation; buffer stock/credit care is advisable before peaks.': 'seasonalRiskMedium',
+    'Demand is broadly stable through the year.': 'seasonalRiskLow',
+    // Seasonal peak / low reasons (full strings from _PEAK_REASONS / _LOW_REASONS)
+    'Diwali (Nov) and post-harvest (Oct) bring higher rural incomes and festival stocking by households.': 'seasonalPeakGrocery',
+    'November festival season (Diwali) lifts sweet/milk demand; summer heat mildly depresses fluid milk sales.': 'seasonalPeakDairy',
+    'Festival and wedding season in Oct–Nov raises demand for chicken and eggs.': 'seasonalPeakPoultry',
+    'Pre-wedding and Pongal/Diwali festival buying (Jun, Oct) drives tailoring and garment sales.': 'seasonalPeakTextile',
+    'Mango and agricultural harvest in Aug raises raw-material supply for processing and packed-food demand.': 'seasonalPeakFoodProcessing',
+    'Festival and harvest bonus months (Oct–Nov) raise out-of-home eating near markets.': 'seasonalPeakRestaurant',
+    'Kharif harvest marketing (Aug–Sep) concentrates cash inflow and input buying.': 'seasonalPeakAgriculture',
+    'Post-harvest and pre-festival orders (Aug–Sep) lift demand from rural buyers.': 'seasonalPeakManufacturing',
+    'Festival gifting (Sep) and tourist season drive craft purchases.': 'seasonalPeakHandicrafts',
+    'Festival bonuses (Sep–Oct) modestly lift discretionary electronics buying.': 'seasonalPeakMobileShop',
+    'Monsoon-related fever and winter cold (Aug, Jan) lift mild seasonal illness demand.': 'seasonalPeakPharmacy',
+    'Local events and festival calendar modestly lift footfall.': 'seasonalPeakOther',
+    'Lean post-festival months (Jan–Feb) after household stocking subsides.': 'seasonalLowGrocery',
+    'Summer (Jun–Jul) heat raises spoilage and lowers fluid milk appetite; fodder cost rises.': 'seasonalLowDairy',
+    'Hot pre-monsoon (Mar–Apr) mildly softens poultry appetite.': 'seasonalLowPoultry',
+    'Post-festival lull (Apr) with few weddings and low replacement demand.': 'seasonalLowTextile',
+    'Lean pre-harvest (Jan–Feb) when raw material is scarce.': 'seasonalLowFoodProcessing',
+    'Quiet Jan–Feb before harvest incomes arrive.': 'seasonalLowRestaurant',
+    'Lean pre-sowing (Jan–Feb) when no crop income is realised.': 'seasonalLowAgriculture',
+    'Lean Jan–Feb before rural cash flows pick up.': 'seasonalLowManufacturing',
+    'Lean Jan when festival gifting is over.': 'seasonalLowHandicrafts',
+    'No strong seasonality — stable through most months.': 'seasonalLowMobileShop',
+    'Mild summer (May) sees fewer seasonal illnesses.': 'seasonalLowPharmacy',
+    'Demand is broadly even across the year.': 'seasonalLowOther',
+    // Generic backend strings
+    'Location-specific evidence unavailable.': 'locationNoteFallback',
+    // Location suitability strengths / concerns (Dashboard Location Suitability)
+    'Good accessibility (near market/transport)': 'lsStrengthAccess',
+    'Low to moderate competition in catchment': 'lsStrengthCompetition',
+    'Strong surrounding population evidence': 'lsStrengthPopulation',
+    'Nearby market/transport infrastructure': 'lsStrengthInfra',
+    'No strong location advantages identified in current evidence': 'lsStrengthNoAdv',
+    'Limited accessibility — distant from market hub': 'lsConcernAccess',
+    'High mapped competition — site selection will matter': 'lsConcernCompetition',
+    'Weak demand evidence for this catchment': 'lsConcernDemand',
+    'Limited market evidence for this category/location': 'lsConcernMarket',
+    'No major location concerns detected': 'lsConcernNoConcerns',
+    'Derived from existing competition, accessibility, demand and market evidence (not a separate model).': 'lsNoteDerived',
+    'Population is historical Census 2011 baseline — not current.': 'lsReasonHistorical',
+    'Competition data completeness is low.': 'lsReasonLowCompetition',
+  }
+  const key = map[text]
+  if (key) return tr(key, lang)
+  // fallback: try substring match for composite strings containing known phrase
+  for (const [eng, k] of Object.entries(map)) {
+    if (text.includes(eng) && eng.length > 20) {
+      return text.replace(eng, tr(k as any, lang))
+    }
+  }
+  return text
+}
+
+function translateSeasonalReason(text: string, lang: Language): string {
+  return translateBackend(text, lang)
+}
+
+function translateProductName(text: string, lang: Language): string {
+  if (!text || lang === 'en') return text
+  const map: Record<string, keyof typeof import('../lib/i18n').dict> = {
+    'Festive essentials (oils, grains, sweets)': 'productFestiveEssentials',
+    'Fresh milk & dairy': 'productFreshMilkDairy',
+    'Packaged snacks & beverages': 'productPackagedSnacks',
+    'Household consumables (soap, detergent)': 'productHouseholdConsumables',
+    'Curd & paneer': 'productCurdPaneer',
+    'Ghee (festive)': 'productGheeFestive',
+    'Fresh milk (daily supply)': 'productFreshMilkDaily',
+    'Broiler chicken (live/dressed)': 'productBroiler',
+    'Eggs (tray/retail)': 'productEggs',
+    'Festive & wedding wear': 'productFestiveWeddingWear',
+    'School uniforms': 'productSchoolUniforms',
+    'Everyday casuals/work wear': 'productEverydayCasuals',
+    'Mango pulp / pickle (seasonal)': 'productMangoPulp',
+    'Millet and spice packs': 'productMilletSpice',
+    'Meals / biryani (evening)': 'productMealsBiryani',
+    'Tea, coffee and snacks': 'productTeaCoffee',
+    'Sowing-season seeds & inputs': 'productSowingSeeds',
+    'Post-harvest storage & packaging': 'productPostHarvest',
+    'Fertilizer top-up': 'productFertilizerTopup',
+    'Fever/cold essentials (paracetamol, ORS)': 'productFeverCold',
+    'Chronic care (BP, diabetes)': 'productChronicCare',
+    'Recharges & accessories': 'productRecharges',
+    'Repairs & servicing': 'productRepairs',
+    'Job-work for local agri/fabrication': 'productJobWork',
+    'Spare parts & fabrication': 'productSpareParts',
+    'Festive gift sets': 'productFestiveGift',
+    'Everyday decor utility': 'productEverydayDecor',
+    'Haircut & grooming': 'productHaircut',
+    'Bridal/occasion packages': 'productBridal',
+    'Core service / core product': 'productCoreService',
+  }
+  const key = map[text]
+  if (key) return tr(key, lang)
+  return text
+}
+
+function translateProductReason(text: string, lang: Language): string {
+  if (!text || lang === 'en') return text
+  const map: Record<string, keyof typeof import('../lib/i18n').dict> = {
+    'Households stock oils and staples ahead of Diwali/Pongal — campus and nearby provision stores report 20-30% lift in Oct-Nov.': 'productReasonFestiveEssentials',
+    'Cooling dairy sees peak demand in hot months (Apr-Jun) when curd consumption rises.': 'productReasonCurdPaneer',
+    'Ghee demand lifts around festivals and weddings (Oct-Nov, Jun) for sweets and rituals.': 'productReasonGhee',
+    'Core daily income; tie up with 2-3 village collection points for steady supply.': 'productReasonFreshMilkDaily',
+  }
+  const key = map[text]
+  if (key) return tr(key, lang)
+  return translateBackend(text, lang)
+}
+
+function translateConstraintFactor(text: string, lang: Language): string {
+  if (!text || lang === 'en') return text
+  const map: Record<string, keyof typeof import('../lib/i18n').dict> = {
+    'Insufficient own capital': 'factorInsufficientCapital',
+    'Financing cap exceeded': 'factorFinancingCap',
+    'High competition': 'factorHighCompetition',
+    'Moderate competition': 'factorModerateCompetition',
+    'Weak market evidence': 'factorWeakMarket',
+    'Low gross margin': 'factorLowGrossMargin',
+    'High operating expenses': 'factorHighOpex',
+    'Poor repayment capacity': 'factorPoorRepayment',
+    'Moderate repayment capacity': 'factorModerateRepayment',
+    'Seasonal risk': 'factorSeasonalRisk',
+    'Location accessibility': 'factorLocationAccess',
+    'Weak health infrastructure': 'factorWeakHealth',
+    'Insufficient data confidence': 'factorInsufficientData',
+  }
+  const key = map[text]
+  if (key) return tr(key, lang)
+  return text
+}
+
+function translateInventory(text: string, si: any, lang: Language): string {
+  if (!text || lang === 'en') return text
+  // Check stable case
+  if (text.startsWith('Demand is stable through the year')) {
+    const reason = translateSeasonalReason(si?.peak_reason || '', lang)
+    return `${tr('seasonalInventoryStable', lang)} ${reason}`.trim()
+  }
+  if (text.includes('Demand peaks in')) {
+    const peakReason = translateSeasonalReason(si?.peak_reason || '', lang)
+    const month = monthName(si?.peak_month, lang)
+    const idx = si?.peak_index ?? ''
+    const buf = si?.stock_buffer_factor ?? ''
+    const prefix = interpolate(tr('seasonalInventoryPrefix', lang), { month, index: idx })
+    const suffix = interpolate(tr('seasonalInventorySuffix', lang), { buffer: buf })
+    return `${prefix} ${peakReason} ${suffix}`.trim()
+  }
+  return translateBackend(text, lang)
 }
 
 function showPins(loc: any, lang: Language): string {

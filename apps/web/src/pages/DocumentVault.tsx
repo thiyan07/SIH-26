@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
+import { useAnalysis } from '../lib/analysisStore'
+import { tr, interpolate } from '../lib/i18n'
 import { Card, CardHeader } from '../components/ui'
 import { PageHeader } from '../components/PageHeader'
 
 type Doc = { id: string; name: string; type: string; size: number; date: string; preview?: string }
 
 export function DocumentVault() {
+  const { lang } = useAnalysis()
   const [docs, setDocs] = useState<Doc[]>(()=>{
     try { return JSON.parse(localStorage.getItem('grambiz.docs')||'[]') } catch { return [] }
   })
@@ -28,7 +31,7 @@ export function DocumentVault() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Secure • Local" title="Document Vault" desc="Aadhaar, land record, bank passbook — kept locally in your browser, never uploaded." />
+      <PageHeader eyebrow={tr('vaultEyebrow', lang)} title={tr('vaultTitle', lang)} desc={tr('vaultDesc', lang)} />
       <Card>
         <div
           data-testid="vault-drop"
@@ -48,7 +51,7 @@ export function DocumentVault() {
       </Card>
 
       <Card>
-        <CardHeader title={`Your documents (${docs.length})`} subtitle="Preview, download or delete" />
+        <CardHeader title={interpolate(tr('vaultYourDocs', lang), {count: docs.length})} subtitle={tr('vaultYourDocsSub', lang)} />
         {docs.length===0 ? <p className="text-sm text-slate-500">No documents yet — upload your Aadhaar or passbook scan.</p> : (
           <div className="grid gap-3 md:grid-cols-2">
             {docs.map(d=>(

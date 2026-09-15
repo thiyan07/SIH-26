@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { useAnalysis } from '../lib/analysisStore'
+import { tr } from '../lib/i18n'
 import { Card, CardHeader, Badge } from '../components/ui'
 import { PageHeader } from '../components/PageHeader'
 import { formatINR } from './Dashboard'
@@ -34,6 +36,7 @@ async function resolveVillage(village: string): Promise<{ payload: Record<string
 }
 
 export function Compare() {
+  const { lang } = useAnalysis()
   const [a, setA] = useState('')
   const [b, setB] = useState('')
   const [resA, setResA] = useState<any>(null)
@@ -85,13 +88,13 @@ export function Compare() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Client • Compare" title="Village Compare" desc="Put two villages side-by-side: opportunity, competition, and financial fit. All scores are deterministic, never invented." />
+      <PageHeader eyebrow={tr('compareEyebrow', lang)} title={tr('compareTitle', lang)} desc={tr('compareDesc', lang)} />
       <Card>
-        <CardHeader title="Pick two villages" subtitle="Try Perundurai vs Bhavani, or Pethampalayam vs Nallampatti" />
+        <CardHeader title={tr('comparePickTitle', lang)} subtitle={tr('comparePickSubtitle', lang)} />
         <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] items-end">
           <label className="block relative">
             <span className="text-xs font-medium text-slate-600">Village A</span>
-            <input value={a} onChange={e=>setA(e.target.value)} onFocus={()=>setFocusA(true)} onBlur={()=>setTimeout(()=>setFocusA(false),150)} onKeyDown={e=> e.key==='Enter' && run()} placeholder="e.g. Perundurai" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" data-testid="compare-a" />
+            <input value={a} onChange={e=>setA(e.target.value)} onFocus={()=>setFocusA(true)} onBlur={()=>setTimeout(()=>setFocusA(false),150)} onKeyDown={e=> e.key==='Enter' && run()} placeholder={tr('comparePlaceholderA', lang)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" data-testid="compare-a" />
             {focusA && suggestionsA.length > 0 && (
               <div className="relative z-20 mt-1 max-h-40 overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
                 {suggestionsA.map(loc => (
@@ -102,7 +105,7 @@ export function Compare() {
           </label>
           <label className="block">
             <span className="text-xs font-medium text-slate-600">Village B</span>
-            <input value={b} onChange={e=>setB(e.target.value)} onFocus={()=>setFocusB(true)} onBlur={()=>setTimeout(()=>setFocusB(false),150)} onKeyDown={e=> e.key==='Enter' && run()} placeholder="e.g. Bhavani" className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" data-testid="compare-b" />
+            <input value={b} onChange={e=>setB(e.target.value)} onFocus={()=>setFocusB(true)} onBlur={()=>setTimeout(()=>setFocusB(false),150)} onKeyDown={e=> e.key==='Enter' && run()} placeholder={tr('comparePlaceholderB', lang)} className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm" data-testid="compare-b" />
             {focusB && suggestionsB.length > 0 && (
               <div className="relative z-20 mt-1 max-h-40 overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg">
                 {suggestionsB.map(loc => (

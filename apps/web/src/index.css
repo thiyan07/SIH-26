@@ -132,8 +132,36 @@ input::placeholder, textarea::placeholder { color: #64748b; opacity: 1; }
 select { color: hsl(var(--foreground)); }
 select option { color: #0f172a; background: #fff; }
 
-/* ensure white-on-white never happens: cards and panels force dark text by default */
-.bg-white, .bg-slate-50, .bg-gray-50 { color: hsl(var(--foreground)); }
+/* ensure white-on-white never happens in LIGHT only — dark needs opposite */
+:root .bg-white, :root .bg-slate-50, :root .bg-gray-50 { color: hsl(var(--foreground)); }
+.dark .bg-white { background-color: hsl(var(--card)) !important; color: hsl(var(--card-foreground)) !important; border-color: hsl(var(--border)) !important; }
+.dark .bg-gray-50, .dark .bg-slate-50 { background-color: hsl(var(--muted) / 0.7) !important; color: hsl(var(--foreground)) !important; }
+.dark .bg-slate-100, .dark .bg-gray-100 { background-color: hsl(var(--muted)) !important; color: hsl(var(--foreground)) !important; }
+.dark .bg-amber-50 { background-color: hsl(38 92% 10% / 0.35) !important; color: hsl(38 90% 85%) !important; border-color: hsl(38 40% 20%) !important; }
+.dark .bg-green-50 { background-color: hsl(142 70% 10% / 0.35) !important; color: hsl(142 70% 85%) !important; border-color: hsl(142 30% 18%) !important; }
+.dark .bg-teal-50 { background-color: hsl(173 60% 10% / 0.35) !important; color: hsl(173 60% 85%) !important; border-color: hsl(173 30% 18%) !important; }
+.dark .bg-blue-50 { background-color: hsl(217 90% 12% / 0.35) !important; color: hsl(217 90% 85%) !important; border-color: hsl(217 30% 18%) !important; }
+.dark .bg-red-50 { background-color: hsl(0 70% 12% / 0.35) !important; color: hsl(0 70% 85%) !important; border-color: hsl(0 30% 18%) !important; }
+/* status colors in dark — lighter for contrast on dark tint */
+.dark .text-green-700 { color: hsl(142 70% 72%) !important; }
+.dark .text-green-800 { color: hsl(142 60% 78%) !important; }
+.dark .text-amber-700, .dark .text-amber-800 { color: hsl(38 92% 68%) !important; }
+.dark .text-red-700 { color: hsl(0 78% 72%) !important; }
+.dark .border-green-200 { border-color: hsl(142 30% 22%) !important; }
+.dark .border-amber-200 { border-color: hsl(38 30% 22%) !important; }
+.dark .border-red-200 { border-color: hsl(0 30% 22%) !important; }
+.dark .border-teal-100 { border-color: hsl(173 30% 20%) !important; }
+/* dark text utilities inside light cards → light text in dark */
+.dark .text-gray-900, .dark .text-slate-900 { color: hsl(var(--foreground)) !important; }
+.dark .text-gray-800, .dark .text-slate-800 { color: hsl(var(--foreground) / 0.92) !important; }
+.dark .text-gray-700, .dark .text-slate-700 { color: hsl(var(--muted-foreground)) !important; }
+.dark .text-gray-600, .dark .text-slate-600 { color: hsl(var(--muted-foreground) / 0.85) !important; }
+.dark .text-gray-500, .dark .text-slate-500 { color: hsl(var(--muted-foreground) / 0.75) !important; }
+/* borders in dark */
+.dark .border-gray-200, .dark .border-slate-200, .dark .border-gray-100 { border-color: hsl(var(--border)) !important; }
+/* inputs/selects in dark */
+.dark input, .dark textarea, .dark select { background-color: hsl(var(--input)) !important; color: hsl(var(--foreground)) !important; border-color: hsl(var(--border)) !important; }
+.dark input::placeholder, .dark textarea::placeholder { color: hsl(var(--muted-foreground) / 0.6) !important; }
 
 /* leaflet attribution and map badges should be dark on light */
 .leaflet-control-attribution { color: #334155 !important; background: rgba(255,255,255,0.9) !important; }

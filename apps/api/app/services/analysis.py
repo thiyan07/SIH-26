@@ -394,7 +394,7 @@ def _industry_context(db: Session, state: str) -> dict:
     }
 
 
-def run_analysis(db: Session, req) -> dict:
+def run_analysis(db: Session, req, user_id: str | None = None) -> dict:
     """Execute the full deterministic pipeline for an AnalysisRequest."""
     from app.log import log_event
 
@@ -1089,8 +1089,22 @@ def run_analysis(db: Session, req) -> dict:
         "data_sources": _collect_data_sources(competition, population, weather, price_evidence, soil, infrastructure, loc_features),
     }
 
+    # persist — record engine versions for reproducibility
+    try:
+        from app.engines import finance as _f, score as _sc, repayment as _rp, business_intelligence as _bi  # type: ignore
+
+        _versions = {
+            "finance": getattr(_f, "__version__", "unknown"),
+            "score": getattr(_sc, "__version__", "unknown"),
+            "repayment": getattr(_rp, "__version__", "unknown"),
+            "business_intelligence": getattr(_bi, "__version__", "unknown"),
+        }
+    except Exception:
+        _versions = {"finance": "2.0.0", "score": "2.0.0", "repayment": "2.0.0", "business_intelligence": "2.0.0"}
+
     # persist
     run = AnalysisRun(
+        user_id=user_id,
         state=req.state,
         district=req.district,
         block=req.block,
@@ -1101,7 +1115,11 @@ def run_analysis(db: Session, req) -> dict:
         inputs=req.model_dump(),
         result=evidence,
         language=req.language,
+        engine_versions=_versions,
+        is_saved=bool(user_id),
     )
+    # Also embed versions into evidence for frontend display
+    evidence["engine_versions"] = _versions
     db.add(run)
     db.flush()
     evidence["analysis_id"] = run.id

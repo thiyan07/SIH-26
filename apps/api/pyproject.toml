@@ -15,6 +15,10 @@ dependencies = [
     "slowapi>=0.1.9",
     "python-multipart>=0.0.9",
     "scrapling>=0.4",
+    "passlib[bcrypt]>=1.7",
+    "bcrypt>=4.0",
+    "pyjwt>=2.8",
+    "email-validator>=2.1",
 ]
 
 [project.optional-dependencies]

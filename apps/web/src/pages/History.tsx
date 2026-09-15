@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { Card, Badge } from '../components/ui'
 import { useAnalysis } from '../lib/analysisStore'
+import { tr } from '../lib/i18n'
 
 type Run = { analysis_id: string; state: string; district: string; block: string; village: string; category_code: string; language: string; created_at: string; result?: any }
 
 export function History() {
-  const { setResult } = useAnalysis()
+  const { lang, setResult } = useAnalysis()
   const [rows, setRows] = useState<Run[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -29,7 +30,7 @@ export function History() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Client • History" title="Saved Analyses" desc="Every report you generated — village, category, score and loan — kept for the client to revisit and share." />
+      <PageHeader eyebrow={tr('historyEyebrow', lang)} title={tr('historyTitle', lang)} desc={tr('historyDesc', lang)} />
       {loading ? <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading…</div> : rows.length === 0 ? (
         <Card className="p-8 text-center">
           <div className="text-3xl">📂</div>

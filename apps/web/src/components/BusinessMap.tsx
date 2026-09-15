@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useAnalysis } from '../lib/analysisStore'
+import { tr } from '../lib/i18n'
 import type { Business, InfrastructurePoint, MapPoint, MSMECluster } from '../types'
 import { businessesToGeoJSON, infrastructureToGeoJSON, pointsToGeoJSON } from '../lib/geo'
 import {
@@ -97,14 +99,14 @@ export const COMPETITOR_CATEGORIES = new Set([
   'meat_shop', 'building_materials', 'fertilizer', 'seed_shop',
 ])
 
-const layerOptions = [
-  { key: 'all', label: 'All' },
-  { key: 'competitors', label: 'Competitors' },
-  { key: 'markets', label: 'Markets' },
-  { key: 'restaurants', label: 'Restaurants' },
-  { key: 'retail', label: 'Retail' },
-  { key: 'infrastructure', label: 'Infrastructure' },
-  { key: 'msme', label: 'MSMEs' },
+const layerOptionsAll = [
+  { key: 'all', labelKey: 'layerAll' },
+  { key: 'competitors', labelKey: 'layerCompetitors' },
+  { key: 'markets', labelKey: 'layerMarkets' },
+  { key: 'restaurants', labelKey: 'layerRestaurants' },
+  { key: 'retail', labelKey: 'layerRetail' },
+  { key: 'infrastructure', labelKey: 'layerInfrastructure' },
+  { key: 'msme', labelKey: 'layerMsme' },
 ]
 
 // Color palette for different category groups
@@ -146,6 +148,9 @@ function getColorForCategory(categoryCode?: string): string {
 }
 
 export function BusinessMap({ center, businesses = [], competitors = [], markets = [], infrastructure = [], msmeClusters = [], showRadius = true, zoom = 12, height = '420px', selectedCategory, radiusKm: propRadius, onRadiusChange }: BusinessMapProps) {
+  const { lang } = useAnalysis()
+  const hasMsme = msmeClusters.length > 0
+  const layerOptions = hasMsme ? layerOptionsAll : layerOptionsAll.filter(l => l.key !== 'msme')
   const [layer, setLayer] = useState('all')
   const [internalRadius, setInternalRadius] = useState(10)
   const radiusKm = propRadius ?? internalRadius
@@ -153,6 +158,9 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
     if (onRadiusChange) onRadiusChange(v)
     else setInternalRadius(v)
   }
+  useEffect(() => {
+    if (!hasMsme && layer === 'msme') setLayer('all')
+  }, [hasMsme, layer])
 
   // Determine which category_codes count as competitors for the selected business type.
   const competitorCodes = selectedCategory
@@ -210,16 +218,16 @@ export function BusinessMap({ center, businesses = [], competitors = [], markets
             className={`rounded-md px-2.5 py-1 text-xs font-medium ${
               layer === l.key ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:text-slate-200'
             }`}
-            title={`${l.label}: ${countsBadge[l.key] ?? 0} items`}
+            title={`${tr((l as any).labelKey as any, lang)}: ${countsBadge[l.key] ?? 0} items`}
             data-testid={`layer-${l.key}`}
           >
-            {l.label} <span className={`ml-1 rounded-full px-1 py-0.5 text-[10px] ${layer === l.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>{countsBadge[l.key] ?? 0}</span>
+            {tr((l as any).labelKey as any, lang)} <span className={`ml-1 rounded-full px-1 py-0.5 text-[10px] ${layer === l.key ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}`}>{countsBadge[l.key] ?? 0}</span>
           </button>
         ))}
         <div className="ml-auto flex items-center gap-1">
           {onRadiusChange || propRadius == null ? (
             <label className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300">
-              Radius
+              {tr('radiusLabel', lang)}
               <input data-testid="radius-slider" type="range" min={5} max={20} value={radiusKm} onChange={e=>setRadiusKm(Number(e.target.value))} className="h-1 w-16 accent-brand-600" />
               <span className="w-8 text-right">{radiusKm}km</span>
             </label>

@@ -76,7 +76,7 @@ export function Community() {
       </div>
 
       <Card className="p-4">
-        <CardHeader title="Share your journey" subtitle="Inspire others — 2 lines is enough" />
+        <CardHeader title={tr('communityShareTitle', lang)} subtitle={tr('communityShareSub', lang)} />
         <button
           data-testid="share-story"
           onClick={()=>{

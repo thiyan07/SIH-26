@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
+import L from 'leaflet'
 import type { Map as LeafletMap } from 'leaflet'
 import { Marker, useMapEvents } from 'react-leaflet'
 import { Map } from '../mapcn'
@@ -40,6 +41,17 @@ function MapClickToMove({ onMove }: { onMove: (lat: number, lng: number) => void
  * later "Confirm location" action; any new placement marks the pin as
  * unconfirmed (the parent clears the previous confirmation).
  */
+function shopPinIcon(confirmed: boolean): L.DivIcon {
+  const color = confirmed ? '#059669' : '#0d9488'
+  return L.divIcon({
+    className: 'shop-pin',
+    html: `<div style="width:22px;height:22px;border-radius:50% 50% 50% 0;background:${color};border:2px solid #fff;transform:rotate(-45deg);box-shadow:0 2px 8px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;"><span style="transform:rotate(45deg);font-size:11px;line-height:1;">📍</span></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 22],
+    popupAnchor: [0, -22],
+  })
+}
+
 export function ShopLocationPicker({
   latitude,
   longitude,
@@ -51,6 +63,7 @@ export function ShopLocationPicker({
   const [pos, setPos] = useState<{ lat: number; lng: number }>({ lat: latitude, lng: longitude })
   const [map, setMap] = useState<LeafletMap | null>(null)
   const confirmed = confirmedLat != null && confirmedLng != null
+  const pinIcon = useMemo(() => shopPinIcon(confirmed), [confirmed])
 
   const [gpsState, setGpsState] = useState<'idle' | 'locating' | 'detected'>('idle')
   const [gpsError, setGpsError] = useState<string | null>(null)
@@ -243,6 +256,7 @@ export function ShopLocationPicker({
           <Marker
             draggable
             position={[pos.lat, pos.lng]}
+            icon={pinIcon}
             eventHandlers={{
               dragend: (e) => {
                 const ll = (e.target as { getLatLng: () => { lat: number; lng: number } }).getLatLng()

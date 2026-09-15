@@ -1,14 +1,17 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAnalysis } from '../../lib/analysisStore'
+import { useAuth } from '../../lib/auth'
 import { tr, type Language } from '../../lib/i18n'
 import { useEffect, useState } from 'react'
 
 export function TopBar() {
   const { lang, setLang, result } = useAnalysis()
+  const { user, isAuthenticated, logout } = useAuth()
   const loc = useLocation()
   const nav = useNavigate()
   const [q,setQ] = useState('')
   const [cmdOpen,setCmdOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [theme, setTheme] = useState<'light'|'dark'>(()=>{
     const saved = localStorage.getItem('grambiz.theme') as 'light'|'dark'|null
     if (saved) return saved
@@ -63,7 +66,22 @@ export function TopBar() {
           <select value={lang} onChange={e=>setLang(e.target.value as Language)} className="rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
             <option value="en">EN</option><option value="ta">TA</option><option value="hi">HI</option>
           </select>
-          <Link to="/analyze" className="hidden rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white shadow hover:bg-slate-800 sm:inline">Analyze →</Link>
+          {isAuthenticated && user ? (
+            <div className="relative">
+              <button onClick={() => setUserMenuOpen(v => !v)} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold shadow-sm hover:bg-slate-50">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-600 text-white">{(user.display_name || user.email).slice(0,1).toUpperCase()}</span>
+                <span className="hidden max-w-[120px] truncate sm:inline">{user.display_name || user.email}</span>
+              </button>
+              {userMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+                  <div className="px-3 py-2 text-xs text-gray-500 truncate">{user.email}</div>
+                  <Link to="/businesses" onClick={() => setUserMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50">My Businesses</Link>
+                  <Link to="/reports" onClick={() => setUserMenuOpen(false)} className="block rounded-lg px-3 py-2 text-sm hover:bg-slate-50">My Reports</Link>
+                  <button onClick={async () => { await logout(); setUserMenuOpen(false); nav('/'); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-slate-50">Log out</button>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
       {cmdOpen && <CommandPalette q={q} setQ={setQ} onClose={()=>setCmdOpen(false)} nav={nav} lang={lang} />}

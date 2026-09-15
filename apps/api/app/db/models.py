@@ -148,10 +148,14 @@ class Business(PG, ProvenanceMixin, Base):
     verification_status = Column(String(30), nullable=True)  # VERIFIED|PARTIALLY_VERIFIED|UNVERIFIED|BUSINESS_REGISTRATION_SIGNAL
     tags = Column(JSONB, nullable=True)
     metadata_json = Column(JSONB, nullable=True)
+    # Tenant ownership — user-created businesses (is_user_business) vs competitor POIs (owner_id null)
+    owner_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    is_user_business = Column(Boolean, default=False, nullable=False)
     # geospatial lookup done via optional geometry/geography in geo.py (bootstrap scripts/db/postgis.py)
 
     __table_args__ = (Index("ix_businesses_source_source_id", "source", "source_id"),
-                      UniqueConstraint("source", "source_id", name="uq_business_source_id"))
+                      UniqueConstraint("source", "source_id", name="uq_business_source_id"),
+                      Index("ix_businesses_owner", "owner_id"))
 
 
 class PopulationStatistic(PG, ProvenanceMixin, Base):
@@ -676,6 +680,7 @@ class IndustrialUnit(PG, ProvenanceMixin, Base):
 
 class AnalysisRun(PG, Base):
     __tablename__ = "analysis_runs"
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     state = Column(String(100))
     district = Column(String(100))
     block = Column(String(100), nullable=True)
@@ -687,6 +692,8 @@ class AnalysisRun(PG, Base):
     result = Column(JSONB)  # full structured evidence + scores + financials
     report_text = Column(Text, nullable=True)
     language = Column(String(10), default="en")
+    engine_versions = Column(JSONB, nullable=True)  # snapshot of engine __version__ at run time
+    is_saved = Column(Boolean, default=False, nullable=False)  # saved to PreLoanReport vs transient
 
 
 class Report(PG, Base):
@@ -713,10 +720,120 @@ class BusinessSetupPlan(PG, Base):
 
 class User(PG, Base):
     __tablename__ = "users"
-    email = Column(String(200), unique=True, nullable=True)
+    email = Column(String(200), unique=True, nullable=True, index=True)  # keep nullable for legacy demo rows
+    password_hash = Column(String(255), nullable=True)  # nullable for legacy rows, required for new
     display_name = Column(String(200), nullable=True)
     language = Column(String(10), default="en")
+    is_active = Column(Boolean, default=True, nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
+    last_login = Column(DateTime(timezone=True), nullable=True)
+    failed_login_attempts = Column(Integer, default=0, nullable=False)
+    lockout_until = Column(DateTime(timezone=True), nullable=True)
     metadata_json = Column(JSONB, nullable=True)
+
+
+class UserSession(PG, Base):
+    """Refresh token / session tracking for JWT rotation and logout revocation."""
+
+    __tablename__ = "user_sessions"
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    refresh_token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    ip_address = Column(String(45), nullable=True)
+    user_agent = Column(String(500), nullable=True)
+    is_revoked = Column(Boolean, default=False, nullable=False)
+
+
+class PreLoanReport(PG, Base):
+    """Structured, versioned, user-owned Pre-Loan report — queryable, historically reproducible."""
+
+    __tablename__ = "pre_loan_reports"
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="SET NULL"), nullable=True, index=True)
+    analysis_run_id = Column(String(36), ForeignKey("analysis_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    # Core business idea
+    business_type = Column(String(50), nullable=True, index=True)
+    business_idea = Column(Text, nullable=True)
+    # Location — denormalized for query, plus FK
+    location_id = Column(String(36), ForeignKey("locations.id"), nullable=True, index=True)
+    exact_latitude = Column(Float, nullable=True)
+    exact_longitude = Column(Float, nullable=True)
+    geo_precision = Column(String(20), nullable=True)
+    # Structured snapshots (also preserved in analysis_runs.result for reproducibility)
+    market_snapshot = Column(JSONB, nullable=True)
+    competitor_snapshot = Column(JSONB, nullable=True)
+    financial_snapshot = Column(JSONB, nullable=True)  # {project_cost, loan, emi, assumptions}
+    opportunity_snapshot = Column(JSONB, nullable=True)  # {overall, demand, competition, ...}
+    provenance_snapshot = Column(JSONB, nullable=True)
+    # Versions
+    engine_versions = Column(JSONB, nullable=True)  # {finance:"2.0.0", score:"2.0.0", ...}
+    report_version = Column(Integer, default=1, nullable=False)
+    is_saved = Column(Boolean, default=True, nullable=False)  # saved from AnalysisRun vs draft
+    title = Column(String(200), nullable=True)  # user-editable
+
+
+class BusinessProfile(PG, Base):
+    """Post-Loan business profile — extensible per type (agriculture/textile/restaurant)."""
+
+    __tablename__ = "business_profiles"
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    business_type = Column(String(50), nullable=False, index=True)  # agriculture|textile|restaurant|other
+    # Agriculture — land & water
+    land_size = Column(Float, nullable=True)  # declared size
+    land_unit = Column(String(20), nullable=True, default="acres")  # acres|hectares|sqm
+    land_polygon = Column(JSONB, nullable=True)  # GeoJSON polygon [[lng,lat],...] 4 points
+    calculated_area = Column(Float, nullable=True)  # sqm via shoelace/GPS
+    declared_area = Column(Float, nullable=True)
+    water_source = Column(String(50), nullable=True)  # well|canal|borewell|rainfed
+    water_latitude = Column(Float, nullable=True)
+    water_longitude = Column(Float, nullable=True)
+    soil_info = Column(JSONB, nullable=True)  # {type, ph, nutrients, sample_year}
+    crop = Column(String(100), nullable=True)
+    season = Column(String(20), nullable=True)  # kharif|rabi|zaid
+    # Textile / Restaurant — flexible JSONB for type-specific metrics
+    profile_data = Column(JSONB, nullable=True)  # {capacity, production, cost, price, demand, ...}
+    # Common
+    is_verified = Column(Boolean, default=False, nullable=False)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class Loan(PG, Base):
+    """Actual loan — separate from Pre-Loan assumption (FinancialPlan). Deterministic."""
+
+    __tablename__ = "loans"
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    lender = Column(String(200), nullable=True)
+    account_ref = Column(String(100), nullable=True)
+    principal = Column(Numeric(16, 2), nullable=False)
+    interest_rate = Column(Numeric(5, 2), nullable=True)
+    interest_type = Column(String(20), default="reducing", nullable=False)  # reducing|flat
+    start_date = Column(Date, nullable=True)
+    maturity_date = Column(Date, nullable=True)
+    tenure_months = Column(Integer, nullable=True)
+    emi = Column(Numeric(16, 2), nullable=True)  # as per sanction
+    frequency = Column(String(20), default="monthly", nullable=False)
+    moratorium_months = Column(Integer, default=0, nullable=False)
+    status = Column(String(20), default="active", nullable=False)  # active|closed|defaulted
+    notes = Column(Text, nullable=True)
+
+
+class LoanPayment(PG, Base):
+    """Repayment history — one row per due date, supports irregular/missed."""
+
+    __tablename__ = "loan_payments"
+    loan_id = Column(String(36), ForeignKey("loans.id", ondelete="CASCADE"), nullable=False, index=True)
+    due_date = Column(Date, nullable=False, index=True)
+    paid_date = Column(Date, nullable=True)
+    amount = Column(Numeric(16, 2), nullable=True)  # actual paid
+    principal_paid = Column(Numeric(16, 2), nullable=True)
+    interest_paid = Column(Numeric(16, 2), nullable=True)
+    outstanding = Column(Numeric(16, 2), nullable=True)
+    status = Column(String(20), nullable=True)  # on_time|late|missed|partial
+    source = Column(String(20), default="manual", nullable=False)  # manual|import|statement
+    note = Column(Text, nullable=True)
+
+    __table_args__ = (UniqueConstraint("loan_id", "due_date", name="uq_loan_payment_due"),)
 
 
 class DiscoveryRun(PG, Base):
@@ -791,6 +908,163 @@ class CoverageAudit(PG, Base):
     )
 
 
+class BusinessMetric(PG, Base):
+    """Periodic actual observation — revenue, expenses, production, etc. — never overwrites."""
+
+    __tablename__ = "business_metrics"
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    period = Column(Date, nullable=False, index=True)  # month start, e.g. 2026-09-01
+    revenue = Column(Numeric(16, 2), nullable=True)
+    expenses = Column(Numeric(16, 2), nullable=True)
+    profit = Column(Numeric(16, 2), nullable=True)
+    cash_surplus = Column(Numeric(16, 2), nullable=True)
+    units_produced = Column(Integer, nullable=True)
+    units_sold = Column(Integer, nullable=True)
+    demand_score = Column(Numeric(5, 2), nullable=True)
+    competition_count = Column(Integer, nullable=True)
+    market_score = Column(Numeric(5, 2), nullable=True)
+    emi_paid = Column(Numeric(16, 2), nullable=True)
+    emi_status = Column(String(20), nullable=True)  # on_time|late|missed
+    notes = Column(Text, nullable=True)
+    source = Column(String(20), default="manual", nullable=False)
+
+    __table_args__ = (UniqueConstraint("business_id", "period", name="uq_business_metric_period"),)
+
+
+class BusinessHealthSnapshot(PG, Base):
+    """Deterministic health 0-100 with 10 dimensions — history, not LLM opinion."""
+
+    __tablename__ = "business_health_snapshots"
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    as_of = Column(Date, nullable=False, index=True)
+    score = Column(Integer, nullable=False)  # 0..100
+    dimensions = Column(JSONB, nullable=True)  # {revenue:{value, score, weight}, ... 10 dims}
+    weights_version = Column(String(20), default="v1", nullable=False)
+    drivers = Column(JSONB, nullable=True)  # ["Revenue fell 11% ..."]
+    explanation = Column(Text, nullable=True)
+
+    __table_args__ = (UniqueConstraint("business_id", "as_of", name="uq_health_business_as_of"),)
+
+
+class RiskAlert(PG, Base):
+    """Early warning — deterministic rule, not LLM."""
+
+    __tablename__ = "risk_alerts"
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    alert_type = Column(String(60), nullable=False, index=True)
+    severity = Column(String(20), nullable=False, index=True)  # LOW|MEDIUM|HIGH|CRITICAL
+    detected_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    metrics = Column(JSONB, nullable=True)
+    threshold = Column(JSONB, nullable=True)
+    model_version = Column(String(20), default="v1", nullable=False)
+    explanation = Column(Text, nullable=True)
+    recommended_action = Column(Text, nullable=True)
+    status = Column(String(20), default="OPEN", nullable=False, index=True)  # OPEN|ACKNOWLEDGED|RESOLVED
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    dedupe_key = Column(String(120), nullable=False, unique=True, index=True)  # prevents daily dupes
+
+
+class MarketSnapshot(PG, Base):
+    """Hyper-local market gap — competitor density + price + demand, with limitations."""
+
+    __tablename__ = "market_snapshots"
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    captured_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    radius_m = Column(Integer, nullable=False)
+    competitor_density = Column(JSONB, nullable=True)  # {category: count}
+    price_snapshot = Column(JSONB, nullable=True)
+    demand_indicators = Column(JSONB, nullable=True)
+    # Gap verdict per category
+    gaps = Column(JSONB, nullable=True)  # [{category, count, verdict: saturated|moderate|underserved|gap, feasibility, limitations}]
+    source = Column(String(50), nullable=True)
+
+
+class Forecast(PG, Base):
+    """6-month forecast — versioned, immutable after publish, with uncertainty."""
+
+    __tablename__ = "forecasts"
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    horizon_months = Column(Integer, default=6, nullable=False)
+    model_key = Column(String(40), nullable=False)  # statistical|baseline|range
+    model_version = Column(String(20), default="v1", nullable=False)
+    training_from = Column(Date, nullable=True)
+    training_to = Column(Date, nullable=True)
+    target_from = Column(Date, nullable=False, index=True)
+    target_to = Column(Date, nullable=False)
+    inputs = Column(JSONB, nullable=True)
+    outputs = Column(JSONB, nullable=False)  # {demand:[6], revenue:[6], ...}
+    uncertainty = Column(JSONB, nullable=True)  # {p10:[6], p50:[6], p90:[6], width}
+    status = Column(String(20), default="published", nullable=False)
+
+    __table_args__ = (UniqueConstraint("business_id", "target_from", name="uq_forecast_business_target"),)
+
+
+class ForecastObservation(PG, Base):
+    """Actual vs predicted — never mutates Forecast, permanent feedback."""
+
+    __tablename__ = "forecast_observations"
+    forecast_id = Column(String(36), ForeignKey("forecasts.id", ondelete="CASCADE"), nullable=False, index=True)
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    period = Column(Date, nullable=False, index=True)
+    metric = Column(String(40), nullable=False, index=True)  # revenue|profit|cash|demand
+    forecast_value = Column(Numeric(16, 2), nullable=True)
+    actual_value = Column(Numeric(16, 2), nullable=True)
+    error_pct = Column(Numeric(6, 2), nullable=True)
+    collected_at = Column(DateTime(timezone=True), nullable=False)
+    source = Column(String(20), default="manual", nullable=False)
+
+    __table_args__ = (UniqueConstraint("forecast_id", "period", "metric", name="uq_forecast_obs"),)
+
+
+class Scenario(PG, Base):
+    """What-if — BASELINE|OPTIMISTIC|PESSIMISTIC|CUSTOM, isolated from actuals."""
+
+    __tablename__ = "scenarios"
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    base_forecast_id = Column(String(36), ForeignKey("forecasts.id", ondelete="SET NULL"), nullable=True, index=True)
+    kind = Column(String(20), nullable=False, index=True)  # BASELINE|OPTIMISTIC|PESSIMISTIC|CUSTOM
+    overrides = Column(JSONB, nullable=True)  # {revenue_pct, price, cogs, opex, production, competition, emi, tenure}
+    results = Column(JSONB, nullable=False)  # {revenue, expenses, profit, cash, emi_coverage, health, risk}
+
+
+class UserDocument(PG, Base):
+    """User-uploaded loan/business document — private, validated, conflict-aware."""
+
+    __tablename__ = "user_documents"
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    doc_type = Column(String(40), nullable=False, index=True)  # sanction|statement|bank|business_record
+    file_name = Column(String(255), nullable=False)
+    file_path = Column(Text, nullable=False)  # /tmp or S3 key — never public
+    mime_type = Column(String(100), nullable=True)
+    size_bytes = Column(Integer, nullable=True)
+    sha256 = Column(String(64), nullable=True, index=True)
+    status = Column(String(20), default="pending", nullable=False)  # pending|parsed|conflict|confirmed
+    extracted_json = Column(JSONB, nullable=True)  # {lender, loan_amount, interest_rate, tenure, emi, start_date}
+    error_detail = Column(Text, nullable=True)
+
+
+class DocumentFieldExtraction(PG, Base):
+    """Per-field extraction from a document — preserves provenance, detects conflict."""
+
+    __tablename__ = "document_field_extractions"
+    document_id = Column(String(36), ForeignKey("user_documents.id", ondelete="CASCADE"), nullable=False, index=True)
+    business_id = Column(String(36), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+    field_name = Column(String(80), nullable=False, index=True)  # lender|loan_amount|interest_rate|tenure|emi
+    field_value = Column(Text, nullable=True)
+    confidence = Column(Float, nullable=True)
+    page = Column(Integer, nullable=True)
+    status = Column(String(20), default="pending", nullable=False)  # pending|confirmed|conflict
+
+    __table_args__ = (UniqueConstraint("document_id", "field_name", name="uq_doc_field"),)
+
+
 __all__ = [
     "Base",
     "Location",
@@ -825,5 +1099,19 @@ __all__ = [
     "BusinessSetupPlan",
     "Report",
     "User",
+    "UserSession",
+    "PreLoanReport",
+    "BusinessProfile",
+    "Loan",
+    "LoanPayment",
+    "BusinessMetric",
+    "BusinessHealthSnapshot",
+    "RiskAlert",
+    "MarketSnapshot",
+    "Forecast",
+    "ForecastObservation",
+    "Scenario",
+    "UserDocument",
+    "DocumentFieldExtraction",
     "ProvenanceMixin",
 ]

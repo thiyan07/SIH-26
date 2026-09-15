@@ -59,7 +59,8 @@ def test_discovery_skips_geoapify_when_no_key(monkeypatch, session):
     from app.providers import overpass as overpass_provider
     from app.services import competitors as svc
 
-    assert gp.api_key(settings) is None  # environment has no key configured
+    # Use a mock settings with no key — real env may have a key (e.g. local .env)
+    assert gp.api_key(type("S", (), {"data_provider_keys": ""})()) is None
 
     # Seed one real grocery near the query point.
     s = session
@@ -75,6 +76,8 @@ def test_discovery_skips_geoapify_when_no_key(monkeypatch, session):
     def boom(*a, **k):
         raise overpass_provider.OverpassUnavailable("down")
     monkeypatch.setattr(overpass_provider, "query", boom)
+    # Ensure Geoapify is treated as disabled for this test (env may have a key)
+    monkeypatch.setattr(gp, "api_key", lambda s: None)
 
     out = svc.discover_competitors(
         s, latitude=11.34, longitude=77.71, category_code="grocery", radius_km=2.0,

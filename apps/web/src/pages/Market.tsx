@@ -5,7 +5,7 @@ import { useAnalysis } from '../lib/analysisStore'
 import { Card, CardHeader, Provenance } from '../components/ui'
 import { BusinessMap } from '../components/BusinessMap'
 import { pointsFromGeoJSON } from '../lib/geo'
-import { tr, type Language } from '../lib/i18n'
+import { tr, interpolate, type Language } from '../lib/i18n'
 import { SupplierMarketplace } from '../components/SupplierMarketplace'
 import type { AnalysisResult, Business, InfrastructurePoint, LocationOut, MapLayersResponse, MapPoint } from '../types'
 
@@ -101,7 +101,7 @@ export function Market() {
         <div className="lg:col-span-2">
           <Card>
             <CardHeader title={tr('liveMapNearby', lang)} subtitle={tr('liveMapSub', lang)} />
-            <p className="mb-2 text-xs text-slate-500">Showing businesses within {radiusKm} km of your location.</p>
+            <p className="mb-2 text-xs text-slate-500">{interpolate(tr('marketShowingWithin', lang), { km: radiusKm })}</p>
             <BusinessMap
               center={{ latitude: result.location.latitude, longitude: result.location.longitude }}
               businesses={allBusinesses.length ? allBusinesses : (bc?.businesses || [])}
@@ -140,7 +140,7 @@ export function Market() {
       </div>
 
       <Card>
-        <CardHeader title="Supplier Marketplace" subtitle="Trusted suppliers near your village — WhatsApp to order" />
+        <CardHeader title={tr('marketSupplierTitle', lang)} subtitle={tr('marketSupplierSub', lang)} />
         <SupplierMarketplace
           latitude={result.location.latitude}
           longitude={result.location.longitude}
@@ -156,7 +156,7 @@ export function Market() {
           className="rounded-xl bg-brand-600 px-8 py-3 text-sm font-bold text-white hover:bg-brand-700 shadow"
           data-testid="market-go-on"
         >
-          Go On →
+          {tr('marketGoOn', lang)}
         </button>
       </div>
 

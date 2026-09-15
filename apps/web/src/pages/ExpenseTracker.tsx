@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { PageHeader } from '../components/PageHeader'
+import { useAnalysis } from '../lib/analysisStore'
+import { tr, interpolate } from '../lib/i18n'
 import { Card, CardHeader } from '../components/ui'
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts'
 import { downloadCSV } from '../lib/export'
@@ -7,6 +9,7 @@ import { downloadCSV } from '../lib/export'
 type Entry = { id: string; date: string; desc: string; amount: number; type: 'income' | 'expense'; category: string }
 
 export function ExpenseTracker() {
+  const { lang } = useAnalysis()
   const [entries, setEntries] = useState<Entry[]>(() => {
     try { return JSON.parse(localStorage.getItem('grambiz.expenses') || '[]') } catch { return [] }
   })
@@ -38,17 +41,17 @@ export function ExpenseTracker() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Client • Finance" title="Daily Bookkeeping" desc="As a shop owner you want a simple ledger — income vs expense, no complicated accounting." />
+      <PageHeader eyebrow={tr('expenseEyebrow', lang)} title={tr('expenseTitle', lang)} desc={tr('expenseDesc', lang)} />
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="p-4 text-center"><div className="text-xs text-slate-500">Income</div><div className="text-xl font-bold text-emerald-600">₹{totalIncome.toLocaleString('en-IN')}</div></Card>
         <Card className="p-4 text-center"><div className="text-xs text-slate-500">Expense</div><div className="text-xl font-bold text-red-600">₹{totalExpense.toLocaleString('en-IN')}</div></Card>
         <Card className={`p-4 text-center ${balance>=0?'bg-emerald-50':'bg-red-50'}`}><div className="text-xs text-slate-500">Balance</div><div className={`text-xl font-bold ${balance>=0?'text-emerald-700':'text-red-700'}`}>₹{balance.toLocaleString('en-IN')}</div></Card>
       </div>
       <Card>
-        <CardHeader title="Add entry" subtitle="Milk sales, feed purchase, rent, etc." />
+        <CardHeader title={tr('expenseAddTitle', lang)} subtitle={tr('expenseAddSubtitle', lang)} />
         <div className="flex flex-wrap gap-2">
-          <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Description (e.g. Milk sales)" className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
-          <input value={amount} onChange={e=>setAmount(e.target.value)} placeholder="Amount" type="number" className="w-32 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+          <input value={desc} onChange={e=>setDesc(e.target.value)} placeholder={tr('expenseDescPlaceholder', lang)} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+          <input value={amount} onChange={e=>setAmount(e.target.value)} placeholder={tr('expenseAmountPlaceholder', lang)} type="number" className="w-32 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
           <select value={type} onChange={e=>setType(e.target.value as any)} className="rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
             <option value="expense">Expense</option><option value="income">Income</option>
           </select>
@@ -62,7 +65,7 @@ export function ExpenseTracker() {
       {entries.length>0 && (
         <div className="grid gap-6 lg:grid-cols-2">
           <Card>
-            <CardHeader title="Expense by Category" subtitle="Where your money goes" />
+            <CardHeader title={tr('expenseByCategory', lang)} subtitle={tr('expenseByCategorySub', lang)} />
             <div data-testid="expense-pie" style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -76,7 +79,7 @@ export function ExpenseTracker() {
             </div>
           </Card>
           <Card>
-            <CardHeader title="Monthly Trend" subtitle="Last 6 periods" />
+            <CardHeader title={tr('expenseMonthlyTrend', lang)} subtitle={tr('expenseMonthlyTrendSub', lang)} />
             <div data-testid="expense-bar" style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthly}>
@@ -93,7 +96,7 @@ export function ExpenseTracker() {
         </div>
       )}
       <Card>
-        <CardHeader title="History" subtitle={`${entries.length} entries`} />
+        <CardHeader title={tr('expenseHistory', lang)} subtitle={interpolate(tr('expenseHistorySub', lang), {count: entries.length})} />
         {entries.length===0 ? <p className="text-sm text-slate-500">No entries yet — add your first sale.</p> : (
           <div className="divide-y divide-slate-100">
             {entries.slice(0,30).map(e=>(

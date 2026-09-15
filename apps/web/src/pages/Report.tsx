@@ -5,7 +5,7 @@ import { api } from '../lib/api'
 import { Button, Card, CardHeader, Badge } from '../components/ui'
 import { ScoreDonut } from '../components/ScoreDonut'
 import { formatINR } from './Dashboard'
-import { recommendationLabel, tr, type Language } from '../lib/i18n'
+import { recommendationLabel, tr, interpolate, type Language } from '../lib/i18n'
 import { downloadJSON, printElement } from '../lib/export'
 import { BusinessMap } from '../components/BusinessMap'
 
@@ -49,9 +49,9 @@ export function Report() {
   }, [lang, analysisId])
 
   const handleSaveApplicant = () => {
-    if (!formName.trim()) { setFormError('Full name is required'); return }
-    if (!/^\d{10}$/.test(formPhone.replace(/\s/g,''))) { setFormError('Enter a valid 10-digit phone'); return }
-    if (!formAddress.trim()) { setFormError('House address is required'); return }
+    if (!formName.trim()) { setFormError(tr('reportValName', lang)); return }
+    if (!/^\d{10}$/.test(formPhone.replace(/\s/g,''))) { setFormError(tr('reportValPhone', lang)); return }
+    if (!formAddress.trim()) { setFormError(tr('reportValAddress', lang)); return }
     setFormError(null)
     setApplicantDetails({ fullName: formName.trim(), phone: formPhone.trim(), houseAddress: formAddress.trim() })
   }
@@ -83,7 +83,7 @@ export function Report() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={handleDownloadPDF} data-testid="download-pdf">Download PDF</Button>
+          <Button onClick={handleDownloadPDF} data-testid="download-pdf">{tr('reportDownloadPdf', lang)}</Button>
           <Button variant="outline" onClick={() => printElement('report-print')} data-testid="print-btn">{tr('printSave', lang)}</Button>
           <Button variant="outline" data-testid="export-json" onClick={() => downloadJSON(`grambiz-report-${Date.now()}.json`, result)}>Export JSON</Button>
         </div>
@@ -93,57 +93,57 @@ export function Report() {
         {/* 1. Header */}
         <Card>
           <div className="text-center">
-            <h1 className="text-2xl font-black text-slate-900">GramBiz AI — Business Feasibility Report</h1>
-            <p className="mt-1 text-xs text-slate-500">Deterministic engines + AI narrative • {new Date().toLocaleDateString()}</p>
+            <h1 className="text-2xl font-black text-slate-900">{tr('reportHeaderTitle', lang)}</h1>
+            <p className="mt-1 text-xs text-slate-500">{interpolate(tr('reportDeterministic', lang), { date: new Date().toLocaleDateString() })}</p>
           </div>
         </Card>
 
         {/* 2. Selected Business Name */}
         <Card>
-          <CardHeader title="Selected Business" subtitle="Reflects your modifications" />
+          <CardHeader title={tr('reportSelectedBusiness', lang)} subtitle={tr('reportReflectsMod', lang)} />
           <div className="text-lg font-bold text-slate-900">{pm?.label || (result as any).profit_model?.category_code || '—'}</div>
           <div className="text-sm text-slate-500">{(result as any).profit_model?.category_code} · {(result as any).cost_breakdown?.scale} scale</div>
         </Card>
 
         {/* 3. Applicant Details */}
         <Card>
-          <CardHeader title="Applicant Details" subtitle="Stored with your report" />
+          <CardHeader title={tr('reportApplicantDetails', lang)} subtitle={tr('reportStoredWith', lang)} />
           {applicantDetails ? (
             <div className="space-y-2 text-sm">
-              <div><span className="text-slate-500">Full Name:</span> <strong className="text-slate-900">{applicantDetails.fullName}</strong></div>
-              <div><span className="text-slate-500">Phone:</span> <strong className="text-slate-900">{applicantDetails.phone}</strong></div>
-              <div><span className="text-slate-500">House Address:</span> <strong className="text-slate-900">{applicantDetails.houseAddress}</strong></div>
-              <button onClick={() => setApplicantDetails(null)} className="mt-2 text-xs text-brand-600 underline">Edit</button>
+              <div><span className="text-slate-500">{tr('reportFullName', lang)}</span> <strong className="text-slate-900">{applicantDetails.fullName}</strong></div>
+              <div><span className="text-slate-500">{tr('reportPhone', lang)}</span> <strong className="text-slate-900">{applicantDetails.phone}</strong></div>
+              <div><span className="text-slate-500">{tr('reportHouseAddress', lang)}</span> <strong className="text-slate-900">{applicantDetails.houseAddress}</strong></div>
+              <button onClick={() => setApplicantDetails(null)} className="mt-2 text-xs text-brand-600 underline">{tr('reportEdit', lang)}</button>
             </div>
           ) : (
             <div className="space-y-3">
               <div className="grid gap-3 md:grid-cols-2">
                 <div>
-                  <label className="text-xs font-medium text-slate-600">Full Name *</label>
-                  <input value={formName} onChange={e=>setFormName(e.target.value)} placeholder="e.g. R. Kumar" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="applicant-name" />
+                  <label className="text-xs font-medium text-slate-600">{tr('reportFullNameStar', lang)}</label>
+                  <input value={formName} onChange={e=>setFormName(e.target.value)} placeholder={tr('reportPlaceholderName', lang)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="applicant-name" />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-slate-600">Phone *</label>
-                  <input value={formPhone} onChange={e=>setFormPhone(e.target.value)} placeholder="10-digit" className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="applicant-phone" />
+                  <label className="text-xs font-medium text-slate-600">{tr('reportPhoneStar', lang)}</label>
+                  <input value={formPhone} onChange={e=>setFormPhone(e.target.value)} placeholder={tr('reportPlaceholderPhone', lang)} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="applicant-phone" />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-600">House Address *</label>
-                <textarea value={formAddress} onChange={e=>setFormAddress(e.target.value)} placeholder="Door no, street, village, district" rows={2} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="applicant-address" />
+                <label className="text-xs font-medium text-slate-600">{tr('reportHouseAddressStar', lang)}</label>
+                <textarea value={formAddress} onChange={e=>setFormAddress(e.target.value)} placeholder={tr('reportPlaceholderAddress', lang)} rows={2} className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" data-testid="applicant-address" />
               </div>
               {formError && <p className="text-xs text-red-600">{formError}</p>}
-              <button onClick={handleSaveApplicant} className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700" data-testid="applicant-save">Save Applicant Details</button>
+              <button onClick={handleSaveApplicant} className="rounded-xl bg-brand-600 px-5 py-2 text-sm font-bold text-white hover:bg-brand-700" data-testid="applicant-save">{tr('reportSaveApplicant', lang)}</button>
             </div>
           )}
         </Card>
 
         {/* 4. Dashboard Analysis */}
         <Card>
-          <CardHeader title="Dashboard Analysis" subtitle="Concise overview of your analysis" />
+          <CardHeader title={tr('reportDashboardAnalysis', lang)} subtitle={tr('reportConciseOverview', lang)} />
           <div className="flex flex-wrap items-center gap-6">
             <ScoreDonut value={s.overall_score} size={100} />
             <div>
-              <div className="text-sm text-slate-600">Overall Opportunity <strong className="text-slate-900">{s.overall_score}/100</strong> · Confidence <strong>{s.confidence_label}</strong></div>
+              <div className="text-sm text-slate-600">{interpolate(tr('reportOverallOpp', lang), { score: s.overall_score, confidence: s.confidence_label })}</div>
               <Badge color={rec.label === 'GO' ? 'green' : rec.label === 'MODIFY' ? 'amber' : 'red'}>{recommendationLabel(rec.label, lang)}</Badge>
               <p className="mt-2 text-sm text-slate-600">{rec.reason}</p>
             </div>
@@ -152,10 +152,10 @@ export function Report() {
 
         {/* 5. Selected Location + Map */}
         <Card>
-          <CardHeader title="Selected Location" subtitle={`${selectedLoc.village || selectedLoc.block}, ${selectedLoc.district}, ${selectedLoc.state}`} />
+          <CardHeader title={tr('reportSelectedLocation', lang)} subtitle={`${selectedLoc.village || selectedLoc.block}, ${selectedLoc.district}, ${selectedLoc.state}`} />
           <div className="text-sm text-slate-700">
-            <div>Exact: {Number(selectedLoc.latitude).toFixed(4)}, {Number(selectedLoc.longitude).toFixed(4)} {selectedLoc.uses_proposed_location ? '(proposed pin)' : '(centroid)'} · {selectedLoc.geo_precision}</div>
-            <div className="mt-1 text-xs text-slate-500">Never fabricated — from your analysis location.</div>
+            <div>{interpolate(tr('reportExact', lang), { lat: Number(selectedLoc.latitude).toFixed(4), lng: Number(selectedLoc.longitude).toFixed(4), type: selectedLoc.uses_proposed_location ? tr('reportProposedPin', lang) : tr('reportCentroid', lang), precision: selectedLoc.geo_precision })}</div>
+            <div className="mt-1 text-xs text-slate-500">{tr('reportNeverFabricated', lang)}</div>
           </div>
           <div className="mt-3 h-[300px] overflow-hidden rounded-xl border">
             <BusinessMap center={{ latitude: selectedLoc.latitude, longitude: selectedLoc.longitude }} businesses={bc?.businesses || []} markets={[]} infrastructure={[]} zoom={14} height="300px" />
@@ -187,10 +187,10 @@ export function Report() {
 
         {/* 9. Financial Plan & Profitability */}
         <Card>
-          <CardHeader title="Financial Plan & Profitability" subtitle="Startup, loan and operating economics" />
+          <CardHeader title={tr('reportFinancialProfit', lang)} subtitle={tr('reportStartupLoan', lang)} />
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Financial Plan</h4>
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">{tr('reportFinancialPlanHeading', lang)}</h4>
               <Rows rows={[
                 [tr('projectCost', lang), `₹${formatINR(fp.project_cost)}`],
                 [tr('availableCapital', lang), `₹${formatINR(fp.capital_available)}`],
@@ -199,7 +199,7 @@ export function Report() {
               ]} />
             </div>
             <div>
-              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">Profitability</h4>
+              <h4 className="text-xs font-bold uppercase tracking-widest text-slate-500">{tr('reportProfitabilityHeading', lang)}</h4>
               <Rows rows={[
                 [tr('monthlyRevenue', lang), `₹${formatINR(me?.monthly_revenue ?? pm?.outputs?.monthly_revenue)}`],
                 [tr('monthlyCost', lang), `₹${formatINR(me?.opex ?? pm?.outputs?.monthly_cost)}`],
@@ -212,38 +212,38 @@ export function Report() {
 
         {/* 10. EMI Calculation */}
         <Card>
-          <CardHeader title="EMI Calculation" subtitle="Deterministic loan schedule" />
+          <CardHeader title={tr('reportEmiTitle', lang)} subtitle={tr('reportDeterministicSchedule', lang)} />
           <Rows rows={[
             [tr('loanAmount', lang), `₹${formatINR(uf?.loan_amount ?? fp.loan_amount)}`],
             [tr('interestRate', lang), `${uf?.interest_rate ?? fp.interest_rate ?? '—'}%`],
-            [tr('tenure', lang), `${uf?.tenure_years ?? fp.tenure_years ?? '—'} years`],
+            [tr('tenure', lang), `${uf?.tenure_years ?? fp.tenure_years ?? '—'} ${tr('years', lang)}`],
             [tr('monthlyEMI', lang), `₹${formatINR(uf?.emi ?? result.repayment?.monthly_emi ?? fp.emi)}`],
-            ['Repayment period', `${(uf?.tenure_years ?? fp.tenure_years ?? 0) * 12} months`],
-            ['Moratorium', fp.moratorium_months ? `${fp.moratorium_months} months (${fp.moratorium_mode})` : 'None'],
+            [tr('reportRepaymentPeriod', lang), `${(uf?.tenure_years ?? fp.tenure_years ?? 0) * 12} ${tr('months', lang)}`],
+            [tr('reportMoratorium', lang), fp.moratorium_months ? `${fp.moratorium_months} ${tr('months', lang)} (${fp.moratorium_mode})` : tr('reportNone', lang)],
           ]} />
         </Card>
 
         {/* 11. Selected Scheme */}
         <Card>
-          <CardHeader title="Selected Scheme" subtitle="Chosen by you, eligibility evaluated" />
+          <CardHeader title={tr('reportSelectedScheme', lang)} subtitle={tr('reportChosenByYou', lang)} />
           {selectedSchemeCode ? (
             <div className="space-y-2 text-sm">
-              <div><span className="text-slate-500">Scheme:</span> <strong className="text-slate-900">{selectedSchemeName || selectedSchemeCode}</strong> {selectedSchemeCode && <span className="text-xs text-slate-500">({selectedSchemeCode})</span>}</div>
-              <div><span className="text-slate-500">Applicant Age:</span> <strong>{applicantAge ?? '—'}</strong></div>
+              <div><span className="text-slate-500">{tr('reportSchemeLabel', lang)}</span> <strong className="text-slate-900">{selectedSchemeName || selectedSchemeCode}</strong> {selectedSchemeCode && <span className="text-xs text-slate-500">({selectedSchemeCode})</span>}</div>
+              <div><span className="text-slate-500">{tr('reportApplicantAge', lang)}</span> <strong>{applicantAge ?? '—'}</strong></div>
               {schemeElig ? (
                 <div>
-                  <div>Eligibility: <Badge color={schemeElig.status === 'ELIGIBLE' ? 'green' : schemeElig.status === 'NOT_ELIGIBLE' ? 'red' : 'amber'}>{schemeElig.status?.replace('_',' ')}</Badge></div>
+                  <div>{tr('reportEligibility', lang)} <Badge color={schemeElig.status === 'ELIGIBLE' ? 'green' : schemeElig.status === 'NOT_ELIGIBLE' ? 'red' : 'amber'}>{schemeElig.status?.replace('_',' ')}</Badge></div>
                   {schemeElig.matching_reasons?.length > 0 && <div className="mt-1 text-xs text-green-700">✓ {schemeElig.matching_reasons.slice(0,3).join(' · ')}</div>}
                   {schemeElig.mismatch_reasons?.length > 0 && <div className="text-xs text-red-700">✗ {schemeElig.mismatch_reasons.slice(0,3).join(' · ')}</div>}
-                  {schemeElig.missing_information?.length > 0 && <div className="text-xs text-amber-700">Missing: {schemeElig.missing_information.slice(0,3).join(' · ')}</div>}
+                  {schemeElig.missing_information?.length > 0 && <div className="text-xs text-amber-700">{tr('schemesMissingColon', lang)} {schemeElig.missing_information.slice(0,3).join(' · ')}</div>}
                 </div>
               ) : (
-                <p className="text-xs text-amber-600">Eligibility not yet evaluated — complete Scheme Selection.</p>
+                <p className="text-xs text-amber-600">{tr('reportEligibilityNotEval', lang)}</p>
               )}
-              <div className="text-xs text-slate-500">Important conditions: see Scheme page for full eligibility rules.</div>
+              <div className="text-xs text-slate-500">{tr('reportImportantConditions', lang)}</div>
             </div>
           ) : (
-            <p className="text-sm text-slate-500">No scheme selected.</p>
+            <p className="text-sm text-slate-500">{tr('reportNoScheme', lang)}</p>
           )}
         </Card>
 
@@ -256,36 +256,36 @@ export function Report() {
         {/* 13. One-line Strategic AI Advice */}
         {aiText ? (
           <Card>
-            <CardHeader title="Strategic AI Advice" subtitle="One-line, evidence-grounded" />
+            <CardHeader title={tr('reportStrategicAdvice', lang)} subtitle={tr('reportOneLine', lang)} />
             <p className="text-sm font-medium text-slate-900">{aiText.split('\n')[0]?.slice(0,300) || aiText.slice(0,300)}</p>
             <details className="mt-2">
-              <summary className="cursor-pointer text-xs text-slate-500">Full narrative</summary>
+              <summary className="cursor-pointer text-xs text-slate-500">{tr('reportFullNarrative', lang)}</summary>
               <pre className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{aiText}</pre>
             </details>
           </Card>
         ) : loadingAi ? (
           <Card>
-            <CardHeader title="Strategic AI Advice" />
+            <CardHeader title={tr('reportStrategicAdvice', lang)} />
             <div className="h-3 animate-pulse rounded bg-slate-100" />
           </Card>
         ) : null}
 
         {/* 14. Official GramBiz AI Declaration */}
         <Card>
-          <CardHeader title="Official GramBiz AI Declaration" />
+          <CardHeader title={tr('reportOfficialDeclaration', lang)} />
           <div className="space-y-2 text-xs leading-relaxed text-slate-600">
-            <p><strong>AI-assisted advisory:</strong> AI narrative explains the deterministic results; it does not generate financial figures.</p>
-            <p><strong>Deterministic calculations:</strong> Opportunity score, financial plan, EMI, and repayment period are computed by backend engines from your inputs and verified data.</p>
-            <p><strong>Data sources:</strong> {(result.data_sources || []).slice(0,3).map((d:any)=> d.name || d.source).join(', ') || 'OpenStreetMap, Census 2011, verified market prices'} — see Market for coverage. Historical data (Census 2011) is labelled historical, never as current.</p>
-            <p><strong>Estimates & projections:</strong> Seasonal demand, product recommendations, and operating economics are model estimates, not guarantees.</p>
-            <p className="font-bold text-slate-800">Not a guarantee of loan approval. Verify all figures with the implementing agency and your bank before committing.</p>
+            <p>{tr('reportAiAssisted', lang)}</p>
+            <p>{tr('reportDeterministicCalc', lang)}</p>
+            <p>{interpolate(tr('reportDataSourcesDecl', lang), { sources: (result.data_sources || []).slice(0,3).map((d:any)=> d.name || d.source).join(', ') || 'OpenStreetMap, Census 2011, verified market prices' })}</p>
+            <p>{tr('reportEstimates', lang)}</p>
+            <p className="font-bold text-slate-800">{tr('reportNotGuarantee', lang)}</p>
           </div>
         </Card>
       </div>
 
       <div className="flex justify-center">
         <button onClick={() => navigate('/videos')} className="rounded-xl bg-slate-900 px-8 py-3 text-sm font-bold text-white hover:bg-black shadow" data-testid="watch-video-cta">
-          Watch Video to Apply Loan →
+          {tr('reportWatchVideo', lang)}
         </button>
       </div>
     </div>

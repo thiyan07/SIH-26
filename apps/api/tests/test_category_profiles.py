@@ -53,8 +53,9 @@ def test_get_profile_falls_back_without_db(session):
 
 
 def test_seed_populates_db_and_get_returns_db_backed(session):
+    # conftest pre-creates 6 categories (dairy, grocery, pharmacy, textile, restaurant, hardware) for competitor tests
     seeded = seed_category_profiles(session)
-    assert seeded >= len(_CATEGORY_CODES) - 2  # conftest pre-creates dairy+grocery
+    assert seeded >= len(_CATEGORY_CODES) - 6
     session.flush()
     row = session.query(BusinessCategory).filter(BusinessCategory.code == "dairy").first()
     assert row is not None
@@ -71,7 +72,7 @@ def test_seed_is_idempotent(session):
     session.flush()
     second = seed_category_profiles(session)
     assert second == 0
-    assert first >= len(_CATEGORY_CODES) - 2
+    assert first >= len(_CATEGORY_CODES) - 6
 
 
 def test_db_edits_override_registry(session):

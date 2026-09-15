@@ -760,19 +760,26 @@ def run_live(
                 run.metadata_json = {**(run.metadata_json or {}), "processed_target_ids": list(processed_ids)}
                 session.commit()
                 time.sleep(0.05)
-        # After district batch, dedup and upsert canonical businesses
+        # After district batch, dedup and upsert canonical businesses — rollback on per-batch failure to avoid InFailed txn
         if batch_observations:
             from app.discovery.dedup import deduplicate
-            canonicals = deduplicate(batch_observations)
-            # Skip canonicals without true coordinates (only add if true lat/lng)
-            canonicals = [c for c in canonicals if c.latitude is not None and c.longitude is not None]
-            for c in canonicals:
-                _upsert_canonical_business(session, c)
-                total_canonical += 1
-                # Count cross-source matches
-                if len(c.sources) > 1:
-                    cross_matches += 1
-            session.commit()
+            try:
+                canonicals = deduplicate(batch_observations)
+                canonicals = [c for c in canonicals if c.latitude is not None and c.longitude is not None]
+                for c in canonicals:
+                    try:
+                        _upsert_canonical_business(session, c)
+                        total_canonical += 1
+                        if len(c.sources) > 1:
+                            cross_matches += 1
+                    except Exception as e:
+                        log.warning("upsert canonical failed %s: %s", getattr(c, 'name', ''), e)
+                        session.rollback()
+                        continue
+                session.commit()
+            except Exception as e:
+                log.warning("dedup batch failed: %s", e)
+                session.rollback()
             batch_observations = []
     # Finalize run
     run.canonical_businesses = total_canonical

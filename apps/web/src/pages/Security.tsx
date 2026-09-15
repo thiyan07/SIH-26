@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
+import { useAnalysis } from '../lib/analysisStore'
+import { tr } from '../lib/i18n'
 import { Card, CardHeader } from '../components/ui'
 import { PageHeader } from '../components/PageHeader'
 import { downloadJSON } from '../lib/export'
-import { useAnalysis } from '../lib/analysisStore'
 
 export function Security() {
+  const { lang, result } = useAnalysis()
   const [twoFA, setTwoFA] = useState(()=> localStorage.getItem('grambiz.2fa')==='1')
   const [shareData, setShareData] = useState(()=> localStorage.getItem('grambiz.share')!=='0')
   const [otp] = useState(()=> Math.floor(100000 + Math.random()*900000))
-  const { result } = useAnalysis()
   useEffect(()=> localStorage.setItem('grambiz.2fa', twoFA?'1':'0'), [twoFA])
   useEffect(()=> localStorage.setItem('grambiz.share', shareData?'1':'0'), [shareData])
 
@@ -34,9 +35,9 @@ export function Security() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Secure • Private" title="Security & Privacy" desc="Your data stays in your browser. Control what you share and export or delete anytime." />
+      <PageHeader eyebrow={tr('securityEyebrow', lang)} title={tr('securityTitle', lang)} desc={tr('securityDesc', lang)} />
       <Card>
-        <CardHeader title="Two-Factor Demo" subtitle="Extra protection for loan actions (demo, no SMS)" />
+        <CardHeader title={tr('securityTwoFactor', lang)} subtitle={tr('securityTwoFactorSub', lang)} />
         <div className="flex items-center justify-between">
           <div className="text-sm text-slate-700 dark:text-slate-200">Require OTP for Generate Report</div>
           <button
@@ -57,7 +58,7 @@ export function Security() {
       </Card>
 
       <Card>
-        <CardHeader title="Data Sharing" subtitle="Control anonymized usage for improving GramBiz" />
+        <CardHeader title={tr('securityDataSharing', lang)} subtitle={tr('securityDataSharingSub', lang)} />
         <div className="flex items-center justify-between">
           <div className="text-sm text-slate-700 dark:text-slate-200">Share anonymized analytics</div>
           <button
@@ -72,7 +73,7 @@ export function Security() {
       </Card>
 
       <Card>
-        <CardHeader title="Your Data" subtitle="Export or delete everything stored locally" />
+        <CardHeader title={tr('securityYourData', lang)} subtitle={tr('securityYourDataSub', lang)} />
         <div className="flex flex-wrap gap-2">
           <button data-testid="export-data" onClick={exportData} className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">Export all data (JSON)</button>
           <button data-testid="delete-data" onClick={deleteAll} className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-100">Delete all local data</button>
@@ -81,7 +82,7 @@ export function Security() {
       </Card>
 
       <Card>
-        <CardHeader title="Privacy Note" subtitle="GDPR-style plain language" />
+        <CardHeader title={tr('securityPrivacyNote', lang)} subtitle={tr('securityPrivacySub', lang)} />
         <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600 dark:text-slate-300">
           <li>Location is used only to find nearby businesses — not tracked.</li>
           <li>Documents in Vault are stored in browser `localStorage` only.</li>

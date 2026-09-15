@@ -83,13 +83,17 @@ def viability_decision(
         seasonal_risk = seasonal.get("cash_flow_risk")
 
     # --- Deterministic decision matrix ---
-    # Start from opportunity score thresholds (mirrors score.py).
-    # GO requires all of: opp >=70, fin_fit >=60, risk <=35, profitable, healthy repayment.
-    # AVOID if opp <40 OR risk >=70 OR fin_fit <30 OR cash_surplus deeply negative with high risk.
-    # Otherwise MODIFY.
-    # Low confidence (low) degrades GO -> MODIFY, never fabricates AVOID without evidence.
+    # Mirrors score.py thresholds but uses config/env so GO is achievable.
+    # GO requires: opp >= opportunity_go_above (65), fin_fit >= finance_fit_go_min (60),
+    # risk <= risk_go_max (55), profitable, healthy repayment. AVOID if opp < avoid_below etc.
+    # Low confidence caps at MODIFY unless other hard risks exist.
 
-    # Check hard AVOID triggers.
+    # Check hard AVOID triggers — use config thresholds, not hard-coded 70/30
+    from app.config import settings as _s
+
+    _opp_avoid = _s.opportunity_avoid_below  # 45
+    _risk_avoid = _s.risk_avoid_above  # 80
+    _fin_avoid = _s.finance_avoid_below  # 40
     avoid_reasons: list[str] = []
     go_reasons: list[str] = []
     modify_reasons: list[str] = []
@@ -97,11 +101,11 @@ def viability_decision(
     # Low confidence is not auto-AVOID; it caps at MODIFY unless other risks exist.
     confidence = (confidence_label or "medium").lower()
 
-    if opp < 40:
+    if opp < _opp_avoid:
         avoid_reasons.append(f"Low opportunity score {opp:.0f}/100")
-    if risk >= 70:
+    if risk >= _risk_avoid:
         avoid_reasons.append(f"High risk score {risk:.0f}/100")
-    if fin_fit < 30:
+    if fin_fit < _fin_avoid:
         avoid_reasons.append(f"Weak financial fit {fin_fit:.0f}/100")
 
     # Profitability hard check.
@@ -144,7 +148,10 @@ def viability_decision(
     if accessibility_score is not None and accessibility_score >= 65:
         go_reasons.append(f"Good accessibility ({accessibility_score:.0f}/100)")
 
-    # Determine decision.
+    # Determine decision — use config thresholds so GO is not artificially rare
+    _opp_go = _s.opportunity_go_above  # 65
+    _fin_go = _s.finance_fit_go_min  # 60
+    _risk_go = _s.risk_go_max  # 55
     if avoid_reasons:
         decision = DECISION_AVOID
         score = opp  # noqa: F841
@@ -153,7 +160,7 @@ def viability_decision(
         decision = DECISION_MODIFY
         score = opp  # noqa: F841
         reason = "Evidence confidence is low; a modified approach or more local data is needed."
-    elif opp >= 70 and fin_fit >= 60 and risk <= 35 and (health_label in ("Healthy", None) or (cash_surplus is not None and cash_surplus >= 0)):
+    elif opp >= _opp_go and fin_fit >= _fin_go and risk <= _risk_go and health_label in ("Healthy", "Moderate", "N/A", None, ""):
         # GO requires profitability unless no EMI (self-funded).
         if cash_surplus is not None and cash_surplus < 0 and health_label == "High Risk":
             decision = DECISION_MODIFY

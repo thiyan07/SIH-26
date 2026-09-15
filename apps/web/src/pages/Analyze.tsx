@@ -20,7 +20,6 @@ export function Analyze() {
   const [searching, setSearching] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [autoRecommend, setAutoRecommend] = useState(false)
   const initialForm = storedForm ? {
     q: (storedForm.q as string) || '',
     state: (storedForm.state as string) || '',
@@ -31,9 +30,6 @@ export function Analyze() {
     longitude: (storedForm.longitude as number) || 0,
     capital_available: (storedForm.capital_available as number) || 100000,
     category_code: (storedForm.category_code as string) || 'dairy',
-    business_experience: (storedForm.business_experience as boolean) || false,
-    existing_shop: (storedForm.existing_shop as boolean) || false,
-    existing_equipment: (storedForm.existing_equipment as boolean) || false,
     family_members: (storedForm.family_members as number) || 0,
     preferred_scale: (storedForm.preferred_scale as string) || 'small',
     applicant_age: (storedForm.applicant_age as number) || 28,
@@ -47,9 +43,6 @@ export function Analyze() {
     longitude: 0,
     capital_available: 100000,
     category_code: 'dairy',
-    business_experience: false,
-    existing_shop: false,
-    existing_equipment: false,
     family_members: 0,
     preferred_scale: 'small',
     applicant_age: 28,
@@ -176,12 +169,11 @@ export function Analyze() {
       let locationChanged = false
       if (parsed.business_type) {
         next.category_code = parsed.business_type
-        setAutoRecommend(false)
       }
       if (parsed.scale) next.preferred_scale = parsed.scale
-      // Capital: prefer capital_available, fallback to project_cost
+      // Capital: prefer capital_available, fallback to project_cost — AI splits sentence into place/category/capital
       const capital = (parsed as any).capital_available ?? parsed.project_cost
-      if (capital) next.capital_available = capital
+      if (capital && Number.isFinite(capital) && capital > 0) next.capital_available = Math.round(capital)
       // Age if extracted
       if ((parsed as any).age) next.applicant_age = (parsed as any).age
       // Location: update only if provided, but clear block/village if district changes and new block/village is empty
@@ -269,9 +261,19 @@ export function Analyze() {
       const needsGeocode = (next.district || next.block || next.village) && (!next.latitude || locationChanged)
       if (needsGeocode) {
         try {
-          const qParts = [next.village, next.block, next.district].filter(Boolean).join(' ')
+          // Prefer most specific place (village) alone first — "Thindal Erode Erode" as one string fails ilike
+          const tryQueries: string[] = []
+          if (next.village) tryQueries.push(next.village)
+          if (next.village && next.district) tryQueries.push(`${next.village} ${next.district}`)
+          if (next.block && next.block.toLowerCase() !== (next.village || '').toLowerCase()) tryQueries.push(next.block)
+          if (next.district) tryQueries.push(next.district)
+          const qParts = tryQueries[0] || [next.village, next.block, next.district].filter(Boolean).join(' ')
+          let locs: LocationOut[] = []
+          for (const q of tryQueries) {
+            locs = await api.get<LocationOut[]>(`/locations/search?q=${encodeURIComponent(q)}&limit=5`)
+            if (locs.length) break
+          }
           if (qParts) {
-            const locs = await api.get<LocationOut[]>(`/locations/search?q=${encodeURIComponent(qParts)}&limit=5`)
             if (locs.length) {
               const best = locs[0]
               setLocalForm((f) => ({
@@ -319,11 +321,11 @@ export function Analyze() {
         proposed_latitude: confirmedProposed ? confirmedProposed.lat : undefined,
         proposed_longitude: confirmedProposed ? confirmedProposed.lng : undefined,
         capital_available: form.capital_available,
-        category_code: autoRecommend ? undefined : form.category_code,
-        auto_recommend: autoRecommend,
-        business_experience: form.business_experience,
-        existing_shop: form.existing_shop,
-        existing_equipment: form.existing_equipment,
+        category_code: form.category_code,
+        auto_recommend: false,
+        business_experience: false,
+        existing_shop: false,
+        existing_equipment: false,
         family_members: form.family_members,
         preferred_scale: form.preferred_scale,
         applicant_age: form.applicant_age,
@@ -354,15 +356,15 @@ export function Analyze() {
       <BackgroundBeams className="rounded-2xl border border-gray-200">
         <div className="relative rounded-2xl bg-white p-5">
           <CardHeader
-            title={tr('advisoryTitle', advisoryLang)}
-            subtitle={tr('advisorySubtitle', advisoryLang)}
+            title={tr('advisoryTitle', lang)}
+            subtitle={tr('advisorySubtitle', lang)}
           />
           <div className="space-y-3">
             <textarea
               value={advisoryText}
               onChange={(e) => setAdvisoryText(e.target.value)}
               rows={3}
-              placeholder={tr('advisoryPlaceholder', advisoryLang)}
+              placeholder={tr('advisoryPlaceholder', lang)}
               className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
             />
             <div className="flex flex-wrap items-center gap-2">
@@ -382,7 +384,7 @@ export function Analyze() {
                 onClick={parseAndPrefill}
                 disabled={advisoryParsing || !advisoryText.trim()}
               >
-                {advisoryParsing ? tr('parsing', advisoryLang) : tr('parsePrefill', advisoryLang)}
+                {advisoryParsing ? tr('parsing', lang) : tr('parsePrefill', lang)}
               </Button>
               {advisoryNote && <span className="text-xs font-medium text-emerald-700">{advisoryNote}</span>}
             </div>
@@ -522,26 +524,27 @@ export function Analyze() {
                 <select
                   value={form.category_code}
                   onChange={(e) => setLocalForm((f) => ({ ...f, category_code: e.target.value }))}
-                  disabled={autoRecommend}
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-500 focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                 >
                   {categories.length === 0 && <option value="dairy">{tr('catDairy', lang)}</option>}
-                  {categories.map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.name}
-                    </option>
-                  ))}
+                  {categories.map((c) => {
+                    const pascal = c.code.split('_').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')
+                    const codeKey = `category${pascal}` as keyof typeof import('../lib/i18n').dict
+                    let label: string | null = null
+                    try { const t = tr(codeKey, lang); if (t !== codeKey) label = t } catch {}
+                    // fallback for known aliases that use different dict keys
+                    if (!label) {
+                      const aliasMap: Record<string, string> = { food_processing: 'categoryFoodProcessing', handicrafts: 'categoryHandicrafts' }
+                      const alias = aliasMap[c.code]
+                      if (alias) { try { const t2 = tr(alias as any, lang); if (t2 !== alias) label = t2 } catch {} }
+                    }
+                    return (
+                      <option key={c.code} value={c.code}>
+                        {label || c.name}
+                      </option>
+                    )
+                  })}
                 </select>
-                <label className="mt-2 flex cursor-pointer items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs font-medium text-amber-900 hover:bg-amber-50">
-                  <input
-                    type="checkbox"
-                    checked={autoRecommend}
-                    onChange={(e) => setAutoRecommend(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-amber-300 text-teal-600 focus:ring-teal-500"
-                  />
-                  <span>🤖 {tr('aiSuggestLabel', lang)}</span>
-                </label>
-                {autoRecommend && <p className="mt-1 text-[11px] text-gray-500">{tr('aiSuggestHint', lang)}</p>}
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">
@@ -576,11 +579,7 @@ export function Analyze() {
                   ))}
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <Toggle label={tr('experience', lang)} value={form.business_experience} onChange={(v) => setLocalForm((f) => ({ ...f, business_experience: v }))} lang={lang} />
-                <Toggle label={tr('hasShop', lang)} value={form.existing_shop} onChange={(v) => setLocalForm((f) => ({ ...f, existing_shop: v }))} lang={lang} />
-                <Toggle label={tr('hasEquip', lang)} value={form.existing_equipment} onChange={(v) => setLocalForm((f) => ({ ...f, existing_equipment: v }))} lang={lang} />
-              </div>
+
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-600">{tr('familyMembers', lang)}</label>
                 <input
@@ -592,7 +591,7 @@ export function Analyze() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-600">Applicant Age <span className="text-[11px] text-gray-500">(for scheme eligibility)</span></label>
+                <label className="mb-1 block text-xs font-medium text-gray-600">{tr('applicantAgeLabel', lang)} <span className="text-[11px] text-gray-500">({tr('forSchemeEligibility', lang)})</span></label>
                 <input
                   type="number"
                   min={18}
@@ -602,7 +601,7 @@ export function Analyze() {
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-teal-500 focus:ring-1 focus:ring-teal-500"
                   placeholder="e.g. 28"
                 />
-                <p className="mt-1 text-[11px] text-gray-500">Required for age-restricted schemes like UYEGP (18-45) and Stand-Up India. If you leave default, analysis assumes 28.</p>
+                <p className="mt-1 text-[11px] text-gray-500">{tr('applicantAgeHint', lang)}</p>
               </div>
             </div>
           </BentoCard>
@@ -637,16 +636,4 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
   )
 }
 
-function Toggle({ label, value, onChange, lang }: { label: string; value: boolean; onChange: (v: boolean) => void; lang: Language }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!value)}
-      className={`rounded-lg border px-3 py-2 text-sm ${
-        value ? 'border-teal-600 bg-teal-50 text-teal-700' : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-      }`}
-    >
-      {label}: {value ? tr('yes', lang) : tr('no', lang)}
-    </button>
-  )
-}
+

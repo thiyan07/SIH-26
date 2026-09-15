@@ -250,10 +250,19 @@ def test_discover_fresh_returns_real_pois_and_classifies_direct(monkeypatch, ses
 
 
 def test_discover_all_mirrors_down_returns_unavailable_never_fabricates(monkeypatch, session):
+    # Clear any cached competitor result that would make this appear FRESH
+    from app.db.models import CompetitorCache
+    from app.providers import geoapify as geoapify_provider
+
+    session.query(CompetitorCache).delete()
+    session.commit()
+
     def boom(*a, **k):
         raise overpass_provider.OverpassUnavailable("all mirrors failed")
 
     monkeypatch.setattr(overpass_provider, "query", boom)
+    # Also ensure Geoapify is disabled (no key) so ladder reaches UNAVAILABLE, not FRESH
+    monkeypatch.setattr(geoapify_provider, "api_key", lambda s: None)
 
     out = svc.discover_competitors(
         session, latitude=11.32, longitude=77.67, category_code="grocery",
@@ -307,10 +316,17 @@ def test_discover_db_fallback_zero_rows_is_never_fabricated(monkeypatch, session
     response is an honest UNAVAILABLE (0), and never a parroted/synthetic
     competitor list.
     """
+    from app.db.models import CompetitorCache
+    from app.providers import geoapify as geoapify_provider
+
+    session.query(CompetitorCache).delete()
+    session.commit()
+
     def boom(*a, **k):
         raise overpass_provider.OverpassUnavailable("all mirrors failed")
 
     monkeypatch.setattr(overpass_provider, "query", boom)
+    monkeypatch.setattr(geoapify_provider, "api_key", lambda s: None)
 
     # Far from every seeded business row: nothing ingested nearby.
     out = svc.discover_competitors(

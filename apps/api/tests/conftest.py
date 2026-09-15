@@ -116,6 +116,10 @@ def seeded(engine):
         s.add_all([
             BusinessCategory(id="cat_dairy", code="dairy", name="Dairy"),
             BusinessCategory(id="cat_grocery", code="grocery", name="Grocery/Retail"),
+            BusinessCategory(id="cat_pharmacy", code="pharmacy", name="Pharmacy"),
+            BusinessCategory(id="cat_textile", code="textile", name="Textile"),
+            BusinessCategory(id="cat_restaurant", code="restaurant", name="Restaurant"),
+            BusinessCategory(id="cat_hardware", code="hardware", name="Hardware"),
         ])
         s.flush()
         s.add_all([

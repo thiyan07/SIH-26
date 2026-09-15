@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { tr, interpolate } from '../lib/i18n'
+import { useAnalysis } from '../lib/analysisStore'
 
 interface SupplierMarketplaceProps {
   latitude?: number | null
@@ -46,6 +48,7 @@ interface SupplierResponse {
 }
 
 export function SupplierMarketplace({ latitude, longitude, category, placeName, district }: SupplierMarketplaceProps) {
+  const { lang } = useAnalysis() as any
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -87,13 +90,13 @@ export function SupplierMarketplace({ latitude, longitude, category, placeName, 
     return (
       <div data-testid="supplier-marketplace" className="space-y-3">
         <div className="text-sm font-bold text-slate-900 dark:text-white">
-          Supplier Marketplace • Select a location &amp; category to see live suppliers
+          {tr('supplierTitleSelect', lang)}
         </div>
         <p className="text-xs text-slate-500">
-          Choose your village and business category in Analyze — suppliers here are live-scraped via Scrapling (ExportersIndia) + verified DB businesses. No fake or old data.
+          {tr('supplierChooseVillage', lang)}
         </p>
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800">
-          No location selected. Run an analysis first to see suppliers near your exact pin.
+          {tr('supplierNoLocation', lang)}
         </div>
       </div>
     )
@@ -102,24 +105,24 @@ export function SupplierMarketplace({ latitude, longitude, category, placeName, 
   return (
     <div data-testid="supplier-marketplace" className="space-y-3">
       <div className="text-sm font-bold text-slate-900 dark:text-white">
-        Supplier Marketplace • {loading ? 'loading…' : `${suppliers.length} near you`}
+        {tr('supplierMarketplaceTitle', lang)} • {loading ? tr('supplierLoading', lang) : interpolate(tr('supplierNearYou', lang), {count: suppliers.length})}
         <span className="ml-1 text-xs font-normal text-slate-500">
           {titleCat}
           {titlePlace} · 10km
         </span>
         {meta && !loading && (
           <span className="ml-2 text-[10px] font-normal text-emerald-600">
-            {meta.scraped_count} scraped · {meta.db_count} verified DB
+            {interpolate(tr('supplierScrapedVerified', lang), {scraped: meta.scraped_count, db: meta.db_count})}
           </span>
         )}
       </div>
 
-      {loading && <p className="text-xs text-slate-500">Searching live suppliers via Scrapling for {category} near {placeName || 'your pin'}…</p>}
+      {loading && <p className="text-xs text-slate-500">{interpolate(tr('supplierSearching', lang), {category: category || '', place: placeName || 'your pin'})}</p>}
       {error && <p className="text-xs text-amber-600">{error}</p>}
 
       {!loading && suppliers.length === 0 && !error && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          No verified suppliers found for <strong>{category}</strong> within 10km of <strong>{placeName || 'this location'}</strong>. This is live data — no fake or old entries. Try a nearby hub (Erode/Perundurai) or check the DB for mapped businesses.
+          {interpolate(tr('supplierNoVerified', lang), {category: category || '', place: placeName || 'this location'})}
         </div>
       )}
 
@@ -141,12 +144,12 @@ export function SupplierMarketplace({ latitude, longitude, category, placeName, 
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${s.is_scraped ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}`}>
                     {s.source_name || (s.is_scraped ? 'ExportersIndia' : 'Google Maps')}
                   </span>
-                  {s.is_fresh && <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] text-green-700">Fresh {s.retrieved_at_date ? `• ${s.retrieved_at_date}` : ''}</span>}
+                  {s.is_fresh && <span className="rounded-full bg-green-50 px-2 py-0.5 text-[10px] text-green-700">{tr('supplierFresh', lang)} {s.retrieved_at_date ? `• ${s.retrieved_at_date}` : ''}</span>}
                   {!s.is_fresh && s.retrieved_at_date && <span className="text-[10px] text-slate-400">{s.retrieved_at_date}</span>}
                 </div>
                 {s.website || (s as any).source_url ? (
                   <a href={s.website || (s as any).source_url} target="_blank" rel="noreferrer" className="mt-1 inline-block text-[11px] text-blue-600 underline">
-                    View on {s.source_name}
+                    {interpolate(tr('supplierViewOn', lang), {source: s.source_name || 'site'})}
                   </a>
                 ) : null}
               </div>
@@ -168,10 +171,10 @@ export function SupplierMarketplace({ latitude, longitude, category, placeName, 
                     rel="noreferrer"
                     className="rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
                   >
-                    Inquiry
+                    {tr('supplierInquiry', lang)}
                   </a>
                 ) : (
-                  <span className="rounded-xl bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500">No contact</span>
+                  <span className="rounded-xl bg-slate-200 px-3 py-1.5 text-xs font-bold text-slate-500">{tr('supplierNoContact', lang)}</span>
                 )}
               </div>
             </div>
@@ -180,7 +183,7 @@ export function SupplierMarketplace({ latitude, longitude, category, placeName, 
       )}
 
       <p className="text-[11px] text-slate-500">
-        Suppliers for <strong>{category}</strong> near <strong>{placeName || `${latitude?.toFixed(4)}, ${longitude?.toFixed(4)}`}</strong> — live via Scrapling (ExportersIndia) + verified DB. {suppliers.length > 0 ? `Found ${suppliers.length} real suppliers (fresh, no fake/old).` : 'No invented data.'}
+        {interpolate(tr('supplierLiveVia', lang), {category: category || '', place: placeName || `${latitude?.toFixed(4)}, ${longitude?.toFixed(4)}`})} {suppliers.length > 0 ? interpolate(tr('supplierFooterFound', lang), {count: suppliers.length}) : tr('supplierFooterNone', lang)}
         {meta?.provenance?.note && <span className="ml-1 italic">{meta.provenance.note}</span>}
       </p>
     </div>

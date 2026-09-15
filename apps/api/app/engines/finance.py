@@ -67,7 +67,7 @@ MICRO_FINANCE = SchemeRule(
     interest_rate=6.5,
     tenure_years=3,
     moratorium_months=3,
-    moratorium_mode="interest_only_during_moratorium",
+    moratorium_mode="deferred_interest",
     source_document="Enterprise financing configuration (assumed — verify with lending agency)",
     source_date="contest brief",
     note="Assumed demo parameters; verify with channelizing agency.",
@@ -82,7 +82,7 @@ TERM_LOAN = SchemeRule(
     interest_rate=8.0,
     tenure_years=7,
     moratorium_months=6,
-    moratorium_mode="interest_only_during_moratorium",
+    moratorium_mode="deferred_interest",
     source_document="Enterprise financing configuration (assumed — verify with lending agency)",
     source_date="contest brief",
     note="Assumed demo parameters; verify with channelizing agency.",
@@ -157,12 +157,9 @@ def derive_financial_plan(
     if scheme is None:
         plan.beyond_maximum = True
         if decision == "no_scheme_selected":
-            # Concept financing: show funding gap so UI can display "Financing needed"
-            # instead of ₹0. No scheme terms to show.
-            plan.loan_amount = required_financing
             plan.notes.append(
                 f"Project cost ₹{project_cost:,.0f} — no scheme selected. Please select a scheme to see financing details. "
-                f"Concept financing needed: ₹{required_financing:,.0f} (funding gap)."
+                f"Showing concept loan without scheme-specific terms."
             )
         else:
             plan.notes.append(

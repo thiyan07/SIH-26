@@ -76,6 +76,15 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     rate_limit_rpm: int = 60
 
+    # Auth — JWT + password hashing
+    jwt_secret: str = "change-me-in-production-use-env-var-jwt-secret-32chars"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 15
+    jwt_refresh_token_expire_days: int = 7
+    password_min_length: int = 8
+    auth_lockout_attempts: int = 5
+    auth_lockout_minutes: int = 15
+
     # Data-Provider API keys (never commit real values; set in .env)
     data_gov_api_key: str = ""  # https://data.gov.in/help/how-use-data-govin-apis
     imd_api_key: str = ""

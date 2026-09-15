@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { Card, CardHeader } from '../components/ui'
 import { useAnalysis } from '../lib/analysisStore'
-import { type Language } from '../lib/i18n'
+import { tr, interpolate, type Language } from '../lib/i18n'
 
 type Video = {
   title: string
@@ -119,15 +119,9 @@ export function VideoTutorials() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Client • Learn"
-        title={lang === 'ta' ? 'வீடியோ பயிற்சிகள்' : lang === 'hi' ? 'वीडियो ट्यूटोरियल' : 'Video Tutorials'}
-        desc={
-          lang === 'ta'
-            ? 'మొదటి முறை தொழில்முனைவோராக நீங்கள் பார்த்து கற்க விரும்புகிறீர்கள் — வெறும் வாசிப்பு மட்டுமல்ல. தமிழ், இந்தி, ஆங்கிலம்.'
-            : lang === 'hi'
-              ? 'पहली बार उद्यमी के रूप में आप देखकर सीखना चाहते हैं — सिर्फ पढ़ना नहीं। तमिल, हिंदी, अंग्रेजी।'
-              : 'As a first-time entrepreneur you want to see it done — not just read. Tamil, Hindi, English.'
-        }
+        eyebrow={tr('videoEyebrowTr', lang)}
+        title={tr('videoTitleTr', lang)}
+        desc={tr('videoDescTr', lang)}
       />
 
       {/* Filter pills — beautiful */}
@@ -146,7 +140,7 @@ export function VideoTutorials() {
           </button>
         ))}
         <span className="ml-1 text-xs text-slate-500">
-          {shown.length} {lang === 'ta' ? 'வீடியோக்கள்' : lang === 'hi' ? 'वीडियो' : 'videos'}
+          {interpolate(tr('videoCount', lang), { count: shown.length })}
         </span>
       </div>
 
@@ -187,21 +181,11 @@ export function VideoTutorials() {
 
       <Card className="border-teal-100 bg-gradient-to-br from-teal-50 via-white to-cyan-50/50">
         <CardHeader
-          title={lang === 'ta' ? 'வீடியோ கோரிக்கை' : lang === 'hi' ? 'वीडियो अनुरोध' : 'Request a video'}
-          subtitle={
-            lang === 'ta'
-              ? 'உங்களுக்கு என்ன தேவை என்று சொல்லுங்கள் — அடுத்த வீடியோவை நாங்கள் சேர்ப்போம்'
-              : lang === 'hi'
-                ? 'बताएं आपको क्या चाहिए — अगला वीडियो हम जोड़ेंगे'
-                : 'Tell us what you need — we will add it'
-          }
+          title={tr('videoRequestTitle', lang)}
+          subtitle={tr('videoRequestSub', lang)}
         />
         <p className="text-sm leading-relaxed text-slate-600">
-          {lang === 'ta'
-            ? 'கோழி நோய் அல்லது FSSAI உரிமம் பற்றிய வீடியோ தேவையா? கீழ்-வலதில் உள்ள கருத்து பொத்தானைப் பயன்படுத்தவும். வாடிக்கையாளராக உங்கள் கோரிக்கை அடுத்த வீடியோவை இயக்குகிறது.'
-            : lang === 'hi'
-              ? 'पोल्ट्री रोग या FSSAI लाइसेंस पर वीडियो चाहिए? नीचे-दाएँ फीडबैक बटन का उपयोग करें। ग्राहक के रूप में आपका अनुरोध अगला वीडियो तय करता है।'
-              : 'Need a video on poultry disease or FSSAI license? Use the feedback button (bottom-right) to request. As client, your request drives the next video.'}
+          {tr('videoRequestBody', lang)}
         </p>
       </Card>
     </div>

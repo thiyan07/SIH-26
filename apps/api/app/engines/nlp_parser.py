@@ -61,6 +61,9 @@ ERODE_VILLAGES = [
     "surampatti", "lakkapuram", "nanjanad", "kasipalayam",
     "veerachola", "kavindapadi", "nallampalli", "arachalur",
     "chennimalai", "uloor", "pudur", "ponnur",
+    "thindal", "veerapandi", "periyasemur", "villarasampatti",
+    "nasiyanur", "chithode", "kollampalayam", "moolapalayam",
+    "solar", "vadugapatti", "avalpoondurai",
 ]
 
 ERODE_VILLAGE_ALIASES = {
@@ -149,9 +152,10 @@ COST_KEYWORDS = {
 }
 
 CAPITAL_KEYWORDS = {
-    "en": [r"(?:have|with|available)(?:\s+\w+){0,3}\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)?",
+    "en": [r"(?:have|with|available)(?:\s+[a-zA-Z]+){0,3}\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)?",
            r"capital\s*(?:of|is|:)?\s*₹?\s*([\d,]+)", r"savings?\s*(?:of|is|:)?\s*₹?\s*([\d,]+)",
-           r"investment\s*(?:of|is|:)?\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)?"],
+           r"investment\s*(?:of|is|:)?\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lac)?",
+           r"\bi\s+have\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:rupees|rs)?\b", r"\bhave\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:rupees|rs)?\b"],
     "ta": [r"முதலீடு\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:லட்சம்|இலட்சம்)?",
            r"சேமிப்பு\s*₹?\s*([\d,]+(?:\.\d+)?)\s*(?:லட்சம்|இலட்சம்)?",
            r"([\d,]+(?:\.\d+)?)\s*லட்சம்", r"([\d,]+(?:\.\d+)?)\s*இலட்சம்"],
@@ -283,6 +287,25 @@ def extract_location(text: str) -> dict:
             if alias in text:
                 result["village"] = canonical
                 break
+    # Generic fallback: capture any word preceding a known block/district as village
+    # e.g. "thindal erode", "restaurant in thindal, erode" -> village=Thindal
+    if not result["village"] and result["district"]:
+        # look for "<village> <district>" or "<village>, <district>"
+        m = re.search(r'\b([a-zA-Z]{3,20})\s*,?\s*' + re.escape(result["district"].lower()) + r'\b', text_lower)
+        if m:
+            candidate = m.group(1).strip().lower()
+            # Exclude common stopwords/business keywords and known blocks/districts
+            stopwords = {"in", "at", "near", "village", "town", "block", "district", "erode", "perundurai", "bhavani", "gobichettipalayam", "sathyamangalam", "anthiyur", "nambiyur", "modakkurichi", "restaurant", "hotel", "shop", "store", "dairy", "poultry", "grocery", "textile", "agriculture", "open", "planning", "have", "rupees", "this", "and", "with", "for"}
+            if candidate not in stopwords and candidate not in ERODE_BLOCKS and candidate not in ["tamil", "nadu", "chennai", "coimbatore", "madurai", "salem", "tiruppur", "trichy"]:
+                result["village"] = candidate.title()
+    # Also handle "<village> <block>" when block != district (e.g. "thindal perundurai")
+    if not result["village"] and result["block"]:
+        m2 = re.search(r'\b([a-zA-Z]{3,20})\s*,?\s*' + re.escape(result["block"].lower()) + r'\b', text_lower)
+        if m2:
+            candidate = m2.group(1).strip().lower()
+            stopwords2 = {"in", "at", "near", "village", "town", "restaurant", "hotel", "shop", "have", "rupees", "planning", "open"}
+            if candidate not in stopwords2 and candidate not in ERODE_BLOCKS:
+                result["village"] = candidate.title()
 
     # Infer district/state from block if block is known Erode block
     if result["block"] and not result["district"]:

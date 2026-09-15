@@ -47,7 +47,7 @@ export function Simulator() {
           className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
           data-testid="sim-skip"
         >
-          Skip →
+          {tr('marketGoOn', lang)}
         </button>
       </div>
 
@@ -65,10 +65,10 @@ export function Simulator() {
           <div className="flex items-center justify-between">
             <CardHeader title={tr('outcome', lang)} />
             <div className="flex gap-1">
-              <button data-testid="chart-line" onClick={()=>setChartMode('line')} className={`rounded-lg px-2 py-1 text-xs ${chartMode==='line'?'bg-brand-600 text-white':'bg-slate-100 text-slate-600'}`}>Line</button>
-              <button data-testid="chart-bar" onClick={()=>setChartMode('bar')} className={`rounded-lg px-2 py-1 text-xs ${chartMode==='bar'?'bg-brand-600 text-white':'bg-slate-100 text-slate-600'}`}>Bar</button>
-              <button data-testid="save-scenario" onClick={()=>setScenarioB({ loan, rate, years })} className="rounded-lg bg-amber-500 px-2 py-1 text-xs font-semibold text-white">Save Scenario</button>
-              <button data-testid="export-sim" onClick={()=>downloadCSV(`simulator-${Date.now()}.csv`, [['Month','Payment','Interest','Principal','Balance'], ...rows.slice(0,12).map(r=>[r.month,r.payment,r.interest,r.principal,r.balance])])} className="rounded-lg border border-slate-200 px-2 py-1 text-xs">CSV</button>
+              <button data-testid="chart-line" onClick={()=>setChartMode('line')} className={`rounded-lg px-2 py-1 text-xs ${chartMode==='line'?'bg-brand-600 text-white':'bg-slate-100 text-slate-600'}`}>{tr('simLine', lang)}</button>
+              <button data-testid="chart-bar" onClick={()=>setChartMode('bar')} className={`rounded-lg px-2 py-1 text-xs ${chartMode==='bar'?'bg-brand-600 text-white':'bg-slate-100 text-slate-600'}`}>{tr('simBar', lang)}</button>
+              <button data-testid="save-scenario" onClick={()=>setScenarioB({ loan, rate, years })} className="rounded-lg bg-amber-500 px-2 py-1 text-xs font-semibold text-white">{tr('simSaveScenario', lang)}</button>
+              <button data-testid="export-sim" onClick={()=>downloadCSV(`simulator-${Date.now()}.csv`, [['Month','Payment','Interest','Principal','Balance'], ...rows.slice(0,12).map(r=>[r.month,r.payment,r.interest,r.principal,r.balance])])} className="rounded-lg border border-slate-200 px-2 py-1 text-xs">{tr('simCsv', lang)}</button>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
@@ -78,14 +78,14 @@ export function Simulator() {
           </div>
           {affordable !== null && (
             <div data-testid="affordability" className={`mt-3 rounded-xl px-3 py-2 text-xs font-semibold ${affordable ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-red-50 text-red-700 ring-1 ring-red-200'}`}>
-              {affordable ? `✅ Affordable — EMI fits within surplus ₹${formatINR(surplus)}` : `⚠️ EMI exceeds surplus ₹${formatINR(surplus)} — consider lower loan or longer tenure`}
+              {affordable ? `✅ ${interpolate(tr('simAffordable', lang), { surplus: formatINR(surplus) })}` : `⚠️ ${interpolate(tr('simEmiExceeds', lang), { surplus: formatINR(surplus) })}`}
             </div>
           )}
           {scenarioB && (
             <div data-testid="scenario-compare" className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-2 text-xs">
-              <div className="font-semibold text-amber-800">Scenario B: loan ₹{formatINR(scenarioB.loan)} @ {scenarioB.rate}% for {scenarioB.years}y</div>
-              <div className="text-amber-700">Diff EMI: ₹{formatINR(Math.abs(emi(scenarioB.loan, scenarioB.rate, scenarioB.years*12) - monthlyEmi))} {emi(scenarioB.loan, scenarioB.rate, scenarioB.years*12) > monthlyEmi ? 'higher' : 'lower'}</div>
-              <button onClick={()=>setScenarioB(null)} className="mt-1 text-[11px] text-amber-700 underline">Clear</button>
+              <div className="font-semibold text-amber-800">{interpolate(tr('simScenarioB', lang), { loan: formatINR(scenarioB.loan), rate: scenarioB.rate, years: scenarioB.years })}</div>
+              <div className="text-amber-700">{interpolate(tr('simDiffEmi', lang), { amount: formatINR(Math.abs(emi(scenarioB.loan, scenarioB.rate, scenarioB.years*12) - monthlyEmi)), direction: emi(scenarioB.loan, scenarioB.rate, scenarioB.years*12) > monthlyEmi ? tr('simHigher', lang) : tr('simLower', lang) })}</div>
+              <button onClick={()=>setScenarioB(null)} className="mt-1 text-[11px] text-amber-700 underline">{tr('simClear', lang)}</button>
             </div>
           )}
           <div className="mt-5" data-testid="sim-chart">
