@@ -85,12 +85,6 @@ export function Dashboard() {
                 </ul>
               </div>
             ): null}
-            {v.decision === 'AVOID' && (
-              <div className="mt-4 flex flex-wrap gap-3">
-                <a href="/analyze" className="rounded-xl bg-brand-600 px-6 py-3 text-sm font-bold text-white hover:bg-brand-700 shadow">{tr('goToAnalyzeChange', lang)}</a>
-                <a href="/" className="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">{tr('exitLabel', lang)}</a>
-              </div>
-            )}
             <div className="mt-4 border-t border-gray-100 pt-4 dark:border-slate-700/50">
               <div className="text-sm font-semibold text-gray-900 dark:text-white">{tr('wantToTryDifferent', lang)}</div>
               <div className="mt-3 flex flex-wrap gap-2">
